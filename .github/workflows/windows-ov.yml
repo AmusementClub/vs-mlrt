@@ -1,0 +1,59 @@
+name: Build (Windows-OV)
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+
+    defaults:
+      run:
+        shell: cmd
+        working-directory: vsov
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 1
+
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Setup Ninja
+      run: pip install ninja
+
+    - name: Download VapourSynth headers
+      run: |
+        curl -s -o vs.zip -L https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R54.zip
+        unzip -q vs.zip
+        mv vapoursynth-*/ vapoursynth/
+
+    - name: Download OpenVINO Runtime Precompilation
+      run: |
+        curl -s -o openvino.zip -LJO https://github.com/AmusementClub/openvino/releases/latest/download/openvino-cpu-win64.zip
+        unzip -q openvino.zip
+
+    - name: Configure
+      run: cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
+        -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+        -D InferenceEngine_DIR=openvino/runtime/cmake
+        -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
+
+    - name: Build
+      run: cmake --build build --verbose
+
+    - name: Install
+      run: |
+        cmake --install build --prefix install
+        mkdir artifact
+        copy openvino\runtime\3rdparty\tbb\bin\tbb.dll artifact\
+        copy install\bin\vsov.dll artifact\
+
+    - name: Upload
+      uses: actions/upload-artifact@v2
+      with:
+        name: VSOV-Windows-x64
+        path: vsov/artifact
+        retention-days: 1
