@@ -1,12 +1,12 @@
 #include <array>
 #include <cstdint>
-#include <cstdlib>
 #include <memory>
 #include <optional>
 #include <string>
 #include <thread>
 #include <unordered_map>
 #include <variant>
+#include <vector>
 
 #include <VapourSynth.h>
 #include <VSHelper.h>
@@ -25,13 +25,14 @@ static inline std::wstring translateName(const char *name) noexcept {
 #endif
 
 using namespace std::string_literals;
-using namespace InferenceEngine;
 
 
 static std::array<int, 4> getShape(
-    const InferenceEngine::ExecutableNetwork & network, bool input
+    const InferenceEngine::ExecutableNetwork & network,
+    bool input
 ) noexcept {
-    SizeVector dims;
+
+    InferenceEngine::SizeVector dims;
 
     if (input) {
         dims = network.GetInputsInfo().cbegin()->second->getTensorDesc().getDims();
@@ -47,6 +48,8 @@ static std::array<int, 4> getShape(
     return ret;
 }
 
+
+[[nodiscard]]
 static std::optional<std::string> specifyShape(
     InferenceEngine::CNNNetwork & network,
     size_t block_w,
@@ -57,7 +60,7 @@ static std::optional<std::string> specifyShape(
     const auto & input_name = network.getInputsInfo().cbegin()->first;
     size_t channels = network.getInputShapes().cbegin()->second[1];
 
-    ICNNNetwork::InputShapes shape {{
+    InferenceEngine::ICNNNetwork::InputShapes shape {{
         input_name,
         { batch, channels, block_h, block_w }
     }};
@@ -71,49 +74,126 @@ static std::optional<std::string> specifyShape(
     return {};
 }
 
-static std::optional<std::string> checkNetwork(
-    const ExecutableNetwork & network,
-    const VSVideoInfo * vi,
-    bool augmented
+
+static int numPlanes(
+    const std::vector<const VSVideoInfo *> & vis
 ) noexcept {
 
-    const auto & input_info = network.GetInputsInfo();
-    if (auto num_inputs = std::size(input_info); num_inputs != 1) {
-        return "input count must be 1, got " + std::to_string(num_inputs);
+    int num_planes = 0;
+
+    for (const auto & vi : vis) {
+        num_planes += vi->format->numPlanes;
     }
 
-    for (const auto & [_, info] : input_info) {
-        if (info->getPrecision() != Precision::FP32) {
-            return "expect clip with type fp32";
+    return num_planes;
+}
+
+
+[[nodiscard]]
+static std::optional<std::string> checkNodes(
+    const std::vector<const VSVideoInfo *> & vis
+) noexcept {
+
+    for (const auto & vi : vis) {
+        if (vi->format->sampleType != stFloat || vi->format->bitsPerSample != 32) {
+            return "expects clip with type fp32";
         }
 
-        const auto & desc = info->getTensorDesc();
-        if (desc.getLayout() != Layout::NCHW) {
-            return "expect input with layout nchw";
-        }
-        const auto & dims = desc.getDims();
-        if (dims.size() != 4) {
-            return "expect 4-D input";
-        }
-        if (dims[0] != 1) {
-            return "batch size must be 1";
-        }
-        if (dims[1] != 1 + augmented) {
-            if (dims[1] != 3 + augmented) {
-                return "unknown channels count " + std::to_string(dims[1]);
-            }
-
-            if (vi->format->numPlanes != 3) {
-                return "clip does not have enough planes";
-            }
-            if (vi->format->subSamplingW || vi->format->subSamplingH) {
-                return "clip must not be sub-sampled";
-            }
+        if (vi->width != vis[0]->width || vi->height != vis[0]->height) {
+            return "dimensions of clips mismatch";
         }
 
-        if (dims[2] > vi->height || dims[3] > vi->width) {
-            return "patch size larger than clip dimension";
+        if (vi->numFrames != vis[0]->numFrames) {
+            return "number of frames mismatch";
         }
+
+        if (vi->format->subSamplingH != 0 || vi->format->subSamplingW != 0) {
+            return "clip must not be sub-sampled";
+        }
+    }
+
+    return {};
+}
+
+
+template <typename T>
+[[nodiscard]]
+static std::optional<std::string> checkIOInfo(
+    const T & info
+) noexcept {
+
+    if (info->getPrecision() != InferenceEngine::Precision::FP32) {
+        return "expects network IO with type fp32";
+    }
+    const auto & desc = info->getTensorDesc();
+    if (desc.getLayout() != InferenceEngine::Layout::NCHW) {
+        return "expects network IO with layout NCHW";
+    }
+    const auto & dims = desc.getDims();
+    if (dims.size() != 4) {
+        return "expects network with 4-D IO";
+    }
+    if (dims[0] != 1) {
+        return "batch size of network must be 1";
+    }
+
+    return {};
+}
+
+
+[[nodiscard]]
+static std::optional<std::string> checkNetwork(
+    const InferenceEngine::CNNNetwork & network
+) noexcept {
+
+    const auto & inputs_info = network.getInputsInfo();
+
+    if (auto num_inputs = std::size(inputs_info); num_inputs != 1) {
+        return "network input count must be 1, got " + std::to_string(num_inputs);
+    }
+
+    const auto & input_info = inputs_info.cbegin()->second;
+    if (auto err = checkIOInfo(input_info); err.has_value()) {
+        return err.value();
+    }
+
+    const auto & outputs_info = network.getOutputsInfo();
+
+    if (auto num_outputs = std::size(outputs_info); num_outputs != 1) {
+        return "network output count must be 1, got " + std::to_string(num_outputs);
+    }
+
+    const auto & output_info = outputs_info.cbegin()->second;
+    if (auto err = checkIOInfo(output_info); err.has_value()) {
+        return err.value();
+    }
+
+    return {};
+}
+
+
+[[nodiscard]]
+static std::optional<std::string> checkNodesAndNetwork(
+    const InferenceEngine::ExecutableNetwork & network,
+    const std::vector<const VSVideoInfo *> & vis
+) noexcept {
+
+    const auto & network_in_dims = (
+        network.GetInputsInfo().cbegin()->second->getTensorDesc().getDims()
+    );
+
+    int network_in_channels = static_cast<int>(network_in_dims[1]);
+    int num_planes = numPlanes(vis);
+    if (network_in_channels != num_planes) {
+        return "expects " + std::to_string(network_in_channels) + " input planes";
+    }
+
+    auto network_in_height = network_in_dims[2];
+    auto network_in_width = network_in_dims[3];
+    auto clip_in_height = vis.front()->height;
+    auto clip_in_width = vis.front()->width;
+    if (network_in_height > clip_in_height || network_in_width > clip_in_width) {
+        return "block size larger than clip dimension";
     }
 
     return {};
@@ -134,10 +214,9 @@ static void setDimensions(
 
 
 struct OVData {
-    VSNodeRef * node;
+    std::vector<VSNodeRef *> nodes;
     std::unique_ptr<VSVideoInfo> out_vi;
 
-    bool augmented;
     int pad;
 
     InferenceEngine::Core core;
@@ -146,14 +225,16 @@ struct OVData {
 
     std::string input_name;
     std::string output_name;
-
-    float sigma;
 };
 
 
 static void VS_CC vsOvInit(
-    VSMap *in, VSMap *out, void **instanceData, VSNode *node,
-    VSCore *core, const VSAPI *vsapi
+    VSMap *in,
+    VSMap *out,
+    void **instanceData,
+    VSNode *node,
+    VSCore *core,
+    const VSAPI *vsapi
 ) noexcept {
 
     OVData * d = static_cast<OVData *>(*instanceData);
@@ -162,29 +243,63 @@ static void VS_CC vsOvInit(
 
 
 static const VSFrameRef *VS_CC vsOvGetFrame(
-    int n, int activationReason, void **instanceData, void **frameData,
-    VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi
+    int n,
+    int activationReason,
+    void **instanceData,
+    void **frameData,
+    VSFrameContext *frameCtx,
+    VSCore *core,
+    const VSAPI *vsapi
 ) noexcept {
 
     OVData * d = static_cast<OVData *>(*instanceData);
 
     if (activationReason == arInitial) {
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
+        for (const auto & node : d->nodes) {
+            vsapi->requestFrameFilter(n, node, frameCtx);
+        }
     } else if (activationReason == arAllFramesReady) {
-        const auto & src_frame = vsapi->getFrameFilter(n, d->node, frameCtx);
-        auto src_stride = vsapi->getStride(src_frame, 0);
-        auto src_width = vsapi->getFrameWidth(src_frame, 0);
-        auto src_height = vsapi->getFrameHeight(src_frame, 0);
-        auto src_bytes = vsapi->getFrameFormat(src_frame)->bytesPerSample;
+        std::vector<const VSVideoInfo *> in_vis;
+        in_vis.reserve(std::size(d->nodes));
+        for (const auto & node : d->nodes) {
+            in_vis.emplace_back(vsapi->getVideoInfo(node));
+        }
+
+        std::vector<const VSFrameRef *> src_frames;
+        src_frames.reserve(std::size(d->nodes));
+        for (const auto & node : d->nodes) {
+            src_frames.emplace_back(vsapi->getFrameFilter(n, node, frameCtx));
+        }
+
+        const auto set_error = [&](const std::string & error_message) {
+            vsapi->setFilterError(
+                (__func__ + ": "s + error_message).c_str(),
+                frameCtx
+            );
+
+            for (const auto & frame : src_frames) {
+                vsapi->freeFrame(frame);
+            }
+
+            return nullptr;
+        };
+
+        auto src_stride = vsapi->getStride(src_frames.front(), 0);
+        auto src_width = vsapi->getFrameWidth(src_frames.front(), 0);
+        auto src_height = vsapi->getFrameHeight(src_frames.front(), 0);
+        auto src_bytes = vsapi->getFrameFormat(src_frames.front())->bytesPerSample;
         auto src_patch_shape = getShape(d->executable_network, true);
         auto src_patch_h = src_patch_shape[2];
         auto src_patch_w = src_patch_shape[3];
         auto src_patch_w_bytes = src_patch_w * src_bytes;
         auto src_patch_bytes = src_patch_h * src_patch_w_bytes;
-        auto src_planes = src_patch_shape[1] - int(d->augmented);
-        const uint8_t * src_ptrs[3] {};
-        for (int i = 0; i < src_planes; ++i) {
-            src_ptrs[i] = vsapi->getReadPtr(src_frame, i);
+
+        std::vector<const uint8_t *> src_ptrs;
+        src_ptrs.reserve(src_patch_shape[1]);
+        for (int i = 0; i < std::size(d->nodes); ++i) {
+            for (int j = 0; j < in_vis[i]->format->numPlanes; ++j) {
+                src_ptrs.emplace_back(vsapi->getReadPtr(src_frames[i], j));
+            }
         }
 
         auto step_w = src_patch_w - 2 * d->pad;
@@ -192,7 +307,7 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
 
         VSFrameRef * const dst_frame = vsapi->newVideoFrame(
             d->out_vi->format, d->out_vi->width, d->out_vi->height,
-            src_frame, core
+            src_frames.front(), core
         );
         auto dst_stride = vsapi->getStride(dst_frame, 0);
         auto dst_bytes = vsapi->getFrameFormat(dst_frame)->bytesPerSample;
@@ -202,7 +317,7 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
         auto dst_patch_w_bytes = dst_patch_w * dst_bytes;
         auto dst_patch_bytes = dst_patch_h * dst_patch_w_bytes;
         auto dst_planes = dst_patch_shape[1];
-        uint8_t * dst_ptrs[3] {};
+        std::array<uint8_t *, 3> dst_ptrs {};
         for (int i = 0; i < dst_planes; ++i) {
             dst_ptrs[i] = vsapi->getWritePtr(dst_frame, i);
         }
@@ -214,7 +329,7 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
         if (d->infer_requests.count(thread_id) == 0) {
             d->infer_requests.emplace(thread_id, d->executable_network.CreateInferRequest());
         }
-        InferRequest & infer_request = d->infer_requests[thread_id];
+        InferenceEngine::InferRequest & infer_request = d->infer_requests[thread_id];
 
         int y = 0;
         while (true) {
@@ -227,16 +342,16 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
                 int x_pad_end = (x == src_width - src_patch_w) ? 0 : d->pad;
 
                 {
-                    Blob::Ptr input = infer_request.GetBlob(d->input_name);
+                    InferenceEngine::Blob::Ptr input = infer_request.GetBlob(d->input_name);
 
-                    auto minput = as<MemoryBlob>(input);
+                    auto minput = input->as<InferenceEngine::MemoryBlob>();
                     auto minputHolder = minput->wmap();
                     uint8_t * input_buffer = minputHolder.as<uint8_t *>();
 
-                    for (int plane = 0; plane < src_planes; ++plane) {
-                        auto src_ptr = (src_ptrs[plane] +
+                    for (const auto & _src_ptr : src_ptrs) {
+                        const uint8_t * src_ptr { _src_ptr +
                             y * src_stride + x * src_bytes
-                        );
+                        };
 
                         vs_bitblt(
                             input_buffer, src_patch_w_bytes,
@@ -246,24 +361,24 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
 
                         input_buffer += src_patch_bytes;
                     }
-
-                    if (d->augmented) {
-                        std::vector<float> data(src_patch_bytes / sizeof(float), d->sigma);
-                        memcpy(input_buffer, data.data(), src_patch_bytes);
-                    }
                 }
 
-                infer_request.Infer();
+                try {
+                    infer_request.Infer();
+                } catch (const InferenceEngine::Exception & e) {
+                    return set_error(e.what());
+                }
 
                 {
-                    Blob::CPtr output = infer_request.GetBlob(d->output_name);
+                    InferenceEngine::Blob::CPtr output = infer_request.GetBlob(d->output_name);
 
-                    auto moutput = as<const MemoryBlob>(output);
+
+                    auto moutput = output->as<const InferenceEngine::MemoryBlob>();
                     auto moutputHolder = moutput->rmap();
                     const uint8_t * output_buffer = moutputHolder.as<const uint8_t *>();
 
                     for (int plane = 0; plane < dst_planes; ++plane) {
-                        auto dst_ptr = (dst_ptrs[plane] +
+                        uint8_t * dst_ptr = (dst_ptrs[plane] +
                             h_scale * y * dst_stride + w_scale * x * dst_bytes
                         );
 
@@ -294,7 +409,10 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
             y = std::min(y + step_h, src_height - src_patch_h);
         }
 
-        vsapi->freeFrame(src_frame);
+        for (const auto & frame : src_frames) {
+            vsapi->freeFrame(frame);
+        }
+
         return dst_frame;
     }
 
@@ -303,50 +421,58 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
 
 
 static void VS_CC vsOvFree(
-    void *instanceData, VSCore *core, const VSAPI *vsapi
+    void *instanceData,
+    VSCore *core,
+    const VSAPI *vsapi
 ) noexcept {
 
     OVData * d = static_cast<OVData *>(instanceData);
 
-    vsapi->freeNode(d->node);
+    for (const auto & node : d->nodes) {
+        vsapi->freeNode(node);
+    }
 
     delete d;
 }
 
 
 static void VS_CC vsOvCreate(
-    const VSMap *in, VSMap *out, void *userData,
-    VSCore *core, const VSAPI *vsapi
+    const VSMap *in,
+    VSMap *out,
+    void *userData,
+    VSCore *core,
+    const VSAPI *vsapi
 ) noexcept {
 
     auto d { std::make_unique<OVData>() };
 
-    d->augmented = !!reinterpret_cast<intptr_t>(userData);
+    int num_nodes = vsapi->propNumElements(in, "clips");
+    d->nodes.reserve(num_nodes);
+    for (int i = 0; i < num_nodes; ++i) {
+        d->nodes.emplace_back(vsapi->propGetNode(in, "clips", i, nullptr));
+    }
 
-    d->node = vsapi->propGetNode(in, "clip", 0, nullptr);
-    d->out_vi = std::make_unique<VSVideoInfo>(*vsapi->getVideoInfo(d->node)); // mutable
-
-    auto set_error = [&](const std::string & error_message) {
+    const auto set_error = [&](const std::string & error_message) {
         vsapi->setError(out, (__func__ + ": "s + error_message).c_str());
-        vsapi->freeNode(d->node);
+        for (const auto & node : d->nodes) {
+            vsapi->freeNode(node);
+        }
     };
 
-    auto in_vi = vsapi->getVideoInfo(d->node);
-    if (in_vi->format->sampleType != stFloat || in_vi->format->bitsPerSample != 32) {
-        return set_error("only floating point formats are supported");
+    std::vector<const VSVideoInfo *> in_vis;
+    in_vis.reserve(std::size(d->nodes));
+    for (const auto & node : d->nodes) {
+        in_vis.emplace_back(vsapi->getVideoInfo(node));
     }
+
+    if (auto err = checkNodes(in_vis); err.has_value()) {
+        return set_error(err.value());
+    }
+
+    d->out_vi = std::make_unique<VSVideoInfo>(*in_vis.front()); // mutable
+
 
     int error;
-
-    float sigma {};
-    if (d->augmented) {
-        sigma = static_cast<float>(vsapi->propGetFloat(in, "sigma", 0, &error));
-        if (error) {
-            sigma = 5.0f;
-        }
-        sigma /= 255.0f;
-    }
-    d->sigma = sigma;
 
     const char * device = vsapi->propGetData(in, "device", 0, &error);
     if (error) {
@@ -357,7 +483,6 @@ static void VS_CC vsOvCreate(
     if (error) {
         d->pad = 0;
     }
-
     if (d->pad < 0) {
         return set_error("\"pad\" should be non-negative");
     }
@@ -374,6 +499,10 @@ static void VS_CC vsOvCreate(
             return set_error("Standard exception from compilation library: "s + e.what());
         }
 
+        if (auto err = checkNetwork(network); err.has_value()) {
+            return set_error(err.value());
+        }
+
         {
             int error1, error2;
             size_t block_w = static_cast<size_t>(vsapi->propGetInt(in, "block_w", 0, &error1));
@@ -384,9 +513,17 @@ static void VS_CC vsOvCreate(
                     block_h = block_w;
                 }
             } else {
+                if (d->pad != 0) {
+                    return set_error("\"block_w\" must be specified");
+                }
+
                 // set block size to video dimensions
-                block_w = in_vi->width;
-                block_h = in_vi->height;
+                block_w = in_vis.front()->width;
+                block_h = in_vis.front()->height;
+            }
+
+            if (block_w - 2 * d->pad <= 0 || block_h - 2 * d->pad <= 0) {
+                return set_error("\"pad\" too large");
             }
 
             if (auto err = specifyShape(network, block_w, block_h); err.has_value()) {
@@ -396,7 +533,7 @@ static void VS_CC vsOvCreate(
 
         d->executable_network = d->core.LoadNetwork(network, device);
 
-        if (auto err = checkNetwork(d->executable_network, in_vi, d->augmented); err.has_value()) {
+        if (auto err = checkNodesAndNetwork(d->executable_network, in_vis); err.has_value()) {
             return set_error(err.value());
         }
 
@@ -410,24 +547,18 @@ static void VS_CC vsOvCreate(
         d->infer_requests.reserve(core_info.numThreads);
     }
 
-    if (d->augmented) {
-        vsapi->createFilter(
-            in, out, "AugmentedModel",
-            vsOvInit, vsOvGetFrame, vsOvFree,
-            fmParallel, 0, d.release(), core
-        );
-    } else {
-        vsapi->createFilter(
-            in, out, "Model",
-            vsOvInit, vsOvGetFrame, vsOvFree,
-            fmParallel, 0, d.release(), core
-        );
-    }
+    vsapi->createFilter(
+        in, out, "Model",
+        vsOvInit, vsOvGetFrame, vsOvFree,
+        fmParallel, 0, d.release(), core
+    );
 }
 
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(
-    VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin
+    VSConfigPlugin configFunc,
+    VSRegisterFunction registerFunc,
+    VSPlugin *plugin
 ) noexcept {
 
     configFunc(
@@ -436,27 +567,14 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     );
 
     registerFunc("Model",
-        "clip:clip;"
+        "clips:clip[];"
         "network_path:data;"
         "pad:int:opt;"
         "block_w:int:opt;"
         "block_h:int:opt;"
         "device:data:opt;" // "CPU": CPU
-        ,vsOvCreate,
-        reinterpret_cast<void *>(intptr_t(false)), // not augmented
-        plugin
-    );
-
-    registerFunc("AugmentedModel",
-        "clip:clip;"
-        "network_path:data;"
-        "sigma:float:opt;"
-        "pad:int:opt;"
-        "block_w:int:opt;"
-        "block_h:int:opt;"
-        "device:data:opt;"
-        ,vsOvCreate,
-        reinterpret_cast<void *>(intptr_t(true)), // augmented
+        , vsOvCreate,
+        nullptr,
         plugin
     );
 }
