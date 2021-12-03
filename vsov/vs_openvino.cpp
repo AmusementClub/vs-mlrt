@@ -431,18 +431,18 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
 ) noexcept {
 
     configFunc(
-        "com.amusementclub.vs_openvino", "ov", "OpenVINO wrapper",
+        "io.github.amusementclub.vs_openvino", "ov", "OpenVINO ML Filter Runtime",
         VAPOURSYNTH_API_VERSION, 1, plugin
     );
 
     registerFunc("Model",
         "clip:clip;"
         "network_path:data;"
-        "device:data:opt;" // "CPU": CPU
         "pad:int:opt;"
         "block_w:int:opt;"
-        "block_h:int:opt;",
-        vsOvCreate,
+        "block_h:int:opt;"
+        "device:data:opt;" // "CPU": CPU
+        ,vsOvCreate,
         reinterpret_cast<void *>(intptr_t(false)), // not augmented
         plugin
     );
@@ -451,11 +451,11 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "clip:clip;"
         "network_path:data;"
         "sigma:float:opt;"
-        "device:data:opt;"
         "pad:int:opt;"
         "block_w:int:opt;"
-        "block_h:int:opt;",
-        vsOvCreate,
+        "block_h:int:opt;"
+        "device:data:opt;"
+        ,vsOvCreate,
         reinterpret_cast<void *>(intptr_t(true)), // augmented
         plugin
     );
