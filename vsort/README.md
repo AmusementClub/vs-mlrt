@@ -11,6 +11,10 @@ Or, you can use our prebuilt Windows binary releases from [AmusementClub](https:
 
 Please refer to our [github actions workflow](../.github/workflows/windows-ort.yml) for sample building instructions.
 
+If you only use the CPU backend, then you just need to extract binary release into your `vapoursynth/plugins` directory.
+
+However, if you also use the CUDA backend, you will need to download some CUDA libraries as well, please see the release page for details. Those CUDA libraries also need to be extracted into VS `vapoursynth/plugins` directory. The plugin will try to load them from `vapoursynth/plugins/vsort/` directory or `vapoursynth/plugins/vsmlrt-cuda/` directory.
+
 ## Usage
 
 Prototype: `core.ort.Model(clip[] clips, string network_path[, int pad = 0, int block_w = 0, int block_h = 0, string provider = "", int device_id = 0, int verbosity = 2])`
