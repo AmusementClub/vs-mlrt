@@ -15,3 +15,13 @@ with Intel GPU support planned in the future.
 To install, download the latest release and extract them into your VS `plugins` directory.
 
 Please visit the [vsov](vsov) directory for details.
+
+## vsort: ONNX Runtime-based CPU/GPU Runtime
+
+[ONNX Runtime](https://onnxruntime.ai/) is an AI inference runtime with many backends.
+
+The vs-onnxruntime plugin provides optimized CPU and CUDA GPU runtime for some popular AI filters.
+
+To install, download the latest release and extract them into your VS `plugins` directory.
+
+Please visit the [vsort](vsort) directory for details.
