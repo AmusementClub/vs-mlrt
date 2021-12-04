@@ -1,0 +1,72 @@
+name: Upload vs-ort-cuda dependencies
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'which tag to upload to'
+        required: true
+        default: 'v100'
+
+jobs:
+  build-windows:
+    runs-on: windows-2019
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    # Note: unfortunately, cuDNN download requires registration and according to its license
+    # agreements, we can only redistribute it along with an application that uses it, so we
+    # have to use a private repository to hold a copy of the library.
+    - name: Download cuDNN inference library
+      run: |
+        # https://stackoverflow.com/questions/20396329/how-to-download-github-release-from-private-repo-using-command-line/35688093#35688093
+
+        tag=cudnn-8.2.4-Inference
+        name=cudnn.7z
+
+        AUTH="Authorization: token ${{ secrets.REPO_TOKEN }}"
+        response=$(curl -sH "$AUTH" https://api.github.com/repos/AmusementClub/cuda/releases/tags/$tag)
+        eval $(echo "$response" | grep -C3 "name.:.\+$NAME" | grep -w id | tr : = | tr -cd '[[:alnum:]]=')
+        [ "$id" ] || { echo "Error: Failed to get asset id, response: $response" | awk 'length($0)<100' >&2; exit 1; }
+        ASSET="https://api.github.com/repos/AmusementClub/cuda/releases/assets/$id"
+        curl -LJO -H "$AUTH" -H 'Accept: application/octet-stream' "$ASSET"
+
+    - name: Extract cuDNN library
+      run: 7z x cudnn.7z
+
+    - name: Move cuDNN library
+      run: mv cudnn/bin vsmlrt-cuda
+
+    - name: Download CUDA Libraries
+      shell: cmd
+      run: |
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.4.3/network_installers/cuda_11.4.3_win10_network.exe
+        cuda_installer.exe -s cudart_11.4 cublas_11.4 cufft_11.4 cupti_11.4
+
+    - name: Move CUDA Libraries
+      shell: cmd
+      run: |
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4\bin\*.dll" vsmlrt-cuda
+
+    - name: Compress
+      run: |
+        7z a -t7z -mx=3 vsmlrt-cuda.7z vsmlrt-cuda
+
+    - name: Upload
+      uses: actions/upload-artifact@v2
+      with:
+        name: vsmlrt-cuda-CUDA_11.4.3-cuDNN-8.2.4
+        path: vsmlrt-cuda.7z
+        retention-days: 1
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.tag }}
+        files: vsmlrt-cuda.7z
+        fail_on_unmatched_files: true
+        generate_release_notes: false
