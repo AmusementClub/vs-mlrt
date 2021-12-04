@@ -24,7 +24,8 @@ cmake --build build
 cmake --install build --prefix install
 ```
 You should find `vsov.dll` (or libvsov.so) under `install/bin`. You will also need Intel TBB (you can get
-`tbb.dll` from OpenVINO release).
+`tbb.dll` from OpenVINO release). On windows, `tbb.dll` must be placed under `vapoursynth/plugins/vsov/`
+directory for `vsov.dll` to find.
 
 ## Usage
 

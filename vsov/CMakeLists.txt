@@ -6,7 +6,7 @@ set(VAPOURSYNTH_INCLUDE_DIRECTORY "" CACHE PATH "Path to VapourSynth headers")
 
 find_package(InferenceEngine REQUIRED)
 
-add_library(vsov SHARED vs_openvino.cpp)
+add_library(vsov SHARED vs_openvino.cpp win32.cpp)
 
 target_include_directories(vsov PRIVATE 
     ${VAPOURSYNTH_INCLUDE_DIRECTORY}
@@ -20,6 +20,10 @@ set_target_properties(vsov PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
+
+if (WIN32)
+    target_link_options(vsov PRIVATE "/DELAYLOAD:tbb.dll" "delayimp.lib")
+endif()
 
 install(TARGETS vsov
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

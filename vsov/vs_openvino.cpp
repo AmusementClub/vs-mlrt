@@ -17,8 +17,8 @@
 #include <locale>
 #include <codecvt>
 static inline std::wstring translateName(const char *name) noexcept {
-	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-	return converter.from_bytes(name);
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    return converter.from_bytes(name);
 }
 #else
 #define translateName(n) (n)

@@ -48,7 +48,8 @@ jobs:
       run: |
         cmake --install build --prefix install
         mkdir artifact
-        copy openvino\runtime\3rdparty\tbb\bin\tbb.dll artifact\
+        mkdir artifact\vsov
+        copy openvino\runtime\3rdparty\tbb\bin\tbb.dll artifact\vsov\
         copy install\bin\vsov.dll artifact\
 
     - name: Upload
