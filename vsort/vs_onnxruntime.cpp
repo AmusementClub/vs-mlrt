@@ -673,9 +673,9 @@ static void VS_CC vsOrtCreate(
                 cuda_options.device_id = device_id;
 
                 #if ORT_API_VERSION >= 10
-                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchHeuristic; // TODO: make an option
+                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive; // TODO: make an option
                 #else
-                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearch::Heuristic;
+                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearch::Exhaustive;
                 #endif
 
                 checkError(ortapi->SessionOptionsAppendExecutionProvider_CUDA(
