@@ -1,6 +1,11 @@
 name: Build (Windows-OV)
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    paths:
+      - 'vsov/**'
+      - '.github/workflows/windows-ov.yml'
+  workflow_dispatch:
 
 jobs:
   build-windows:

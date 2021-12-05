@@ -1,6 +1,11 @@
 name: Build (Windows-ORT)
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    paths:
+      - 'vsort/**'
+      - '.github/workflows/windows-ort.yml'
+  workflow_dispatch:
 
 jobs:
   build-windows:
