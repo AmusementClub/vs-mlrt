@@ -271,19 +271,6 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
             src_frames.emplace_back(vsapi->getFrameFilter(n, node, frameCtx));
         }
 
-        const auto set_error = [&](const std::string & error_message) {
-            vsapi->setFilterError(
-                (__func__ + ": "s + error_message).c_str(),
-                frameCtx
-            );
-
-            for (const auto & frame : src_frames) {
-                vsapi->freeFrame(frame);
-            }
-
-            return nullptr;
-        };
-
         auto src_stride = vsapi->getStride(src_frames.front(), 0);
         auto src_width = vsapi->getFrameWidth(src_frames.front(), 0);
         auto src_height = vsapi->getFrameHeight(src_frames.front(), 0);
@@ -330,6 +317,21 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
             d->infer_requests.emplace(thread_id, d->executable_network.CreateInferRequest());
         }
         InferenceEngine::InferRequest & infer_request = d->infer_requests[thread_id];
+
+        const auto set_error = [&](const std::string & error_message) {
+            vsapi->setFilterError(
+                (__func__ + ": "s + error_message).c_str(),
+                frameCtx
+            );
+
+            vsapi->freeFrame(dst_frame);
+
+            for (const auto & frame : src_frames) {
+                vsapi->freeFrame(frame);
+            }
+
+            return nullptr;
+        };
 
         int y = 0;
         while (true) {
