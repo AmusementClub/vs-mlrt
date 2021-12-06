@@ -17,7 +17,7 @@ However, if you also use the CUDA backend, you will need to download some CUDA l
 
 ## Usage
 
-Prototype: `core.ort.Model(clip[] clips, string network_path[, int pad = 0, int block_w = 0, int block_h = 0, string provider = "", int device_id = 0, int verbosity = 2])`
+Prototype: `core.ort.Model(clip[] clips, string network_path[, int pad = 0, int block_w = 0, int block_h = 0, string provider = "", int num_streams = 1, int device_id = 0, int verbosity = 2, bool cudnn_benchmark = True])`
 
 Arguments:
  - `clip[] clips`: the input clips, only 32-bit floating point RGB or GRAY clips are supported. For model specific input requirements, please consult our [wiki](https://github.com/AmusementClub/vs-mlrt/wiki).
@@ -28,6 +28,7 @@ Arguments:
  - `string provider`: Specifies the device to run the inference on.
    - `"CPU"` or `""`: pure CPU backend
    - `"CUDA"`: CUDA GPU backend
+ - `int num_streams`: specify the number of concurrent compute streams.
  - `int device_id`: select the GPU device for the CUDA backend.
  - `int verbosity`: specify the verbosity of logging, the default is warning.
    - 0: fatal error only, `ORT_LOGGING_LEVEL_FATAL`
@@ -35,6 +36,7 @@ Arguments:
    - 2: also warnings, `ORT_LOGGING_LEVEL_WARNING`
    - 3: also info, `ORT_LOGGING_LEVEL_INFO`
    - 4: everything, `ORT_LOGGING_LEVEL_VERBOSE`
+ - `bool cudnn_benchmark`: if `provider` is `"CUDA"`, benchmark multiple convolution algorithms and select the fastest.
 
 When `pad = 0` (which is the default), the filter will internally try to resize the network to fit the input clips. This might not always work (for example, the network might require the width to be divisible by 8), and the filter will error out in this case.
 
