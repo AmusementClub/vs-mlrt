@@ -118,7 +118,7 @@ jobs:
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
         curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.4.3/network_installers/cuda_11.4.3_win10_network.exe
-        cuda_installer.exe -s cudart_11.4
+        cuda_installer.exe -s nvcc_11.4 cudart_11.4
 
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
