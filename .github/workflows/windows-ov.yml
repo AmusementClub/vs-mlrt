@@ -62,4 +62,3 @@ jobs:
       with:
         name: VSOV-Windows-x64
         path: vsov/artifact
-        retention-days: 1
