@@ -1,4 +1,5 @@
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <fstream>
 #include <iterator>
@@ -13,6 +14,17 @@
 #include <onnx/proto_utils.h>
 #include <onnxruntime_c_api.h>
 
+#ifdef ENABLE_CUDA
+#include <cuda_runtime.h>
+
+#define checkCUDAError(expr) do {                                              \
+    if (cudaError_t result = expr; result != cudaSuccess) {                    \
+        const char * error_str = cudaGetErrorString(result);                   \
+        return set_error("'"s + # expr + "' failed: " + error_str);            \
+    }                                                                          \
+} while(0)
+#endif // ENABLE_CUDA
+
 #include <VapourSynth.h>
 #include <VSHelper.h>
 
@@ -25,6 +37,12 @@ static inline std::wstring translateName(const char *name) noexcept {
 }
 #else
 #define translateName(n) (n)
+#endif // _WIN32
+
+#if not __cpp_lib_atomic_wait
+#include <chrono>
+#include <thread>
+using namespace std::chrono_literals;
 #endif
 
 #define checkError(expr) do {                                                  \
@@ -37,7 +55,6 @@ static inline std::wstring translateName(const char *name) noexcept {
 } while(0)
 
 using namespace std::string_literals;
-
 
 static const OrtApi * ortapi = nullptr;
 
@@ -114,8 +131,7 @@ static void specifyShape(
     onnx::TensorShapeProto * input_shape {
         model
             .mutable_graph()
-            ->mutable_input()
-            ->begin()
+            ->mutable_input(0)
             ->mutable_type()
             ->mutable_tensor_type()
             ->mutable_shape()
@@ -123,8 +139,7 @@ static void specifyShape(
     onnx::TensorShapeProto * output_shape {
         model
             .mutable_graph()
-            ->mutable_output()
-            ->begin()
+            ->mutable_output(0)
             ->mutable_type()
             ->mutable_tensor_type()
             ->mutable_shape()
@@ -327,6 +342,58 @@ static void setDimensions(
     vi->width *= output_shape[3] / input_shape[3];
 }
 
+struct TicketSemaphore {
+    std::atomic<intptr_t> ticket {};
+    std::atomic<intptr_t> current {};
+
+    void acquire() noexcept {
+        intptr_t tk { ticket.fetch_add(1, std::memory_order_acquire) };
+        while (true) {
+            intptr_t curr { current.load(std::memory_order_acquire) };
+            if (tk <= curr) {
+                return;
+            }
+#if __cpp_lib_atomic_wait
+            current.wait(curr, std::memory_order::relaxed);
+#else // __cpp_lib_atomic_wait
+            std::this_thread::sleep_for(10ms);
+#endif // __cpp_lib_atomic_wait
+        }
+    }
+
+    void release() noexcept {
+        current.fetch_add(1, std::memory_order_release);
+#if __cpp_lib_atomic_wait
+        current.notify_all();
+#endif // __cpp_lib_atomic_wait
+    }
+};
+
+enum class Backend {
+    CPU = 0,
+    CUDA = 1
+};
+
+#ifdef ENABLE_CUDA
+struct CUDA_Resource_t {
+    uint8_t * h_data;
+    uint8_t * d_data;
+    size_t size;
+};
+#endif // ENABLE_CUDA
+
+struct Resource {
+    OrtSession * session;
+    OrtValue * input_tensor;
+    OrtValue * output_tensor;
+    OrtIoBinding * binding;
+
+#ifdef ENABLE_CUDA
+    cudaStream_t stream;
+    CUDA_Resource_t input;
+    CUDA_Resource_t output;
+#endif // ENABLE_CUDA
+};
 
 struct vsOrtData {
     std::vector<VSNodeRef *> nodes;
@@ -335,12 +402,34 @@ struct vsOrtData {
     int pad;
 
     OrtEnv * environment;
-    OrtSession * session;
-    OrtValue * input_tensor;
-    OrtValue * output_tensor;
+    Backend backend;
 
-    char * input_name;
-    char * output_name;
+#ifdef ENABLE_CUDA
+    int device_id;
+#endif // ENABLE_CUDA
+
+    std::vector<Resource> resources;
+    std::vector<int> tickets;
+    std::mutex ticket_lock;
+    TicketSemaphore semaphore;
+
+    int acquire() noexcept {
+        semaphore.acquire();
+        {
+            std::lock_guard<std::mutex> lock(ticket_lock);
+            int ticket = tickets.back();
+            tickets.pop_back();
+            return ticket;
+        }
+    }
+
+    void release(int ticket) noexcept {
+        {
+            std::lock_guard<std::mutex> lock(ticket_lock);
+            tickets.push_back(ticket);
+        }
+        semaphore.release();
+    }
 };
 
 
@@ -391,7 +480,18 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
         auto src_width = vsapi->getFrameWidth(src_frames.front(), 0);
         auto src_height = vsapi->getFrameHeight(src_frames.front(), 0);
         auto src_bytes = vsapi->getFrameFormat(src_frames.front())->bytesPerSample;
-        auto src_patch_shape = std::get<std::array<int64_t, 4>>(getShape(d->session, true));
+
+        VSFrameRef * const dst_frame = vsapi->newVideoFrame(
+            d->out_vi->format, d->out_vi->width, d->out_vi->height,
+            src_frames.front(), core
+        );
+        auto dst_stride = vsapi->getStride(dst_frame, 0);
+        auto dst_bytes = vsapi->getFrameFormat(dst_frame)->bytesPerSample;
+
+        auto ticket = d->acquire();
+        Resource & resource = d->resources[ticket];
+
+        auto src_patch_shape = std::get<std::array<int64_t, 4>>(getShape(resource.session, true));
         auto src_patch_h = src_patch_shape[2];
         auto src_patch_w = src_patch_shape[3];
         auto src_patch_w_bytes = src_patch_w * src_bytes;
@@ -408,13 +508,7 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
         auto step_w = src_patch_w - 2 * d->pad;
         auto step_h = src_patch_h - 2 * d->pad;
 
-        VSFrameRef * const dst_frame = vsapi->newVideoFrame(
-            d->out_vi->format, d->out_vi->width, d->out_vi->height,
-            src_frames.front(), core
-        );
-        auto dst_stride = vsapi->getStride(dst_frame, 0);
-        auto dst_bytes = vsapi->getFrameFormat(dst_frame)->bytesPerSample;
-        auto dst_patch_shape = std::get<std::array<int64_t, 4>>(getShape(d->session, false));
+        auto dst_patch_shape = std::get<std::array<int64_t, 4>>(getShape(resource.session, false));
         auto dst_patch_h = dst_patch_shape[2];
         auto dst_patch_w = dst_patch_shape[3];
         auto dst_patch_w_bytes = dst_patch_w * dst_bytes;
@@ -433,6 +527,8 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
                 (__func__ + ": "s + error_message).c_str(),
                 frameCtx
             );
+
+            d->release(ticket);
 
             vsapi->freeFrame(dst_frame);
 
@@ -455,8 +551,11 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
 
                 {
                     uint8_t * input_buffer;
+#ifdef ENABLE_CUDA
+                    uint8_t * h_input_buffer = resource.input.h_data;
+#endif // ENABLE_CUDA
                     checkError(ortapi->GetTensorMutableData(
-                        d->input_tensor,
+                        resource.input_tensor,
                         reinterpret_cast<void **>(&input_buffer)
                     ));
 
@@ -465,27 +564,62 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
                             y * src_stride + x * src_bytes
                         };
 
-                        vs_bitblt(
-                            input_buffer, src_patch_w_bytes,
-                            src_ptr, src_stride,
-                            src_patch_w_bytes, src_patch_h
-                        );
-
-                        input_buffer += src_patch_bytes;
+#ifdef ENABLE_CUDA
+                        if (d->backend == Backend::CUDA) {
+                            vs_bitblt(
+                                h_input_buffer, src_patch_w_bytes,
+                                src_ptr, src_stride,
+                                src_patch_w_bytes, src_patch_h
+                            );
+                            h_input_buffer += src_patch_bytes;
+                        } else
+#endif // ENABLE_CUDA
+                        {
+                            vs_bitblt(
+                                input_buffer, src_patch_w_bytes,
+                                src_ptr, src_stride,
+                                src_patch_w_bytes, src_patch_h
+                            );
+                            input_buffer += src_patch_bytes;
+                        }
                     }
                 }
 
-                checkError(ortapi->Run(
-                    d->session,
-                    nullptr,
-                    &d->input_name, &d->input_tensor, 1,
-                    &d->output_name, 1, &d->output_tensor
-                ));
+#ifdef ENABLE_CUDA
+                checkCUDAError(cudaSetDevice(d->device_id));
+                if (d->backend == Backend::CUDA) {
+                    checkCUDAError(cudaMemcpyAsync(
+                        resource.input.d_data,
+                        resource.input.h_data,
+                        resource.input.size,
+                        cudaMemcpyHostToDevice,
+                        resource.stream
+                    ));
+                }
+#endif // ENABLE_CUDA
+
+                checkError(ortapi->RunWithBinding(resource.session, nullptr, resource.binding));
+
+#ifdef ENABLE_CUDA
+                if (d->backend == Backend::CUDA) {
+                    checkCUDAError(cudaMemcpyAsync(
+                        resource.output.h_data,
+                        resource.output.d_data,
+                        resource.output.size,
+                        cudaMemcpyDeviceToHost,
+                        resource.stream
+                    ));
+                    checkCUDAError(cudaStreamSynchronize(resource.stream));
+                }
+#endif // ENABLE_CUDA
 
                 {
                     uint8_t * output_buffer;
+#ifdef ENABLE_CUDA
+                    uint8_t * h_output_buffer = resource.output.h_data;
+#endif // ENABLE_CUDA
                     checkError(ortapi->GetTensorMutableData(
-                        d->output_tensor,
+                        resource.output_tensor,
                         reinterpret_cast<void **>(&output_buffer)
                     ));
 
@@ -494,16 +628,32 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
                             h_scale * y * dst_stride + w_scale * x * dst_bytes
                         );
 
-                        vs_bitblt(
-                            dst_ptr + (y_pad_start * dst_stride + x_pad_start * dst_bytes),
-                            dst_stride,
-                            output_buffer + (y_pad_start * dst_patch_w_bytes + x_pad_start * dst_bytes),
-                            dst_patch_w_bytes,
-                            dst_patch_w_bytes - (x_pad_start + x_pad_end) * dst_bytes,
-                            dst_patch_h - (y_pad_start + y_pad_end)
-                        );
+#ifdef ENABLE_CUDA
+                        if (d->backend == Backend::CUDA) {
+                            vs_bitblt(
+                                dst_ptr + (y_pad_start * dst_stride + x_pad_start * dst_bytes),
+                                dst_stride,
+                                h_output_buffer + (y_pad_start * dst_patch_w_bytes + x_pad_start * dst_bytes),
+                                dst_patch_w_bytes,
+                                dst_patch_w_bytes - (x_pad_start + x_pad_end) * dst_bytes,
+                                dst_patch_h - (y_pad_start + y_pad_end)
+                            );
 
-                        output_buffer += dst_patch_bytes;
+                            h_output_buffer += dst_patch_bytes;
+                        } else
+#endif // ENABLE_CUDA
+                        {
+                            vs_bitblt(
+                                dst_ptr + (y_pad_start * dst_stride + x_pad_start * dst_bytes),
+                                dst_stride,
+                                output_buffer + (y_pad_start * dst_patch_w_bytes + x_pad_start * dst_bytes),
+                                dst_patch_w_bytes,
+                                dst_patch_w_bytes - (x_pad_start + x_pad_end) * dst_bytes,
+                                dst_patch_h - (y_pad_start + y_pad_end)
+                            );
+
+                            output_buffer += dst_patch_bytes;
+                        }
                     }
                 }
 
@@ -525,6 +675,8 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
             vsapi->freeFrame(frame);
         }
 
+        d->release(ticket);
+
         return dst_frame;
     }
 
@@ -544,9 +696,23 @@ static void VS_CC vsOrtFree(
         vsapi->freeNode(node);
     }
 
-    ortapi->ReleaseValue(d->output_tensor);
-    ortapi->ReleaseValue(d->input_tensor);
-    ortapi->ReleaseSession(d->session);
+    for (const auto & resource : d->resources) {
+        ortapi->ReleaseIoBinding(resource.binding);
+        ortapi->ReleaseValue(resource.output_tensor);
+        ortapi->ReleaseValue(resource.input_tensor);
+        ortapi->ReleaseSession(resource.session);
+
+#ifdef ENABLE_CUDA
+        if (d->backend == Backend::CUDA) {
+            cudaStreamDestroy(resource.stream);
+            cudaFreeHost(resource.input.h_data);
+            cudaFree(resource.input.d_data);
+            cudaFreeHost(resource.output.h_data);
+            cudaFree(resource.output.d_data);
+        }
+#endif // ENABLE_CUDA
+    }
+
     ortapi->ReleaseEnv(d->environment);
 
     delete d;
@@ -640,138 +806,261 @@ static void VS_CC vsOrtCreate(
     }
     const std::string provider { _provider };
 
-    {
-        if (auto err = ortInit(); err.has_value()) {
+    int num_streams = int64ToIntS(vsapi->propGetInt(in, "num_streams", 0, &error));
+    if (error) {
+        num_streams = 1;
+    }
+    if (num_streams <= 0) {
+        return set_error("\"num_streams\" must be positive");
+    }
+
+#if ENABLE_CUDA
+    bool cudnn_benchmark = !!(vsapi->propGetInt(in, "cudnn_benchmark", 0, &error));
+    if (error) {
+        cudnn_benchmark = true;
+    }
+#endif
+
+    if (auto err = ortInit(); err.has_value()) {
+        return set_error(err.value());
+    }
+
+    checkError(ortapi->CreateEnv(verbosity, "vs-ort", &d->environment));
+
+    std::ifstream onnx_stream(
+        translateName(vsapi->propGetData(in, "network_path", 0, nullptr)),
+        std::ios::in | std::ios::binary
+    );
+
+    if (!onnx_stream.good()) {
+        return set_error("open .onnx failed");
+    }
+
+    std::string onnx_data {
+        std::istreambuf_iterator<char>{ onnx_stream },
+        std::istreambuf_iterator<char>{}
+    };
+
+    onnx::ModelProto onnx_proto;
+    try {
+        onnx::ParseProtoFromBytes(
+            &onnx_proto,
+            onnx_data.data(), std::size(onnx_data)
+        );
+    } catch (const std::runtime_error & e) {
+        return set_error(e.what());
+    }
+
+    specifyShape(onnx_proto, block_w, block_h);
+
+    onnx_data = onnx_proto.SerializeAsString();
+    if (std::size(onnx_data) == 0) {
+        return set_error("proto serialization failed");
+    }
+
+
+    d->semaphore.current.store(num_streams - 1, std::memory_order_relaxed);
+    d->tickets.reserve(num_streams);
+    for (int i = 0; i < num_streams; ++i) {
+        d->tickets.push_back(i);
+    }
+    d->resources.reserve(num_streams);
+    for (int i = 0; i < num_streams; ++i) {
+        Resource resource;
+
+        OrtSessionOptions * session_options;
+        checkError(ortapi->CreateSessionOptions(&session_options));
+        checkError(ortapi->SetSessionExecutionMode(
+            session_options,
+            ExecutionMode::ORT_SEQUENTIAL
+        ));
+        checkError(ortapi->EnableMemPattern(session_options));
+
+        // TODO: other providers
+        if (provider == "CPU") {
+            ; // nothing to do
+        }
+#ifdef ENABLE_CUDA
+        else if (provider == "CUDA") {
+            d->backend = Backend::CUDA;
+            checkError(ortapi->DisableMemPattern(session_options));
+#ifdef _MSC_VER
+            // Preload cuda dll from vsort directory.
+            static std::once_flag cuda_dll_preloaded_flag;
+            std::call_once(cuda_dll_preloaded_flag, []() {
+                    extern void preloadCudaDlls();
+                    preloadCudaDlls();
+            });
+#endif // _MSC_VER
+            checkCUDAError(cudaSetDevice(device_id));
+            d->device_id = device_id;
+
+            checkCUDAError(cudaStreamCreate(&resource.stream));
+
+            OrtCUDAProviderOptions cuda_options;
+            cuda_options.device_id = device_id;
+
+#if ORT_API_VERSION >= 10
+            if (cudnn_benchmark) {
+                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive;
+            } else {
+                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchHeuristic;
+            }
+#else
+            if (cudnn_benchmark) {
+                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearch::Exhaustive;
+            } else {
+                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearch::Heuristic;
+            }
+#endif // ORT_API_VERSION >= 10
+
+            cuda_options.user_compute_stream = resource.stream;
+            cuda_options.has_user_compute_stream = 1;
+
+            checkError(ortapi->SessionOptionsAppendExecutionProvider_CUDA(
+                session_options,
+                &cuda_options
+            ));
+        }
+#endif // ENABLE_CUDA
+        else if (provider != "") {
+            return set_error("unknwon provider " + provider);
+        }
+
+        checkError(ortapi->CreateSessionFromArray(
+            d->environment,
+            onnx_data.data(), std::size(onnx_data),
+            session_options,
+            &resource.session
+        ));
+
+        ortapi->ReleaseSessionOptions(session_options);
+
+        if (auto err = checkSession(resource.session); err.has_value()) {
             return set_error(err.value());
         }
 
-        checkError(ortapi->CreateEnv(verbosity, "vs-ort", &d->environment));
+        OrtAllocator * allocator;
+        checkError(ortapi->GetAllocatorWithDefaultOptions(&allocator));
 
-        {
-            OrtSessionOptions * session_options;
-            checkError(ortapi->CreateSessionOptions(&session_options));
-            checkError(ortapi->SetSessionExecutionMode(
-                session_options,
-                ExecutionMode::ORT_SEQUENTIAL
-            ));
-            checkError(ortapi->EnableMemPattern(session_options));
+        auto input_shape = std::get<std::array<int64_t, 4>>(
+            getShape(resource.session, true)
+        );
 
-            // TODO: other providers
-            if (provider == "CPU")
-                ; // nothing to do
-            else if (provider == "CUDA") {
-#ifdef _MSC_VER
-                    // Preload cuda dll from vsort directory.
-                    static std::once_flag cuda_dll_preloaded_flag;
-                    std::call_once(cuda_dll_preloaded_flag, []() {
-                            extern void preloadCudaDlls();
-                            preloadCudaDlls();
-                    });
-#endif
+#ifdef ENABLE_CUDA
+        if (d->backend == Backend::CUDA) {
+            resource.input.size = (
+                input_shape[0] *
+                input_shape[1] *
+                input_shape[2] *
+                input_shape[3]
+            ) * sizeof(float);
 
-                OrtCUDAProviderOptions cuda_options;
-                cuda_options.device_id = device_id;
-
-                #if ORT_API_VERSION >= 10
-                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive; // TODO: make an option
-                #else
-                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearch::Exhaustive;
-                #endif
-
-                checkError(ortapi->SessionOptionsAppendExecutionProvider_CUDA(
-                    session_options,
-                    &cuda_options
-                ));
-            } else if (provider != "") {
-                return set_error("unknwon provider " + provider);
-            }
-
-            std::ifstream onnx_stream(
-                translateName(vsapi->propGetData(in, "network_path", 0, nullptr)),
-                std::ios::in | std::ios::binary
+            checkCUDAError(cudaMallocHost(
+                &resource.input.h_data, resource.input.size,
+                cudaHostAllocWriteCombined)
             );
+            checkCUDAError(cudaMalloc(&resource.input.d_data, resource.input.size));
 
-            if (!onnx_stream.good()) {
-                return set_error("open .onnx failed");
-            }
-
-            std::string onnx_data {
-                std::istreambuf_iterator<char>{ onnx_stream },
-                std::istreambuf_iterator<char>{}
-            };
-
-            onnx::ModelProto onnx_proto;
-            try {
-                onnx::ParseProtoFromBytes(
-                    &onnx_proto,
-                    onnx_data.data(), std::size(onnx_data)
-                );
-            } catch (const std::runtime_error & e) {
-                return set_error(e.what());
-            }
-
-            specifyShape(onnx_proto, block_w, block_h);
-
-            onnx_data = onnx_proto.SerializeAsString();
-            if (std::size(onnx_data) == 0) {
-                return set_error("proto serialization failed");
-            }
-
-            checkError(ortapi->CreateSessionFromArray(
-                d->environment,
-                onnx_data.data(), std::size(onnx_data),
-                session_options,
-                &d->session
+            OrtMemoryInfo * memory_info;
+            checkError(ortapi->CreateMemoryInfo(
+                "Cuda", OrtDeviceAllocator, device_id,
+                OrtMemTypeDefault, &memory_info
             ));
 
-            ortapi->ReleaseSessionOptions(session_options);
+            checkError(ortapi->CreateTensorWithDataAsOrtValue(
+                memory_info,
+                resource.input.d_data, resource.input.size,
+                input_shape.data(), std::size(input_shape),
+                ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &resource.input_tensor
+            ));
 
-            if (auto err = checkSession(d->session); err.has_value()) {
-                return set_error(err.value());
-            }
-        }
-
+            ortapi->ReleaseMemoryInfo(memory_info);
+        } else
+#endif // ENALBE_CUDA
         {
-            OrtAllocator * allocator;
-            checkError(ortapi->GetAllocatorWithDefaultOptions(&allocator));
-
-            auto input_shape = std::get<std::array<int64_t, 4>>(getShape(d->session, true));
-
             checkError(ortapi->CreateTensorAsOrtValue(
                 allocator,
                 input_shape.data(),
                 std::size(input_shape),
                 ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
-                &d->input_tensor
+                &resource.input_tensor
+            ));
+        }
+
+
+        auto output_shape = std::get<std::array<int64_t, 4>>(
+            getShape(resource.session, false)
+        );
+
+#ifdef ENABLE_CUDA
+        if (d->backend == Backend::CUDA) {
+            resource.output.size = (
+                output_shape[0] *
+                output_shape[1] *
+                output_shape[2] *
+                output_shape[3]
+            ) * sizeof(float);
+
+            checkCUDAError(cudaMallocHost(&resource.output.h_data, resource.output.size));
+            checkCUDAError(cudaMalloc(&resource.output.d_data, resource.output.size));
+
+            OrtMemoryInfo * memory_info;
+            checkError(ortapi->CreateMemoryInfo(
+                "Cuda", OrtDeviceAllocator, device_id,
+                OrtMemTypeDefault, &memory_info
             ));
 
-            checkError(ortapi->SessionGetInputName(d->session, 0, allocator, &d->input_name));
+            checkError(ortapi->CreateTensorWithDataAsOrtValue(
+                memory_info,
+                resource.output.d_data, resource.output.size,
+                output_shape.data(), std::size(output_shape),
+                ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &resource.output_tensor
+            ));
 
-
-            auto output_shape = std::get<std::array<int64_t, 4>>(getShape(d->session, false));
-
+            ortapi->ReleaseMemoryInfo(memory_info);
+        } else
+#endif // ENABLE_CUDA
+        {
             checkError(ortapi->CreateTensorAsOrtValue(
                 allocator,
                 output_shape.data(),
                 std::size(output_shape),
                 ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
-                &d->output_tensor
+                &resource.output_tensor
             ));
+        }
 
-            checkError(ortapi->SessionGetOutputName(d->session, 0, allocator, &d->output_name));
+        checkError(ortapi->CreateIoBinding(resource.session, &resource.binding));
 
-            if (auto err = checkNodesAndNetwork(d->session, in_vis); err.has_value()) {
-                return set_error(err.value());
-            }
+        char * input_name;
+        checkError(ortapi->SessionGetInputName(
+            resource.session, 0, allocator, &input_name
+        ));
 
+        char * output_name;
+        checkError(ortapi->SessionGetOutputName(
+            resource.session, 0, allocator, &output_name
+        ));
+
+        checkError(ortapi->BindInput(resource.binding, input_name, resource.input_tensor));
+        checkError(ortapi->BindOutput(resource.binding, output_name, resource.output_tensor));
+
+        if (auto err = checkNodesAndNetwork(resource.session, in_vis); err.has_value()) {
+            return set_error(err.value());
+        }
+
+        if (i == 0) {
             setDimensions(d->out_vi, input_shape, output_shape);
         }
+
+        d->resources.push_back(resource);
     }
 
     vsapi->createFilter(
         in, out, "Model",
         vsOrtInit, vsOrtGetFrame, vsOrtFree,
-        fmParallelRequests, 0, d.release(), core
+        fmParallel, 0, d.release(), core
     );
 }
 
@@ -796,7 +1085,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "block_h:int:opt;"
         "provider:data:opt;" // "": Default (CPU), "CUDA": CUDA
         "device_id:int:opt;"
-        "verbosity:int:opt;",
+        "num_streams:int:opt;"
+        "verbosity:int:opt;"
+        "cudnn_benchmark:int:opt;",
         vsOrtCreate,
         nullptr,
         plugin

@@ -107,6 +107,19 @@ jobs:
         curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/latest/download/onnxruntime-gpu-win64.zip
         unzip -q ortgpu.zip
 
+    - name: Cache CUDA
+      id: cache-cuda
+      uses: actions/cache@v2
+      with:
+        path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
+        key: ${{ runner.os }}-cuda-11.4.3
+
+    - name: Setup CUDA
+      if: steps.cache-cuda.outputs.cache-hit != 'true'
+      run: |
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.4.3/network_installers/cuda_11.4.3_win10_network.exe
+        cuda_installer.exe -s cudart_11.4
+
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
@@ -116,6 +129,9 @@ jobs:
         -D ONNX_DIR=onnx\install\lib\cmake\ONNX
         -D ONNX_RUNTIME_API_DIRECTORY=onnxruntime-gpu\include\onnxruntime\core\session
         -D ONNX_RUNTIME_LIB_DIRECTORY=onnxruntime-gpu\lib
+        -D ENABLE_CUDA=1
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4"
+        -D CMAKE_CXX_STANDARD=20
 
     - name: Build
       run: cmake --build build --verbose
