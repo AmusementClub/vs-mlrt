@@ -102,10 +102,14 @@ void preloadCudaDlls() {
     std::map<std::wstring, std::filesystem::path> dllmap;
 
     auto findDllIn = [&](const std::filesystem::path &dir) {
+        if (!std::filesystem::is_directory(dir))
+            return;
         for (const auto &ent: std::filesystem::directory_iterator{dir}) {
             if (!ent.is_regular_file())
                 continue;
             const auto path = ent.path();
+            if (path.extension() != ".dll")
+                continue;
             const std::wstring filename = path.filename().wstring();
             for (const auto &dll: cudaDlls) {
                 if (dllmap.count(dll) > 0)
