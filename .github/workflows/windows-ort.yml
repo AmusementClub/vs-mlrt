@@ -150,3 +150,33 @@ jobs:
       with:
         name: VSORT-Windows-x64
         path: vsort/artifact
+
+    - name: Setup Python portable
+      run: |
+        curl -s -o python.zip -LJO https://www.python.org/ftp/python/3.9.9/python-3.9.9-embed-amd64.zip
+        7z x python.zip -ovs_portable
+
+    - name: Install VapourSynth portable
+      run: |
+        curl -s -o vs.7z -LJO https://github.com/vapoursynth/vapoursynth/releases/download/R54/VapourSynth64-Portable-R54.7z
+        7z x vs.7z -ovs_portable -y
+
+    - name: Copy plugin
+      run: |
+        copy artifact\*.dll vs_portable\vapoursynth64\plugins
+        mkdir vs_portable\vapoursynth64\plugins\vsort\
+        copy artifact\vsort\*.dll vs_portable\vapoursynth64\plugins\vsort\
+
+    - name: Install waifu2x model
+      run: |
+        curl -s -o waifu2x.7z -LJO https://github.com/AmusementClub/vs-mlrt/releases/download/model-20211203/waifu2x_v2.7z
+        7z x waifu2x.7z -ovs_portable\vapoursynth64\plugins\models
+
+    - name: Create script
+      shell: bash
+      run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ort, file=sys.stderr);core.std.BlankClip(format=vs.RGBS).ort.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True).set_output()" >> test.vpy
+
+    - name: Run vspipe
+      run: |
+        vs_portable\vspipe -i test.vpy -
+        vs_portable\vspipe -p -e 9 test.vpy .
