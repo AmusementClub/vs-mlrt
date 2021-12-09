@@ -1,0 +1,109 @@
+name: Build (Windows-TRT)
+
+on:
+  push:
+    paths:
+      - 'vstrt/**'
+      - '.github/workflows/windows-trt.yml'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-2019
+
+    defaults:
+      run:
+        shell: cmd
+        working-directory: vstrt
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 1
+
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Setup Ninja
+      run: pip install ninja
+
+    - name: Cache CUDA
+      id: cache-cuda
+      uses: actions/cache@v2
+      with:
+        path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
+        key: ${{ runner.os }}-cuda-11.4.3
+
+    - name: Setup CUDA
+      if: steps.cache-cuda.outputs.cache-hit != 'true'
+      run: |
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.4.3/network_installers/cuda_11.4.3_win10_network.exe
+        cuda_installer.exe -s nvcc_11.4 cudart_11.4
+
+    - name: Checkout tensorrt
+      uses: actions/checkout@v2
+      with:
+        repository: AmusementClub/cuda
+        token: ${{ secrets.REPO_TOKEN }}
+        ref: tensorrt-8.2.1
+        path: tensorrt
+
+    - name: Download VapourSynth headers
+      run: |
+        curl -s -o vs.zip -L https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R54.zip
+        unzip -q vs.zip
+        mv vapoursynth-*/ vapoursynth/
+
+    - name: Configure
+      run: cmake -S . -B build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4"
+        -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
+        -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
+        -D USE_NVINFER_PLUGIN=ON
+
+    - name: Build
+      run: cmake --build build --config Release --verbose
+
+    - name: Install
+      run: cmake --install build --prefix install
+
+    - name: Checkout TensorRT OSS
+      uses: actions/checkout@v2
+      with:
+        repository: NVIDIA/TensorRT
+        ref: 8.2.1
+        fetch-depth: 1
+        path: tensorrt-oss
+
+    - name: Override trtexec CMake file
+      run: mv trtexec/CMakeLists.txt ../tensorrt-oss/samples/trtexec
+
+    - name: Configure trtexec
+      run: cmake -S ../tensorrt-oss/samples/trtexec -B build_trtexec -G Ninja
+        -D CMAKE_BUILD_TYPE=Release
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4"
+        -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
+
+    - name: Build trtexec
+      run: cmake --build build_trtexec --verbose
+
+    - name: Install trtexec
+      run: cmake --install build_trtexec --prefix trtexec
+
+    - name: Prepare for upload
+      run: |
+        mkdir artifact
+        copy install\bin\vstrt.dll artifact\
+        mkdir artifact\vsmlrt-cuda
+        copy trtexec\bin\trtexec.exe artifact\vsmlrt-cuda
+
+    - name: Upload
+      uses: actions/upload-artifact@v2
+      with:
+        name: VSTRT-Windows-x64
+        retention-days: 1
+        path: vstrt/artifact
+
