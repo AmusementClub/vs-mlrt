@@ -29,7 +29,7 @@ directory for `vsov.dll` to find.
 
 ## Usage
 
-Prototype: `core.ov.Model(clip[] clips, string network_path[, int pad = 0, int block_w = 0, int block_h = 0, string device = "CPU"])`
+Prototype: `core.ov.Model(clip[] clips, string network_path[, int pad = 0, int block_w = 0, int block_h = 0, string device = "CPU", bint builtin = 0, string builtindir="models"])`
 
 Arguments:
  - `clip[] clips`: the input clips, only 32-bit floating point RGB or GRAY clips are supported. For model specific input requirements, please consult our [wiki](https://github.com/AmusementClub/vs-mlrt/wiki).
@@ -38,6 +38,8 @@ Arguments:
  - `int block_w`: Even for CNN where arbitrary input sizes could be supported, sometimes the network does not work well for the entire range of input dimensions, and you have to limit the size of each tile. This parameter specify the horizontal tile size (including the padding). Please refer to network specific docs on the recommended tile size.
  - `int block_h`: Similar to `block_w`, this set the height of the tile. If unspecified, it will default to `block_w`.
  - `string device`: Specifies the device to run the inference on. Currently only `"CPU"` is supported, which is also the default.
+ - `bint builtin`: whether to load the model from the VS plugins directory, see also `builtindir`.
+ - `string builtindir`: the model directory under VS plugins directory for builtin models, default "models".
 
 When `pad = 0` (which is the default), the filter will internally try to resize the network to fit the input clips. This might not always work (for example, the network might require the width to be divisible by 8), and the filter will error out in this case.
 

@@ -26,6 +26,7 @@ static inline std::wstring translateName(const char *name) noexcept {
 
 using namespace std::string_literals;
 
+static const VSPlugin * myself = nullptr;
 
 static std::array<int, 4> getShape(
     const InferenceEngine::ExecutableNetwork & network,
@@ -68,7 +69,22 @@ static std::optional<std::string> specifyShape(
     try {
         network.reshape(shape);
     } catch (const InferenceEngine::Exception& e) {
-        return "specifyShape():"s + e.what();
+        auto err = "specifyShape(): "s + e.what();
+
+        // guessing channels
+        for (int i = 1; i < 20; ++i) {
+            shape.begin()->second[1] = i;
+
+            try {
+                network.reshape(shape);
+            } catch (const InferenceEngine::Exception& e) {
+                continue;
+            }
+
+            return {};
+        }
+
+        return err;
     }
 
     return {};
@@ -133,7 +149,8 @@ static std::optional<std::string> checkIOInfo(
     if (dims.size() != 4) {
         return "expects network with 4-D IO";
     }
-    if (dims[0] != 1) {
+    // 0: dynamic onnx model is loaded with empty dimensions
+    if (dims[0] != 1 && dims[0] != 0) {
         return "batch size of network must be 1";
     }
 
@@ -490,7 +507,17 @@ static void VS_CC vsOvCreate(
     }
 
     {
-        auto filename = translateName(vsapi->propGetData(in, "network_path", 0, nullptr));
+        std::string path { vsapi->propGetData(in, "network_path", 0, nullptr) };
+        bool builtin = !!vsapi->propGetInt(in, "builtin", 0, &error);
+        if (builtin) {
+            const char *modeldir = vsapi->propGetData(in, "builtindir", 0, &error);
+            if (!modeldir) modeldir = "models";
+            path = std::string(modeldir) + "/" + path;
+            std::string dir { vsapi->getPluginPath(myself) };
+            dir = dir.substr(0, dir.rfind('/') + 1);
+            path = dir + path;
+        }
+        auto filename = translateName(path.c_str());
 
         InferenceEngine::CNNNetwork network;
         try {
@@ -562,6 +589,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     VSRegisterFunction registerFunc,
     VSPlugin *plugin
 ) noexcept {
+    myself = plugin;
 
     configFunc(
         "io.github.amusementclub.vs_openvino", "ov", "OpenVINO ML Filter Runtime",
@@ -575,6 +603,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "block_w:int:opt;"
         "block_h:int:opt;"
         "device:data:opt;" // "CPU": CPU
+        "builtin:int:opt;"
+        "builtindir:data:opt;"
         , vsOvCreate,
         nullptr,
         plugin

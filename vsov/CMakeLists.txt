@@ -4,7 +4,7 @@ project(vs-ov VERSION 1.0 LANGUAGES CXX)
 
 set(VAPOURSYNTH_INCLUDE_DIRECTORY "" CACHE PATH "Path to VapourSynth headers")
 
-find_package(InferenceEngine REQUIRED)
+find_package(InferenceEngine REQUIRED CONFIG)
 
 add_library(vsov SHARED vs_openvino.cpp win32.cpp)
 
