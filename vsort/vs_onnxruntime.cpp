@@ -56,6 +56,7 @@ using namespace std::chrono_literals;
 
 using namespace std::string_literals;
 
+static const VSPlugin * myself = nullptr;
 static const OrtApi * ortapi = nullptr;
 
 [[nodiscard]]
@@ -121,10 +122,8 @@ static std::variant<std::string, std::array<int64_t, 4>> getShape(
 }
 
 
-static void specifyShape(
+static void dynamicShape(
     onnx::ModelProto & model,
-    int64_t block_w,
-    int64_t block_h,
     int64_t batch = 1
 ) noexcept {
 
@@ -149,22 +148,15 @@ static void specifyShape(
     constexpr auto h_idx = 2;
     constexpr auto w_idx = 3;
 
-    int64_t h_scale {
-        output_shape->dim(h_idx).dim_value() /
-        input_shape->dim(h_idx).dim_value()
-    };
-    int64_t w_scale {
-        output_shape->dim(w_idx).dim_value() /
-        input_shape->dim(w_idx).dim_value()
-    };
-
     input_shape->mutable_dim(n_idx)->set_dim_value(batch);
-    input_shape->mutable_dim(h_idx)->set_dim_value(block_h);
-    input_shape->mutable_dim(w_idx)->set_dim_value(block_w);
+    input_shape->mutable_dim(h_idx)->set_dim_value(-1);
+    input_shape->mutable_dim(h_idx)->set_denotation("__input_height");
+    input_shape->mutable_dim(w_idx)->set_dim_value(-1);
+    input_shape->mutable_dim(w_idx)->set_denotation("__input_width");
 
     output_shape->mutable_dim(n_idx)->set_dim_value(batch);
-    output_shape->mutable_dim(h_idx)->set_dim_value(block_h * h_scale);
-    output_shape->mutable_dim(w_idx)->set_dim_value(block_w * w_scale);
+    output_shape->mutable_dim(h_idx)->set_dim_value(-1);
+    output_shape->mutable_dim(w_idx)->set_dim_value(-1);
 
     // remove shape info
     model.mutable_graph()->mutable_value_info()->Clear();
@@ -586,8 +578,8 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
                 }
 
 #ifdef ENABLE_CUDA
-                checkCUDAError(cudaSetDevice(d->device_id));
                 if (d->backend == Backend::CUDA) {
+                    checkCUDAError(cudaSetDevice(d->device_id));
                     checkCUDAError(cudaMemcpyAsync(
                         resource.input.d_data,
                         resource.input.h_data,
@@ -827,13 +819,24 @@ static void VS_CC vsOrtCreate(
 
     checkError(ortapi->CreateEnv(verbosity, "vs-ort", &d->environment));
 
+    std::string path { vsapi->propGetData(in, "network_path", 0, nullptr) };
+    bool builtin = !!vsapi->propGetInt(in, "builtin", 0, &error);
+    if (builtin) {
+        const char *modeldir = vsapi->propGetData(in, "builtindir", 0, &error);
+        if (!modeldir) modeldir = "models";
+        path = std::string(modeldir) + "/" + path;
+        std::string dir { vsapi->getPluginPath(myself) };
+        dir = dir.substr(0, dir.rfind('/') + 1);
+        path = dir + path;
+    }
+
     std::ifstream onnx_stream(
-        translateName(vsapi->propGetData(in, "network_path", 0, nullptr)),
+        translateName(path.c_str()),
         std::ios::in | std::ios::binary
     );
 
     if (!onnx_stream.good()) {
-        return set_error("open .onnx failed");
+        return set_error("open "s + path + " failed"s);
     }
 
     std::string onnx_data {
@@ -851,7 +854,7 @@ static void VS_CC vsOrtCreate(
         return set_error(e.what());
     }
 
-    specifyShape(onnx_proto, block_w, block_h);
+    dynamicShape(onnx_proto);
 
     onnx_data = onnx_proto.SerializeAsString();
     if (std::size(onnx_data) == 0) {
@@ -875,6 +878,8 @@ static void VS_CC vsOrtCreate(
             ExecutionMode::ORT_SEQUENTIAL
         ));
         checkError(ortapi->EnableMemPattern(session_options));
+        checkError(ortapi->AddFreeDimensionOverride(session_options, "__input_width", block_w));
+        checkError(ortapi->AddFreeDimensionOverride(session_options, "__input_height", block_h));
 
         // TODO: other providers
         if (provider == "CPU") {
@@ -1070,6 +1075,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     VSRegisterFunction registerFunc,
     VSPlugin *plugin
 ) noexcept {
+    myself = plugin;
 
     configFunc(
         "io.github.amusementclub.vs_onnxruntime", "ort",
@@ -1087,8 +1093,10 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "device_id:int:opt;"
         "num_streams:int:opt;"
         "verbosity:int:opt;"
-        "cudnn_benchmark:int:opt;",
-        vsOrtCreate,
+        "cudnn_benchmark:int:opt;"
+        "builtin:int:opt;"
+        "builtindir:data:opt;"
+        , vsOrtCreate,
         nullptr,
         plugin
     );
