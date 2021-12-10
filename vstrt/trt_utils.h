@@ -169,6 +169,16 @@ std::variant<ErrorMessage, GraphExecResource> getGraphExec(
         return message;
     };
 
+    // flush deferred internal state update
+    // https://docs.nvidia.com/deeplearning/tensorrt/archives/tensorrt-821/developer-guide/index.html#cuda-graphs
+    {
+        auto result = enqueue(src, dst, exec_context, stream);
+        if (result.has_value()) {
+            return set_error(result.value());
+        }
+        checkError(cudaStreamSynchronize(stream));
+    }
+
     checkError(cudaStreamBeginCapture(stream, cudaStreamCaptureModeRelaxed));
     {
         auto result = enqueue(src, dst, exec_context, stream);
@@ -198,7 +208,7 @@ size_t getSize(
 }
 
 static inline
-std::variant<ErrorMessage, InferenceInstance> getResource(
+std::variant<ErrorMessage, InferenceInstance> getInstance(
     const std::unique_ptr<nvinfer1::ICudaEngine> & engine,
     const std::optional<int> & profile_index,
     const BlockSize & block_size,

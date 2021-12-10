@@ -35,7 +35,7 @@ struct IOInfo {
 };
 
 static inline
-std::optional<std::string> inference(
+std::optional<ErrorMessage> inference(
     const InferenceInstance & instance,
     int device_id,
     bool use_cuda_graph, 
@@ -44,7 +44,7 @@ std::optional<std::string> inference(
     const std::vector<uint8_t *> & dst_ptrs
 ) noexcept {
 
-    const auto set_error = [](const std::string & error_message) {
+    const auto set_error = [](const ErrorMessage & error_message) {
         return error_message;
     };
 

@@ -128,7 +128,7 @@ static const VSFrameRef *VS_CC vsTrtGetFrame(
 
         std::vector<const uint8_t *> src_ptrs;
         src_ptrs.reserve(src_planes);
-        for (int i = 0; i < std::size(d->nodes); ++i) {
+        for (int i = 0; i < std::ssize(d->nodes); ++i) {
             for (int j = 0; j < in_vis[i]->format->numPlanes; ++j) {
                 src_ptrs.emplace_back(vsapi->getReadPtr(src_frames[i], j));
             }
@@ -347,17 +347,21 @@ static void VS_CC vsTrtCreate(
 
     d->instances.reserve(d->num_streams);
     for (int i = 0; i < d->num_streams; ++i) {
-        auto maybe_resource = getResource(
+        auto maybe_instance = getInstance(
             d->engine,
             maybe_profile_index,
             block_size,
             d->use_cuda_graph
         );
 
-        if (std::holds_alternative<InferenceInstance>(maybe_resource)) {
-            d->instances.emplace_back(std::move(std::get<InferenceInstance>(maybe_resource)));
+        if (std::holds_alternative<InferenceInstance>(maybe_instance)) {
+            InferenceInstance instance = std::move(std::get<InferenceInstance>(maybe_instance));
+            if (auto err = checkNodesAndContext(instance.exec_context, in_vis); err.has_value()) {
+                return set_error(err.value());
+            }
+            d->instances.emplace_back(std::move(instance));
         } else {
-            return set_error(std::get<ErrorMessage>(maybe_resource));
+            return set_error(std::get<ErrorMessage>(maybe_instance));
         }
     }
 

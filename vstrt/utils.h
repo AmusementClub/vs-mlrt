@@ -103,12 +103,12 @@ int numPlanes(
 }
 
 static inline
-std::optional<std::string> checkNodesAndEngine(
-    const std::unique_ptr<nvinfer1::ICudaEngine> & engine,
+std::optional<std::string> checkNodesAndContext(
+    const std::unique_ptr<nvinfer1::IExecutionContext> & execution_context,
     const std::vector<const VSVideoInfo *> & vis
 ) noexcept {
 
-    const nvinfer1::Dims & network_in_dims = engine->getBindingDimensions(0);
+    const nvinfer1::Dims & network_in_dims = execution_context->getBindingDimensions(0);
 
     int network_in_channels = network_in_dims.d[1];
     int num_planes = numPlanes(vis);
