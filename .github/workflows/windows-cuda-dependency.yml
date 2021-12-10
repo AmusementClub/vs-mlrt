@@ -1,4 +1,4 @@
-name: Upload vs-ort-cuda dependencies
+name: Upload vs-mlrt-cuda dependencies
 
 on:
   workflow_dispatch:
@@ -39,6 +39,29 @@ jobs:
 
     - name: Move cuDNN library
       run: mv cudnn/bin vsmlrt-cuda
+
+    # Same licensing issue with the tensorrt libraries.
+    - name: Download TensorRT library
+      run: |
+        # https://stackoverflow.com/questions/20396329/how-to-download-github-release-from-private-repo-using-command-line/35688093#35688093
+
+        tag=tensorrt-8.2.1-bin
+        name=trt8.2.1.7z
+
+        AUTH="Authorization: token ${{ secrets.REPO_TOKEN }}"
+        response=$(curl -sH "$AUTH" https://api.github.com/repos/AmusementClub/cuda/releases/tags/$tag)
+        eval $(echo "$response" | grep -C3 "name.:.\+$NAME" | grep -w id | tr : = | tr -cd '[[:alnum:]]=')
+        [ "$id" ] || { echo "Error: Failed to get asset id, response: $response" | awk 'length($0)<100' >&2; exit 1; }
+        ASSET="https://api.github.com/repos/AmusementClub/cuda/releases/assets/$id"
+        curl -LJO -H "$AUTH" -H 'Accept: application/octet-stream' "$ASSET"
+
+        mv "$name" trt.7z
+
+    - name: Extract TensorRT library
+      run: 7z x trt.7z
+
+    - name: Move TensorRT library
+      run: mv trt-*/*.dll vsmlrt-cuda
 
     - name: Download CUDA Libraries
       shell: cmd
