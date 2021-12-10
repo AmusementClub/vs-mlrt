@@ -84,6 +84,7 @@ jobs:
     - name: Configure trtexec
       run: cmake -S ../tensorrt-oss/samples/trtexec -B build_trtexec -G Ninja
         -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4"
         -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
 
