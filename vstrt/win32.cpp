@@ -70,9 +70,8 @@ extern "C" FARPROC WINAPI delayload_hook(unsigned reason, DelayLoadInfo* info) {
 		break;
 	case dliNotePreLoadLibrary:
 		//std::cerr << "loading " << info->szDll << std::endl;
-		if (std::string(info->szDll).find("nvinfer.dll") != std::string::npos)
-			return loadDLLs();
-		break;
+		loadDLLs();
+		return (FARPROC)LoadLibraryA(info->szDll);
 	case dliNotePreGetProcAddress:
 		// Nothing to do here.
 		break;
