@@ -25,3 +25,16 @@ The vs-onnxruntime plugin provides optimized CPU and CUDA GPU runtime for some p
 To install, download the latest release and extract them into your VS `plugins` directory.
 
 Please visit the [vsort](vsort) directory for details.
+
+## vstrt: TensorRT-based GPU Runtime
+
+[TensorRT](https://developer.nvidia.com/tensorrt) is a highly optimized AI inference runtime
+for NVidia GPUs. It uses benchmarking to find the optimal kernel to use for your specific
+GPU, and so there is an extra step to build an engine from ONNX network on the machine
+you are going to use the vstrt filter, and this extra step makes deploying models a little
+harder than the others runtimes. However, the resulting performance is also typically
+*much much better* than the CUDA backend of [vsort](vsort).
+
+To install, download the latest release and extract them into your VS `plugins` directory.
+
+Please visit the [vstrt](vstrt) directory for details.
