@@ -169,7 +169,7 @@ jobs:
 
     - name: Install waifu2x model
       run: |
-        curl -s -o waifu2x.7z -LJO https://github.com/AmusementClub/vs-mlrt/releases/download/model-20211203/waifu2x_v2.7z
+        curl -s -o waifu2x.7z -LJO https://github.com/AmusementClub/vs-mlrt/releases/download/model-20211209/waifu2x_v3.7z
         7z x waifu2x.7z -ovs_portable\vapoursynth64\plugins\models
 
     - name: Create script

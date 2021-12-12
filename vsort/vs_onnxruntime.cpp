@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <onnx/proto_utils.h>
+#include <onnx/shape_inference/implementation.h>
 #include <onnxruntime_c_api.h>
 
 #ifdef ENABLE_CUDA
@@ -24,6 +25,10 @@
     }                                                                          \
 } while(0)
 #endif // ENABLE_CUDA
+
+#ifdef ENABLE_COREML
+extern "C" OrtStatusPtr OrtSessionOptionsAppendExecutionProvider_CoreML(OrtSessionOptions *so, int flags);
+#endif // ENABLE_COREML
 
 #include <VapourSynth.h>
 #include <VSHelper.h>
@@ -122,8 +127,10 @@ static std::variant<std::string, std::array<int64_t, 4>> getShape(
 }
 
 
-static void dynamicShape(
+static std::optional<std::string> specifyShape(
     onnx::ModelProto & model,
+    int64_t block_w,
+    int64_t block_h,
     int64_t batch = 1
 ) noexcept {
 
@@ -149,17 +156,23 @@ static void dynamicShape(
     constexpr auto w_idx = 3;
 
     input_shape->mutable_dim(n_idx)->set_dim_value(batch);
-    input_shape->mutable_dim(h_idx)->set_dim_value(-1);
-    input_shape->mutable_dim(h_idx)->set_denotation("__input_height");
-    input_shape->mutable_dim(w_idx)->set_dim_value(-1);
-    input_shape->mutable_dim(w_idx)->set_denotation("__input_width");
+    input_shape->mutable_dim(h_idx)->set_dim_value(block_h);
+    input_shape->mutable_dim(w_idx)->set_dim_value(block_w);
 
     output_shape->mutable_dim(n_idx)->set_dim_value(batch);
-    output_shape->mutable_dim(h_idx)->set_dim_value(-1);
-    output_shape->mutable_dim(w_idx)->set_dim_value(-1);
+    output_shape->mutable_dim(h_idx)->clear_dim_value();
+    output_shape->mutable_dim(w_idx)->clear_dim_value();
 
     // remove shape info
     model.mutable_graph()->mutable_value_info()->Clear();
+
+    try {
+        onnx::shape_inference::InferShapes(model);
+    } catch (const onnx::InferenceError & e) {
+        return e.what();
+    }
+
+    return {};
 }
 
 
@@ -491,7 +504,7 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
 
         std::vector<const uint8_t *> src_ptrs;
         src_ptrs.reserve(src_patch_shape[1]);
-        for (int i = 0; i < std::size(d->nodes); ++i) {
+        for (unsigned i = 0; i < std::size(d->nodes); ++i) {
             for (int j = 0; j < in_vis[i]->format->numPlanes; ++j) {
                 src_ptrs.emplace_back(vsapi->getReadPtr(src_frames[i], j));
             }
@@ -854,7 +867,9 @@ static void VS_CC vsOrtCreate(
         return set_error(e.what());
     }
 
-    dynamicShape(onnx_proto);
+    if (auto err = specifyShape(onnx_proto, block_w, block_h); err.has_value()) {
+        return set_error(err.value());
+    }
 
     onnx_data = onnx_proto.SerializeAsString();
     if (std::size(onnx_data) == 0) {
@@ -878,8 +893,6 @@ static void VS_CC vsOrtCreate(
             ExecutionMode::ORT_SEQUENTIAL
         ));
         checkError(ortapi->EnableMemPattern(session_options));
-        checkError(ortapi->AddFreeDimensionOverride(session_options, "__input_width", block_w));
-        checkError(ortapi->AddFreeDimensionOverride(session_options, "__input_height", block_h));
 
         // TODO: other providers
         if (provider == "CPU") {
@@ -928,6 +941,14 @@ static void VS_CC vsOrtCreate(
             ));
         }
 #endif // ENABLE_CUDA
+#ifdef ENABLE_COREML
+        else if (provider == "COREML") {
+            checkError(OrtSessionOptionsAppendExecutionProvider_CoreML(
+                session_options,
+                0
+            ));
+        }
+#endif // ENABLE_COREML
         else if (provider != "") {
             return set_error("unknwon provider " + provider);
         }
