@@ -67,7 +67,7 @@ jobs:
       shell: cmd
       run: |
         curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.4.3/network_installers/cuda_11.4.3_win10_network.exe
-        cuda_installer.exe -s cudart_11.4 cublas_11.4 cufft_11.4 cupti_11.4
+        cuda_installer.exe -s cudart_11.4 cublas_11.4 cufft_11.4 cupti_11.4 nvrtc_11.4
 
     - name: Move CUDA Libraries
       shell: cmd
