@@ -1,19 +1,31 @@
+import enum
 import os.path
-from typing import Literal, Optional
+import typing
 
 import vapoursynth as vs
 from vapoursynth import core
 
 
+@enum.unique
+class Waifu2xModel(enum.IntEnum):
+    anime_style_art = 0
+    anime_style_art_rgb = 1
+    photo = 2
+    upconv_7_anime_style_art_rgb = 3
+    upconv_7_photo = 4
+    upresnet10 = 5
+    cunet = 6
+
+
 def Waifu2x(
     clip: vs.VideoNode,
-    noise: Literal[-1, 0, 1, 2, 3] = -1,
-    scale: Literal[1, 2] = 2,
-    block_w: Optional[int] = None,
-    block_h: Optional[int] = None,
+    noise: typing.Literal[-1, 0, 1, 2, 3] = -1,
+    scale: typing.Literal[1, 2] = 2,
+    block_w: typing.Optional[int] = None,
+    block_h: typing.Optional[int] = None,
     pad: int = 0,
-    model: Literal[0, 1, 2, 3, 4, 5, 6] = 6,
-    backend: Literal["ort-cpu", "ort-cuda"] = "ort-cpu",
+    model: typing.Literal[0, 1, 2, 3, 4, 5, 6] = 6,
+    backend: typing.Literal["ort-cpu", "ort-cuda"] = "ort-cpu",
     # parameters for "ort-cuda"
     device_id: int = 0,
     cudnn_benchmark: bool = True
@@ -33,7 +45,7 @@ def Waifu2x(
     if not isinstance(scale, int) or scale not in (1, 2):
         raise ValueError(f'{funcName}: "scale" must be 1 or 2')
 
-    if not isinstance(model, int) or model not in range(7):
+    if not isinstance(model, int) or model not in Waifu2xModel.__members__.values():
         raise ValueError(f'{funcName}: "model" must be 0, 1, 2, 3, 4, 5, or 6')
 
     if model == 0 and noise == 0:
@@ -49,7 +61,7 @@ def Waifu2x(
         else:
             block_h = block_w
 
-    if model == 6 and (block_w % 4 != 0 or block_h % 4 != 0):
+    if model == 6 and (block_w % 4 != 0 or block_h % 4 != 0): # type: ignore
         raise ValueError(f'{funcName}: block size of cunet model must be divisible by 4')
 
     if model == 0:
@@ -58,15 +70,7 @@ def Waifu2x(
     elif clip.format.id != vs.RGBS:
         raise ValueError(f'{funcName}: input should be of RGBS format')
 
-    folder_path = os.path.join("waifu2x", [
-        "anime_style_art", # 0
-        "anime_style_art_rgb", # 1
-        "photo", # 2
-        "upconv_7_anime_style_art_rgb", # 3
-        "upconv_7_photo", # 4
-        "upresnet10", # 5
-        "cunet", # 6
-    ][model])
+    folder_path = os.path.join("waifu2x", tuple(Waifu2xModel.__members__)[model])
 
     if model in (0, 1, 2):
         if noise == -1:
