@@ -44,6 +44,7 @@ jobs:
         -D CMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D InferenceEngine_DIR=openvino/runtime/cmake
+        -D OpenVINO_DIR=openvino/runtime/cmake
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
 
     - name: Build
@@ -81,7 +82,7 @@ jobs:
 
     - name: Install waifu2x model
       run: |
-        curl -s -o waifu2x.7z -LJO https://github.com/AmusementClub/vs-mlrt/releases/download/model-20211203/waifu2x_v2.7z
+        curl -s -o waifu2x.7z -LJO https://github.com/AmusementClub/vs-mlrt/releases/download/model-20211209/waifu2x_v3.7z
         7z x waifu2x.7z -ovs_portable\vapoursynth64\plugins\models
 
     - name: Create script
