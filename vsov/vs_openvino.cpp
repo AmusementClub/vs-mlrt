@@ -1,5 +1,6 @@
 #include <array>
 #include <cstdint>
+#include <fstream>
 #include <memory>
 #include <optional>
 #include <string>
@@ -11,6 +12,8 @@
 #include <VapourSynth.h>
 #include <VSHelper.h>
 
+#include <onnx/proto_utils.h>
+#include <onnx/shape_inference/implementation.h>
 #include <ie_core.hpp>
 
 #ifdef _WIN32
@@ -52,39 +55,48 @@ static std::array<int, 4> getShape(
 
 [[nodiscard]]
 static std::optional<std::string> specifyShape(
-    InferenceEngine::CNNNetwork & network,
-    size_t block_w,
-    size_t block_h,
-    size_t batch = 1
+    ONNX_NAMESPACE::ModelProto & model,
+    int64_t block_w,
+    int64_t block_h,
+    int64_t batch = 1
 ) noexcept {
 
-    const auto & input_name = network.getInputsInfo().cbegin()->first;
-    size_t channels = network.getInputShapes().cbegin()->second[1];
+    ONNX_NAMESPACE::TensorShapeProto * input_shape {
+        model
+            .mutable_graph()
+            ->mutable_input(0)
+            ->mutable_type()
+            ->mutable_tensor_type()
+            ->mutable_shape()
+    };
+    ONNX_NAMESPACE::TensorShapeProto * output_shape {
+        model
+            .mutable_graph()
+            ->mutable_output(0)
+            ->mutable_type()
+            ->mutable_tensor_type()
+            ->mutable_shape()
+    };
 
-    InferenceEngine::ICNNNetwork::InputShapes shape {{
-        input_name,
-        { batch, channels, block_h, block_w }
-    }};
+    constexpr auto n_idx = 0;
+    constexpr auto h_idx = 2;
+    constexpr auto w_idx = 3;
+
+    input_shape->mutable_dim(n_idx)->set_dim_value(batch);
+    input_shape->mutable_dim(h_idx)->set_dim_value(block_h);
+    input_shape->mutable_dim(w_idx)->set_dim_value(block_w);
+
+    output_shape->mutable_dim(n_idx)->set_dim_value(batch);
+    output_shape->mutable_dim(h_idx)->clear_dim_value();
+    output_shape->mutable_dim(w_idx)->clear_dim_value();
+
+    // remove shape info
+    model.mutable_graph()->mutable_value_info()->Clear();
 
     try {
-        network.reshape(shape);
-    } catch (const InferenceEngine::Exception& e) {
-        auto err = "specifyShape(): "s + e.what();
-
-        // guessing channels
-        for (int i = 1; i < 20; ++i) {
-            shape.begin()->second[1] = i;
-
-            try {
-                network.reshape(shape);
-            } catch (const InferenceEngine::Exception& e) {
-                continue;
-            }
-
-            return {};
-        }
-
-        return err;
+        ONNX_NAMESPACE::shape_inference::InferShapes(model);
+    } catch (const ONNX_NAMESPACE::InferenceError & e) {
+        return e.what();
     }
 
     return {};
@@ -506,22 +518,76 @@ static void VS_CC vsOvCreate(
         return set_error("\"pad\" should be non-negative");
     }
 
-    {
-        std::string path { vsapi->propGetData(in, "network_path", 0, nullptr) };
-        bool builtin = !!vsapi->propGetInt(in, "builtin", 0, &error);
-        if (builtin) {
-            const char *modeldir = vsapi->propGetData(in, "builtindir", 0, &error);
-            if (!modeldir) modeldir = "models";
-            path = std::string(modeldir) + "/" + path;
-            std::string dir { vsapi->getPluginPath(myself) };
-            dir = dir.substr(0, dir.rfind('/') + 1);
-            path = dir + path;
+    int error1, error2;
+    size_t block_w = static_cast<size_t>(vsapi->propGetInt(in, "block_w", 0, &error1));
+    size_t block_h = static_cast<size_t>(vsapi->propGetInt(in, "block_h", 0, &error2));
+    if (!error1) { // manual specification triggered
+        if (error2) {
+            block_h = block_w;
         }
-        auto filename = translateName(path.c_str());
+    } else {
+        if (d->pad != 0) {
+            return set_error("\"block_w\" must be specified");
+        }
+
+        // set block size to video dimensions
+        block_w = in_vis.front()->width;
+        block_h = in_vis.front()->height;
+    }
+    if (block_w - 2 * d->pad <= 0 || block_h - 2 * d->pad <= 0) {
+        return set_error("\"pad\" too large");
+    }
+
+    std::string path { vsapi->propGetData(in, "network_path", 0, nullptr) };
+    bool builtin = !!vsapi->propGetInt(in, "builtin", 0, &error);
+    if (builtin) {
+        const char *modeldir = vsapi->propGetData(in, "builtindir", 0, &error);
+        if (!modeldir) modeldir = "models";
+        path = std::string(modeldir) + "/" + path;
+        std::string dir { vsapi->getPluginPath(myself) };
+        dir = dir.substr(0, dir.rfind('/') + 1);
+        path = dir + path;
+    }
+
+    std::ifstream onnx_stream(
+        translateName(path.c_str()),
+        std::ios::in | std::ios::binary
+    );
+
+    if (!onnx_stream.good()) {
+        return set_error("open "s + path + " failed"s);
+    }
+
+    std::string onnx_data {
+        std::istreambuf_iterator<char>{ onnx_stream },
+        std::istreambuf_iterator<char>{}
+    };
+
+    ONNX_NAMESPACE::ModelProto onnx_proto;
+    try {
+        ONNX_NAMESPACE::ParseProtoFromBytes(
+            &onnx_proto,
+            onnx_data.data(), std::size(onnx_data)
+        );
+    } catch (const std::runtime_error & e) {
+        return set_error(e.what());
+    }
+
+    if (auto err = specifyShape(onnx_proto, block_w, block_h); err.has_value()) {
+        return set_error(err.value());
+    }
+
+    onnx_data = onnx_proto.SerializeAsString();
+    if (std::size(onnx_data) == 0) {
+        return set_error("proto serialization failed");
+    }
+
+    {
 
         InferenceEngine::CNNNetwork network;
         try {
-            network = d->core.ReadNetwork(filename);
+            auto empty = InferenceEngine::Blob::CPtr();
+            network = d->core.ReadNetwork(onnx_data, empty);
         } catch (const InferenceEngine::Exception& e) {
             return set_error("ReadNetwork(): "s + e.what());
         } catch (const std::exception& e) {
@@ -530,34 +596,6 @@ static void VS_CC vsOvCreate(
 
         if (auto err = checkNetwork(network); err.has_value()) {
             return set_error(err.value());
-        }
-
-        {
-            int error1, error2;
-            size_t block_w = static_cast<size_t>(vsapi->propGetInt(in, "block_w", 0, &error1));
-            size_t block_h = static_cast<size_t>(vsapi->propGetInt(in, "block_h", 0, &error2));
-
-            if (!error1) { // manual specification triggered
-                if (error2) {
-                    block_h = block_w;
-                }
-            } else {
-                if (d->pad != 0) {
-                    return set_error("\"block_w\" must be specified");
-                }
-
-                // set block size to video dimensions
-                block_w = in_vis.front()->width;
-                block_h = in_vis.front()->height;
-            }
-
-            if (block_w - 2 * d->pad <= 0 || block_h - 2 * d->pad <= 0) {
-                return set_error("\"pad\" too large");
-            }
-
-            if (auto err = specifyShape(network, block_w, block_h); err.has_value()) {
-                return set_error(err.value());
-            }
         }
 
         d->executable_network = d->core.LoadNetwork(network, device);

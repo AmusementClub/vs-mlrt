@@ -4,16 +4,18 @@ project(vs-ov VERSION 1.0 LANGUAGES CXX)
 
 set(VAPOURSYNTH_INCLUDE_DIRECTORY "" CACHE PATH "Path to VapourSynth headers")
 
+find_package(OpenVINO REQUIRED CONFIG)
 find_package(InferenceEngine REQUIRED CONFIG)
 
 add_library(vsov SHARED vs_openvino.cpp win32.cpp)
 
-target_include_directories(vsov PRIVATE 
+target_include_directories(vsov PRIVATE
     ${VAPOURSYNTH_INCLUDE_DIRECTORY}
+    ${ONNX_INCLUDE_DIRS}
     ${InferenceEngine_INCLUDE_DIRS}
 )
 
-target_link_libraries(vsov PRIVATE ${InferenceEngine_LIBRARIES})
+target_link_libraries(vsov PRIVATE ${InferenceEngine_LIBRARIES} openvino::onnx)
 
 set_target_properties(vsov PROPERTIES
     CXX_EXTENSIONS OFF
