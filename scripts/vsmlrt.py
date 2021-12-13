@@ -25,7 +25,7 @@ def Waifu2x(
     block_h: typing.Optional[int] = None,
     pad: int = 0,
     model: typing.Literal[0, 1, 2, 3, 4, 5, 6] = 6,
-    backend: typing.Literal["ort-cpu", "ort-cuda"] = "ort-cpu",
+    backend: typing.Literal["ort-cpu", "ort-cuda", "ov-cpu"] = "ort-cpu",
     # parameters for "ort-cuda"
     device_id: int = 0,
     cudnn_benchmark: bool = True
@@ -116,6 +116,12 @@ def Waifu2x(
             pad=pad, block_w=block_w, block_h=block_h,
             provider="CUDA", device_id=device_id, cudnn_benchmark=cudnn_benchmark,
             builtin=1
+        )
+    elif backend == "ov-cpu":
+        clip = core.ov.Model(
+            clip, network_path,
+            pad=pad, block_w=block_w, block_h=block_h,
+            device="CPU", builtin=1
         )
     else:
         raise ValueError(f'{funcName}: unknown backend {backend}: ["ort-cpu", "ort-cuda"]')
