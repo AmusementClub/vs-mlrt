@@ -58,7 +58,7 @@ struct vsTrtData {
 
     Logger logger;
     std::unique_ptr<nvinfer1::IRuntime> runtime;
-    std::unique_ptr<nvinfer1::ICudaEngine> engine;
+    std::vector<std::unique_ptr<nvinfer1::ICudaEngine>> engines;
 
     TicketSemaphore semaphore;
     std::vector<int> tickets;
@@ -124,7 +124,7 @@ static const VSFrameRef *VS_CC vsTrtGetFrame(
             getFrames(n, vsapi, frameCtx, d->nodes)
         };
 
-        const int src_planes { d->engine->getBindingDimensions(0).d[1] };
+        const int src_planes { d->engines[0]->getBindingDimensions(0).d[1] };
 
         std::vector<const uint8_t *> src_ptrs;
         src_ptrs.reserve(src_planes);
@@ -139,7 +139,7 @@ static const VSFrameRef *VS_CC vsTrtGetFrame(
             src_frames[0], core
         )};
 
-        const int dst_planes { d->engine->getBindingDimensions(1).d[1] };
+        const int dst_planes { d->engines[0]->getBindingDimensions(1).d[1] };
         std::vector<uint8_t *> dst_ptrs;
         dst_ptrs.reserve(dst_planes);
         for (int i = 0; i < dst_planes; ++i) {
@@ -338,21 +338,37 @@ static void VS_CC vsTrtCreate(
     d->runtime.reset(nvinfer1::createInferRuntime(d->logger));
     auto maybe_engine = initEngine(engine_path, d->runtime);
     if (std::holds_alternative<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)) {
-        d->engine = std::move(std::get<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine));
+        d->engines.push_back(std::move(std::get<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)));
     } else {
         return set_error(std::get<ErrorMessage>(maybe_engine));
     }
 
-    auto maybe_profile_index = selectProfile(d->engine, block_size);
+    auto maybe_profile_index = selectProfile(d->engines[0], block_size);
 
+    bool is_dynamic = false;
     d->instances.reserve(d->num_streams);
     for (int i = 0; i < d->num_streams; ++i) {
         auto maybe_instance = getInstance(
-            d->engine,
+            d->engines.back(),
             maybe_profile_index,
             block_size,
-            d->use_cuda_graph
+            d->use_cuda_graph,
+            is_dynamic
         );
+
+        // duplicates ICudaEngine instances
+        //
+        // According to 
+        // https://docs.nvidia.com/deeplearning/tensorrt/archives/tensorrt-821/developer-guide/index.html#perform-inference
+        // each optimization profile can only have one execution context when using dynamic shapes
+        if (is_dynamic && i < d->num_streams - 1) {
+            auto maybe_engine = initEngine(engine_path, d->runtime);
+            if (std::holds_alternative<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)) {
+                d->engines.push_back(std::move(std::get<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)));
+            } else {
+                return set_error(std::get<ErrorMessage>(maybe_engine));
+            }
+        }
 
         if (std::holds_alternative<InferenceInstance>(maybe_instance)) {
             InferenceInstance instance = std::move(std::get<InferenceInstance>(maybe_instance));

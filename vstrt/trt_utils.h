@@ -212,7 +212,8 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
     const std::unique_ptr<nvinfer1::ICudaEngine> & engine,
     const std::optional<int> & profile_index,
     const BlockSize & block_size,
-    bool use_cuda_graph
+    bool use_cuda_graph,
+    bool & is_dynamic
 ) noexcept {
 
     const auto set_error = [](const ErrorMessage & error_message) {
@@ -230,6 +231,8 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
         if (!profile_index.has_value()) {
             return set_error("no valid optimization profile found");
         }
+
+        is_dynamic = true;
 
         exec_context->setOptimizationProfileAsync(profile_index.value(), stream);
         checkError(cudaStreamSynchronize(stream));
