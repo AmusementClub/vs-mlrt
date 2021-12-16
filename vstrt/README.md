@@ -3,19 +3,24 @@
 The vs-tensorrt plugin provides optimized CUDA runtime for some popular AI filters.
 
 ## Usage
-```python
-core.trt.Model(clip[] clips, string engine_path[, int pad, int block_w, int block_h, int device_id=0, bint use_cuda_graph=False, int num_streams=1, int verbosity=2])
-```
 
+Prototype: `core.trt.Model(clip[] clips, string engine_path[, int[] overlap, int[] tilesize, int device_id=0, bint use_cuda_graph=False, int num_streams=1, int verbosity=2])`
+
+Arguments:
 - `clip[] clips`: the input clips, only 32-bit floating point RGB or GRAY clips are supported. For model specific input requirements, please consult our [wiki](https://github.com/AmusementClub/vs-mlrt/wiki).
 - `string engine_path`: the path to the prebuilt engine (see below)
-- `int pad`: some networks (e.g. [CNN](https://en.wikipedia.org/wiki/Convolutional_neural_network)) support arbitrary input shape where other networks might only support fixed input shape and the input clip must be processed in tiles. The `pad` argument specifies the overlapping (both horizontal and vertical, in pixels) between adjacent tiles to minimize boundary issues. Please refer to network specific docs on the recommended padding size.
-- `int block_w`: Even for CNN where arbitrary input sizes could be supported, sometimes the network does not work well for the entire range of input dimensions, and you have to limit the size of each tile. This parameter specify the horizontal tile size (including the padding). Please refer to network specific docs on the recommended tile size.
-- `int block_h`: Similar to `block_w`, this set the height of the tile. If unspecified, it will default to `block_w`.
+- `int[] overlap`: some networks (e.g. [CNN](https://en.wikipedia.org/wiki/Convolutional_neural_network)) support arbitrary input shape where other networks might only support fixed input shape and the input clip must be processed in tiles. The `overlap` argument specifies the overlapping (horizontal and vertical, or both, in pixels) between adjacent tiles to minimize boundary issues. Please refer to network specific docs on the recommended overlapping size.
+- `int[] tilesize`: Even for CNN where arbitrary input sizes could be supported, sometimes the network does not work well for the entire range of input dimensions, and you have to limit the size of each tile. This parameter specify the tile size (horizontal and vertical, or both, including the overlapping). Please refer to network specific docs on the recommended tile size.
 - `int device_id`: Specifies the GPU device id to use, default 0.
 - `int num_streams`: number of concurrent CUDA streams to use. Default 1. Increase if GPU not saturated.
 - `verbosity`: The verbosity level of TensorRT runtime. The message writes to `stderr`.
   `0`: Internal error. `1`: Application error. `2`: Warning. `3`: Informational messages with instructional information. `4`: Verbose messages with debugging information.
+  
+When `overlap` and `tilesize` are not specified, the filter will internally try to resize the network to fit the input clips. This might not always work (for example, the network might require the width to be divisible by 8), and the filter will error out in this case.
+
+The general rule is to either:
+1. left out `overlap`, `tilesize` at all and just process the input frame in one tile, or
+2. set all three so that the frame is processed in `tilesize[0]` x `tilesize[1]` tiles, and adjacent tiles will have an overlap of `overlap[0]` x `overlap[1]` pixels on each direction. The overlapped region will be throw out so that only internal output pixels are used.
 
 ## Instructions
 
@@ -24,10 +29,10 @@ core.trt.Model(clip[] clips, string engine_path[, int pad, int block_w, int bloc
 
 1. Build engine
    ```shell
-   trtexec --onnx=drunet_gray.onnx --minShapes=input:1x1x0x0 --optShapes=input:1x1x64x64 --maxShapes=input:1x1x1080x1920 --saveEngine=dpir_gray_1080p_dynamic.engine --tacticSources=+CUDNN,-CUBLAS,-CUBLAS_LT
+   trtexec --onnx=drunet_gray.onnx --minShapes=input:1x1x8x8 --optShapes=input:1x1x64x64 --maxShapes=input:1x1x1080x1920 --saveEngine=dpir_gray_1080p_dynamic.engine --tacticSources=+CUDNN,-CUBLAS,-CUBLAS_LT
    ```
    
-   The engine will be optimized for `64x64` input and can be applied to eligible inputs with shape from `0x0` to `1920x1080` by specifying parameters `block_w` and `block_h` in the `trt` plugin.
+   The engine will be optimized for `64x64` input and can be applied to eligible inputs with shape from `8x8` to `1920x1080` by specifying parameter `tilesize` in the `trt` plugin.
     
    Also check [trtexec useful arguments](#trtexec-useful-arguments)
 
@@ -37,7 +42,7 @@ In vpy script:
 # DPIR
 src = core.std.BlankClip(src, width=640, height=360, format=vs.GRAYS)
 sigma = 10.0
-flt = core.trt.Model([src, core.std.BlankClip(src, color=sigma/255.0)], engine_path="dpir_gray_640_360.engine", block_w=640, block_h=360)
+flt = core.trt.Model([src, core.std.BlankClip(src, color=sigma/255.0)], engine_path="dpir_gray_640_360.engine", tilesize=[640, 360])
 ```
 
 ## trtexec useful arguments
