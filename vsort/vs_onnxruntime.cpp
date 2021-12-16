@@ -783,8 +783,8 @@ static void VS_CC vsOrtCreate(
     verbosity = static_cast<OrtLoggingLevel>(4 - static_cast<int>(verbosity));
 
     int error1, error2;
-    d->overlap_w = int64ToIntS(vsapi->propGetInt(in, "overlap", 0, &error));
-    d->overlap_h = int64ToIntS(vsapi->propGetInt(in, "overlap", 1, &error));
+    d->overlap_w = int64ToIntS(vsapi->propGetInt(in, "overlap", 0, &error1));
+    d->overlap_h = int64ToIntS(vsapi->propGetInt(in, "overlap", 1, &error2));
     if (!error1) {
         if (error2) {
             d->overlap_h = d->overlap_w;
