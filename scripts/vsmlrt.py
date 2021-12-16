@@ -1,4 +1,5 @@
 import enum
+import math
 import os.path
 import typing
 
@@ -8,6 +9,10 @@ from vapoursynth import core
 
 def Version() -> str:
     return "3.0.0"
+
+
+def calcSize(width: int, tiles: int, overlap: int) -> int:
+    return math.ceil((width + 2 * overlap * (tiles - 1)) / tiles)
 
 
 @enum.unique
@@ -25,6 +30,7 @@ def Waifu2x(
     clip: vs.VideoNode,
     noise: typing.Literal[-1, 0, 1, 2, 3] = -1,
     scale: typing.Literal[1, 2] = 2,
+    tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     model: typing.Literal[0, 1, 2, 3, 4, 5, 6] = 6,
@@ -57,12 +63,24 @@ def Waifu2x(
             ' does not support noise reduction level 0'
         )
 
-    if tilesize is not None and overlap is None:
-        overlap = [8, 8, 8, 8, 8, 4, 4][model]
+    if overlap is None:
+        overlap_w = overlap_h = [8, 8, 8, 8, 8, 4, 4][model]
+    elif isinstance(overlap, int):
+        overlap_w = overlap_h = overlap
+    else:
+        overlap_w, overlap_h = overlap
 
     if tilesize is None:
-        tile_w = clip.width
-        tile_h = clip.height
+        if tiles is None:
+            overlap = 0
+            tile_w = clip.width
+            tile_h = clip.height
+        elif isinstance(tiles, int):
+            tile_w = calcSize(clip.width, tiles, overlap_w)
+            tile_h = calcSize(clip.height, tiles, overlap_h)
+        else:
+            tile_w = calcSize(clip.width, tiles[0], overlap_w)
+            tile_h = calcSize(clip.height, tiles[1], overlap_h)
     elif isinstance(tilesize, int):
         tile_w = tilesize
         tile_h = tilesize
@@ -115,20 +133,20 @@ def Waifu2x(
     if backend == "ort-cpu":
         clip = core.ort.Model(
             clip, network_path,
-            overlap=overlap, tilesize=(tile_w, tile_h),
+            overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
             provider="CPU", builtin=1
         )
     elif backend == "ort-cuda":
         clip = core.ort.Model(
             clip, network_path,
-            overlap=overlap, tilesize=(tile_w, tile_h),
+            overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
             provider="CUDA", device_id=device_id, cudnn_benchmark=cudnn_benchmark,
             builtin=1
         )
     elif backend == "ov-cpu":
         clip = core.ov.Model(
             clip, network_path,
-            overlap=overlap, tilesize=(tile_w, tile_h),
+            overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
             device="CPU", builtin=1
         )
     else:
