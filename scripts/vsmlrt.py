@@ -1,4 +1,11 @@
-__version__ = "3.0.0"
+__version__ = "3.0.1"
+
+__all__ = [
+    "Backend",
+    "Waifu2x", "Waifu2xModel",
+    "DPIR", "DPIRModel",
+    "RealESRGANv2", "RealESRGANv2Model"
+]
 
 from dataclasses import dataclass
 import enum
@@ -304,6 +311,76 @@ def DPIR(
 
     clip = inference(
         clips=[clip, strength], network_path=network_path,
+        overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
+        backend=backend
+    )
+
+    return clip
+
+
+@enum.unique
+class RealESRGANv2Model(enum.IntEnum):
+    animevideo_xsx2 = 0
+    animevideo_xsx4 = 1
+
+
+def RealESRGANv2(
+    clip: vs.VideoNode,
+    tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    model: typing.Literal[0, 1] = 0,
+    backend: typing.Union[Backend.OV_CPU, Backend.ORT_CPU, Backend.ORT_CUDA] = Backend.OV_CPU()
+) -> vs.VideoNode:
+
+    funcName = "vsmlrt.RealESRGANv2"
+
+    if not isinstance(clip, vs.VideoNode):
+        raise TypeError(f'{funcName}: "clip" must be a clip!')
+
+    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
+        raise ValueError(f"{funcName}: only constant format 32 bit float input supported")
+
+    if not isinstance(model, int) or model not in RealESRGANv2Model.__members__.values():
+        raise ValueError(f'{funcName}: "model" must be 0 or 1')
+
+    if overlap is None:
+        overlap_w = overlap_h = 8
+    elif isinstance(overlap, int):
+        overlap_w = overlap_h = overlap
+    else:
+        overlap_w, overlap_h = overlap
+
+    if tilesize is None:
+        if tiles is None:
+            overlap = 0
+            tile_w = clip.width
+            tile_h = clip.height
+        elif isinstance(tiles, int):
+            tile_w = calcSize(clip.width, tiles, overlap_w)
+            tile_h = calcSize(clip.height, tiles, overlap_h)
+        else:
+            tile_w = calcSize(clip.width, tiles[0], overlap_w)
+            tile_h = calcSize(clip.height, tiles[1], overlap_h)
+    elif isinstance(tilesize, int):
+        tile_w = tilesize
+        tile_h = tilesize
+    else:
+        tile_w, tile_h = tilesize
+
+    if backend is Backend.ORT_CPU: # type: ignore
+        backend = Backend.ORT_CPU()
+    elif backend is Backend.ORT_CUDA: # type: ignore
+        backend = Backend.ORT_CUDA()
+    elif backend is Backend.OV_CPU: # type: ignore
+        backend = Backend.OV_CPU()
+
+    network_path = os.path.join(
+        "RealESRGANv2",
+        f"RealESRGANv2-{tuple(RealESRGANv2Model.__members__)[model]}.onnx".replace('_', '-'))
+
+    clip = inference(
+        clips=[clip], network_path=network_path,
         overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
         backend=backend
     )
