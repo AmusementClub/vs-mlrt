@@ -1,4 +1,4 @@
-__version__ = "3.0.1"
+__version__ = "3.0.2"
 
 __all__ = [
     "Backend",
@@ -340,6 +340,9 @@ def RealESRGANv2(
 
     if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
         raise ValueError(f"{funcName}: only constant format 32 bit float input supported")
+
+    if clip.format.id != vs.RGBS:
+        raise ValueError(f'{funcName}: "clip" must be of RGBS format')
 
     if not isinstance(model, int) or model not in RealESRGANv2Model.__members__.values():
         raise ValueError(f'{funcName}: "model" must be 0 or 1')
