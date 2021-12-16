@@ -1,4 +1,4 @@
-__version__ = "3.0.2"
+__version__ = "3.0.3"
 
 __all__ = [
     "Backend",
@@ -35,7 +35,7 @@ class Backend:
         pass
 
 
-def calcSize(width: int, tiles: int, overlap: int, multiple: int = 1) -> int:
+def calc_size(width: int, tiles: int, overlap: int, multiple: int = 1) -> int:
     return math.ceil((width + 2 * overlap * (tiles - 1)) / (tiles * multiple)) * multiple
 
 
@@ -48,7 +48,7 @@ def inference(
 ) -> vs.VideoNode:
 
     if isinstance(backend, Backend.ORT_CPU):
-        return core.ort.Model(
+        clip = core.ort.Model(
             clips, network_path,
             overlap=overlap, tilesize=tilesize,
             provider="CPU", builtin=1,
@@ -56,7 +56,7 @@ def inference(
             verbosity=backend.verbosity
         )
     elif isinstance(backend, Backend.ORT_CUDA):
-        return core.ort.Model(
+        clip = core.ort.Model(
             clips, network_path,
             overlap=overlap, tilesize=tilesize,
             provider="CUDA", builtin=1,
@@ -66,13 +66,15 @@ def inference(
             cudnn_benchmark=backend.cudnn_benchmark
         )
     elif isinstance(backend, Backend.OV_CPU):
-        return core.ov.Model(
+        clip = core.ov.Model(
             clips, network_path,
             overlap=overlap, tilesize=tilesize,
             device="CPU", builtin=1
         )
     else:
         raise ValueError(f'unknown backend {backend}')
+
+    return clip
 
 
 @enum.unique
@@ -144,11 +146,11 @@ def Waifu2x(
             tile_w = clip.width
             tile_h = clip.height
         elif isinstance(tiles, int):
-            tile_w = calcSize(clip.width, tiles, overlap_w, multiple)
-            tile_h = calcSize(clip.height, tiles, overlap_h, multiple)
+            tile_w = calc_size(clip.width, tiles, overlap_w, multiple)
+            tile_h = calc_size(clip.height, tiles, overlap_h, multiple)
         else:
-            tile_w = calcSize(clip.width, tiles[0], overlap_w, multiple)
-            tile_h = calcSize(clip.height, tiles[1], overlap_h, multiple)
+            tile_w = calc_size(clip.width, tiles[0], overlap_w, multiple)
+            tile_h = calc_size(clip.height, tiles[1], overlap_h, multiple)
     elif isinstance(tilesize, int):
         tile_w = tilesize
         tile_h = tilesize
@@ -171,7 +173,7 @@ def Waifu2x(
         if noise == -1:
             model_name = "scale2.0x_model.onnx"
         else:
-             model_name = f"noise{noise}_model.onnx"
+            model_name = f"noise{noise}_model.onnx"
     elif model in (3, 4, 5):
         if noise == -1:
             model_name = "scale2.0x_model.onnx"
@@ -262,12 +264,12 @@ def DPIR(
         if strength.num_frames != clip.num_frames:
             raise ValueError(f'{funcName}: "strength" must be of the same length as "clip"')
 
-        strength = core.std.Expr(strength, f"x 255 /")
+        strength = core.std.Expr(strength, "x 255 /")
     else:
         try:
             strength = float(strength)
-        except TypeError:
-            raise TypeError(f'{funcName}: "strength" must be a float or a clip')
+        except TypeError as e:
+            raise TypeError(f'{funcName}: "strength" must be a float or a clip') from e
 
         strength = core.std.BlankClip(clip, format=vs.GRAYS, color=strength / 255)
 
@@ -286,11 +288,11 @@ def DPIR(
             tile_w = clip.width
             tile_h = clip.height
         elif isinstance(tiles, int):
-            tile_w = calcSize(clip.width, tiles, overlap_w, multiple)
-            tile_h = calcSize(clip.height, tiles, overlap_h, multiple)
+            tile_w = calc_size(clip.width, tiles, overlap_w, multiple)
+            tile_h = calc_size(clip.height, tiles, overlap_h, multiple)
         else:
-            tile_w = calcSize(clip.width, tiles[0], overlap_w, multiple)
-            tile_h = calcSize(clip.height, tiles[1], overlap_h, multiple)
+            tile_w = calc_size(clip.width, tiles[0], overlap_w, multiple)
+            tile_h = calc_size(clip.height, tiles[1], overlap_h, multiple)
     elif isinstance(tilesize, int):
         tile_w = tilesize
         tile_h = tilesize
@@ -360,11 +362,11 @@ def RealESRGANv2(
             tile_w = clip.width
             tile_h = clip.height
         elif isinstance(tiles, int):
-            tile_w = calcSize(clip.width, tiles, overlap_w)
-            tile_h = calcSize(clip.height, tiles, overlap_h)
+            tile_w = calc_size(clip.width, tiles, overlap_w)
+            tile_h = calc_size(clip.height, tiles, overlap_h)
         else:
-            tile_w = calcSize(clip.width, tiles[0], overlap_w)
-            tile_h = calcSize(clip.height, tiles[1], overlap_h)
+            tile_w = calc_size(clip.width, tiles[0], overlap_w)
+            tile_h = calc_size(clip.height, tiles[1], overlap_h)
     elif isinstance(tilesize, int):
         tile_w = tilesize
         tile_h = tilesize
@@ -380,7 +382,8 @@ def RealESRGANv2(
 
     network_path = os.path.join(
         "RealESRGANv2",
-        f"RealESRGANv2-{tuple(RealESRGANv2Model.__members__)[model]}.onnx".replace('_', '-'))
+        f"RealESRGANv2-{tuple(RealESRGANv2Model.__members__)[model]}.onnx".replace('_', '-')
+    )
 
     clip = inference(
         clips=[clip], network_path=network_path,
