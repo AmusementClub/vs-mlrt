@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(vs-ov VERSION 1.0 LANGUAGES CXX)
+project(vs-ov VERSION 3.0 LANGUAGES CXX)
 
 set(VAPOURSYNTH_INCLUDE_DIRECTORY "" CACHE PATH "Path to VapourSynth headers")
 
@@ -26,6 +26,19 @@ set_target_properties(vsov PROPERTIES
 if (WIN32)
     target_link_options(vsov PRIVATE "/DELAYLOAD:tbb.dll" "delayimp.lib")
 endif()
+
+target_include_directories(vsov PUBLIC
+    "${PROJECT_BINARY_DIR}"
+)
+
+find_package(Git REQUIRED)
+execute_process(
+    COMMAND ${GIT_EXECUTABLE} describe --tags --long --always
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE VCS_TAG
+)
+string(STRIP ${VCS_TAG} VCS_TAG)
+configure_file(config.h.in config.h)
 
 install(TARGETS vsov
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

@@ -122,7 +122,7 @@ std::optional<std::string> checkNodesAndContext(
     int clip_in_width = vis[0]->width;
 
     if (network_in_height > clip_in_height || network_in_width > clip_in_width) {
-        return "block size larger than clip dimension";
+        return "tile size larger than clip dimension";
     }
 
     return {};

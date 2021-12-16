@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(vs-ort VERSION 1.1 LANGUAGES CXX)
+project(vs-ort VERSION 3.0 LANGUAGES CXX)
 
 set(VAPOURSYNTH_INCLUDE_DIRECTORY "" CACHE PATH "Path to VapourSynth headers")
 set(ONNX_RUNTIME_API_DIRECTORY "" CACHE PATH "Path to ONNX API headers")
@@ -16,10 +16,12 @@ add_library(vsort SHARED vs_onnxruntime.cpp win32.cpp)
 target_include_directories(vsort PRIVATE
     ${VAPOURSYNTH_INCLUDE_DIRECTORY}
     ${ONNX_INCLUDE_DIRS}
-    ${ONNX_RUNTIME_API_DIRECTORY})
+    ${ONNX_RUNTIME_API_DIRECTORY}
+)
 
 target_link_directories(vsort PRIVATE
-    ${ONNX_RUNTIME_LIB_DIRECTORY})
+    ${ONNX_RUNTIME_LIB_DIRECTORY}
+)
 
 set_target_properties(vsort PROPERTIES
     POSITION_INDEPENDENT_CODE ON
@@ -45,6 +47,20 @@ if (ENABLE_CUDA)
     endif()
 endif()
 
+target_include_directories(vsort PUBLIC
+    "${PROJECT_BINARY_DIR}"
+)
+
+find_package(Git REQUIRED)
+execute_process(
+    COMMAND ${GIT_EXECUTABLE} describe --tags --long --always
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE VCS_TAG
+)
+string(STRIP ${VCS_TAG} VCS_TAG)
+configure_file(config.h.in config.h)
+
 install(TARGETS vsort
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)

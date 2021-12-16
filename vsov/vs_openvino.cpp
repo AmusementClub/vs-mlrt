@@ -3,6 +3,7 @@
 #include <fstream>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -12,9 +13,12 @@
 #include <VapourSynth.h>
 #include <VSHelper.h>
 
+#include <onnx/common/version.h>
 #include <onnx/proto_utils.h>
 #include <onnx/shape_inference/implementation.h>
 #include <ie_core.hpp>
+
+#include "config.h"
 
 #ifdef _WIN32
 #include <locale>
@@ -56,8 +60,8 @@ static std::array<int, 4> getShape(
 [[nodiscard]]
 static std::optional<std::string> specifyShape(
     ONNX_NAMESPACE::ModelProto & model,
-    int64_t block_w,
-    int64_t block_h,
+    int64_t tile_w,
+    int64_t tile_h,
     int64_t batch = 1
 ) noexcept {
 
@@ -83,8 +87,8 @@ static std::optional<std::string> specifyShape(
     constexpr auto w_idx = 3;
 
     input_shape->mutable_dim(n_idx)->set_dim_value(batch);
-    input_shape->mutable_dim(h_idx)->set_dim_value(block_h);
-    input_shape->mutable_dim(w_idx)->set_dim_value(block_w);
+    input_shape->mutable_dim(h_idx)->set_dim_value(tile_h);
+    input_shape->mutable_dim(w_idx)->set_dim_value(tile_w);
 
     output_shape->mutable_dim(n_idx)->set_dim_value(batch);
     output_shape->mutable_dim(h_idx)->clear_dim_value();
@@ -222,7 +226,7 @@ static std::optional<std::string> checkNodesAndNetwork(
     auto clip_in_height = vis.front()->height;
     auto clip_in_width = vis.front()->width;
     if (network_in_height > clip_in_height || network_in_width > clip_in_width) {
-        return "block size larger than clip dimension";
+        return "tile size larger than clip dimension";
     }
 
     return {};
@@ -246,7 +250,7 @@ struct OVData {
     std::vector<VSNodeRef *> nodes;
     std::unique_ptr<VSVideoInfo> out_vi;
 
-    int pad;
+    int overlap_w, overlap_h;
 
     InferenceEngine::Core core;
     InferenceEngine::ExecutableNetwork executable_network;
@@ -304,22 +308,22 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
         auto src_width = vsapi->getFrameWidth(src_frames.front(), 0);
         auto src_height = vsapi->getFrameHeight(src_frames.front(), 0);
         auto src_bytes = vsapi->getFrameFormat(src_frames.front())->bytesPerSample;
-        auto src_patch_shape = getShape(d->executable_network, true);
-        auto src_patch_h = src_patch_shape[2];
-        auto src_patch_w = src_patch_shape[3];
-        auto src_patch_w_bytes = src_patch_w * src_bytes;
-        auto src_patch_bytes = src_patch_h * src_patch_w_bytes;
+        auto src_tile_shape = getShape(d->executable_network, true);
+        auto src_tile_h = src_tile_shape[2];
+        auto src_tile_w = src_tile_shape[3];
+        auto src_tile_w_bytes = src_tile_w * src_bytes;
+        auto src_tile_bytes = src_tile_h * src_tile_w_bytes;
 
         std::vector<const uint8_t *> src_ptrs;
-        src_ptrs.reserve(src_patch_shape[1]);
+        src_ptrs.reserve(src_tile_shape[1]);
         for (int i = 0; i < std::size(d->nodes); ++i) {
             for (int j = 0; j < in_vis[i]->format->numPlanes; ++j) {
                 src_ptrs.emplace_back(vsapi->getReadPtr(src_frames[i], j));
             }
         }
 
-        auto step_w = src_patch_w - 2 * d->pad;
-        auto step_h = src_patch_h - 2 * d->pad;
+        auto step_w = src_tile_w - 2 * d->overlap_w;
+        auto step_h = src_tile_h - 2 * d->overlap_h;
 
         VSFrameRef * const dst_frame = vsapi->newVideoFrame(
             d->out_vi->format, d->out_vi->width, d->out_vi->height,
@@ -327,19 +331,19 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
         );
         auto dst_stride = vsapi->getStride(dst_frame, 0);
         auto dst_bytes = vsapi->getFrameFormat(dst_frame)->bytesPerSample;
-        auto dst_patch_shape = getShape(d->executable_network, false);
-        auto dst_patch_h = dst_patch_shape[2];
-        auto dst_patch_w = dst_patch_shape[3];
-        auto dst_patch_w_bytes = dst_patch_w * dst_bytes;
-        auto dst_patch_bytes = dst_patch_h * dst_patch_w_bytes;
-        auto dst_planes = dst_patch_shape[1];
+        auto dst_tile_shape = getShape(d->executable_network, false);
+        auto dst_tile_h = dst_tile_shape[2];
+        auto dst_tile_w = dst_tile_shape[3];
+        auto dst_tile_w_bytes = dst_tile_w * dst_bytes;
+        auto dst_tile_bytes = dst_tile_h * dst_tile_w_bytes;
+        auto dst_planes = dst_tile_shape[1];
         std::array<uint8_t *, 3> dst_ptrs {};
         for (int i = 0; i < dst_planes; ++i) {
             dst_ptrs[i] = vsapi->getWritePtr(dst_frame, i);
         }
 
-        auto h_scale = dst_patch_h / src_patch_h;
-        auto w_scale = dst_patch_w / src_patch_w;
+        auto h_scale = dst_tile_h / src_tile_h;
+        auto w_scale = dst_tile_w / src_tile_w;
 
         auto thread_id = std::this_thread::get_id();
         if (d->infer_requests.count(thread_id) == 0) {
@@ -364,13 +368,13 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
 
         int y = 0;
         while (true) {
-            int y_pad_start = (y == 0) ? 0 : d->pad;
-            int y_pad_end = (y == src_height - src_patch_h) ? 0 : d->pad;
+            int y_crop_start = (y == 0) ? 0 : d->overlap_h;
+            int y_crop_end = (y == src_height - src_tile_h) ? 0 : d->overlap_h;
 
             int x = 0;
             while (true) {
-                int x_pad_start = (x == 0) ? 0 : d->pad;
-                int x_pad_end = (x == src_width - src_patch_w) ? 0 : d->pad;
+                int x_crop_start = (x == 0) ? 0 : d->overlap_w;
+                int x_crop_end = (x == src_width - src_tile_w) ? 0 : d->overlap_w;
 
                 {
                     InferenceEngine::Blob::Ptr input = infer_request.GetBlob(d->input_name);
@@ -385,12 +389,12 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
                         };
 
                         vs_bitblt(
-                            input_buffer, src_patch_w_bytes,
+                            input_buffer, src_tile_w_bytes,
                             src_ptr, src_stride,
-                            src_patch_w_bytes, src_patch_h
+                            src_tile_w_bytes, src_tile_h
                         );
 
-                        input_buffer += src_patch_bytes;
+                        input_buffer += src_tile_bytes;
                     }
                 }
 
@@ -414,30 +418,30 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
                         );
 
                         vs_bitblt(
-                            dst_ptr + (y_pad_start * dst_stride + x_pad_start * dst_bytes),
+                            dst_ptr + (y_crop_start * dst_stride + x_crop_start * dst_bytes),
                             dst_stride,
-                            output_buffer + (y_pad_start * dst_patch_w_bytes + x_pad_start * dst_bytes),
-                            dst_patch_w_bytes,
-                            dst_patch_w_bytes - (x_pad_start + x_pad_end) * dst_bytes,
-                            dst_patch_h - (y_pad_start + y_pad_end)
+                            output_buffer + (y_crop_start * dst_tile_w_bytes + x_crop_start * dst_bytes),
+                            dst_tile_w_bytes,
+                            dst_tile_w_bytes - (x_crop_start + x_crop_end) * dst_bytes,
+                            dst_tile_h - (y_crop_start + y_crop_end)
                         );
 
-                        output_buffer += dst_patch_bytes;
+                        output_buffer += dst_tile_bytes;
                     }
                 }
 
-                if (x + src_patch_w == src_width) {
+                if (x + src_tile_w == src_width) {
                     break;
                 }
 
-                x = std::min(x + step_w, src_width - src_patch_w);
+                x = std::min(x + step_w, src_width - src_tile_w);
             }
 
-            if (y + src_patch_h == src_height) {
+            if (y + src_tile_h == src_height) {
                 break;
             }
 
-            y = std::min(y + step_h, src_height - src_patch_h);
+            y = std::min(y + step_h, src_height - src_tile_h);
         }
 
         for (const auto & frame : src_frames) {
@@ -510,32 +514,39 @@ static void VS_CC vsOvCreate(
         device = "CPU";
     }
 
-    d->pad = int64ToIntS(vsapi->propGetInt(in, "pad", 0, &error));
-    if (error) {
-        d->pad = 0;
-    }
-    if (d->pad < 0) {
-        return set_error("\"pad\" should be non-negative");
-    }
-
     int error1, error2;
-    size_t block_w = static_cast<size_t>(vsapi->propGetInt(in, "block_w", 0, &error1));
-    size_t block_h = static_cast<size_t>(vsapi->propGetInt(in, "block_h", 0, &error2));
-    if (!error1) { // manual specification triggered
+    d->overlap_w = int64ToIntS(vsapi->propGetInt(in, "overlap", 0, &error));
+    d->overlap_h = int64ToIntS(vsapi->propGetInt(in, "overlap", 1, &error));
+    if (!error1) {
         if (error2) {
-            block_h = block_w;
+            d->overlap_h = d->overlap_w;
+        }
+
+        if (d->overlap_w < 0 || d->overlap_h < 0) {
+            return set_error("\"overlap\" must be non-negative");
         }
     } else {
-        if (d->pad != 0) {
-            return set_error("\"block_w\" must be specified");
+        d->overlap_w = 0;
+        d->overlap_h = 0;
+    }
+
+    size_t tile_w = static_cast<size_t>(vsapi->propGetInt(in, "tilesize", 0, &error1));
+    size_t tile_h = static_cast<size_t>(vsapi->propGetInt(in, "tilesize", 1, &error2));
+    if (!error1) { // manual specification triggered
+        if (error2) {
+            tile_h = tile_w;
+        }
+    } else {
+        if (d->overlap_w != 0 || d->overlap_h != 0) {
+            return set_error("\"tilesize\" must be specified");
         }
 
-        // set block size to video dimensions
-        block_w = in_vis.front()->width;
-        block_h = in_vis.front()->height;
+        // set tile size to video dimensions
+        tile_w = in_vis.front()->width;
+        tile_h = in_vis.front()->height;
     }
-    if (block_w - 2 * d->pad <= 0 || block_h - 2 * d->pad <= 0) {
-        return set_error("\"pad\" too large");
+    if (tile_w - 2 * d->overlap_w <= 0 || tile_h - 2 * d->overlap_h <= 0) {
+        return set_error("\"overlap\" too large");
     }
 
     std::string path { vsapi->propGetData(in, "network_path", 0, nullptr) };
@@ -573,7 +584,7 @@ static void VS_CC vsOvCreate(
         return set_error(e.what());
     }
 
-    if (auto err = specifyShape(onnx_proto, block_w, block_h); err.has_value()) {
+    if (auto err = specifyShape(onnx_proto, tile_w, tile_h); err.has_value()) {
         return set_error(err.value());
     }
 
@@ -637,9 +648,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     registerFunc("Model",
         "clips:clip[];"
         "network_path:data;"
-        "pad:int:opt;"
-        "block_w:int:opt;"
-        "block_h:int:opt;"
+        "overlap:int[]:opt;"
+        "tilesize:int[]:opt;"
         "device:data:opt;" // "CPU": CPU
         "builtin:int:opt;"
         "builtindir:data:opt;"
@@ -647,4 +657,14 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         nullptr,
         plugin
     );
+
+    auto getVersion = [](const VSMap *, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
+        std::ostringstream version;
+        version << VERSION;
+        version << "-ie-" << IE_VERSION_MAJOR << '.' << IE_VERSION_MINOR << '.' << IE_VERSION_PATCH;
+        version << "-onnx-" << ONNX_NAMESPACE::LAST_RELEASE_VERSION;
+
+        vsapi->propSetData(out, "version", version.str().c_str(), -1, paReplace);
+    };
+    registerFunc("Version", "", getVersion, nullptr, plugin);
 }

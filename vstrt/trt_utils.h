@@ -17,9 +17,9 @@
 
 using ErrorMessage = std::string;
 
-struct RequestedBlockSize {
-    int block_w;
-    int block_h;
+struct RequestedTileSize {
+    int tile_w;
+    int tile_h;
 };
 
 struct VideoSize {
@@ -27,7 +27,7 @@ struct VideoSize {
     int height;
 };
 
-using BlockSize = std::variant<RequestedBlockSize, VideoSize>;
+using TileSize = std::variant<RequestedTileSize, VideoSize>;
 
 struct InferenceInstance {
     MemoryResource src;
@@ -69,17 +69,17 @@ static std::wstring translateName(const char *name) {
 static inline
 std::optional<int> selectProfile(
     const std::unique_ptr<nvinfer1::ICudaEngine> & engine,
-    const BlockSize & block_size,
+    const TileSize & tile_size,
     int batch_size = 1
 ) noexcept {
 
-    int block_w, block_h;
-    if (std::holds_alternative<RequestedBlockSize>(block_size)) {
-        block_w = std::get<RequestedBlockSize>(block_size).block_w;
-        block_h = std::get<RequestedBlockSize>(block_size).block_h;
+    int tile_w, tile_h;
+    if (std::holds_alternative<RequestedTileSize>(tile_size)) {
+        tile_w = std::get<RequestedTileSize>(tile_size).tile_w;
+        tile_h = std::get<RequestedTileSize>(tile_size).tile_h;
     } else {
-        block_w = std::get<VideoSize>(block_size).width;
-        block_h = std::get<VideoSize>(block_size).height;
+        tile_w = std::get<VideoSize>(tile_size).width;
+        tile_h = std::get<VideoSize>(tile_size).height;
     }
 
     // finds the optimal profile
@@ -90,7 +90,7 @@ std::optional<int> selectProfile(
         if (opt_dims.d[0] != batch_size) {
             continue;
         }
-        if (opt_dims.d[2] == block_h && opt_dims.d[3] == block_w) {
+        if (opt_dims.d[2] == tile_h && opt_dims.d[3] == tile_w) {
             return i;
         }
     }
@@ -103,7 +103,7 @@ std::optional<int> selectProfile(
         if (min_dims.d[0] > batch_size) {
             continue;
         }
-        if (min_dims.d[2] > block_h || min_dims.d[3] > block_w) {
+        if (min_dims.d[2] > tile_h || min_dims.d[3] > tile_w) {
             continue;
         }
 
@@ -113,7 +113,7 @@ std::optional<int> selectProfile(
         if (max_dims.d[0] < batch_size) {
             continue;
         }
-        if (max_dims.d[2] < block_h || max_dims.d[3] < block_w) {
+        if (max_dims.d[2] < tile_h || max_dims.d[3] < tile_w) {
             continue;
         }
 
@@ -211,7 +211,7 @@ static inline
 std::variant<ErrorMessage, InferenceInstance> getInstance(
     const std::unique_ptr<nvinfer1::ICudaEngine> & engine,
     const std::optional<int> & profile_index,
-    const BlockSize & block_size,
+    const TileSize & tile_size,
     bool use_cuda_graph,
     bool & is_dynamic
 ) noexcept {
@@ -240,15 +240,15 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
         nvinfer1::Dims dims = exec_context->getBindingDimensions(0);
         dims.d[0] = 1;
 
-        if (std::holds_alternative<RequestedBlockSize>(block_size)) {
-            dims.d[2] = std::get<RequestedBlockSize>(block_size).block_h;
-            dims.d[3] = std::get<RequestedBlockSize>(block_size).block_w;
+        if (std::holds_alternative<RequestedTileSize>(tile_size)) {
+            dims.d[2] = std::get<RequestedTileSize>(tile_size).tile_h;
+            dims.d[3] = std::get<RequestedTileSize>(tile_size).tile_w;
         } else {
-            dims.d[2] = std::get<VideoSize>(block_size).height;
-            dims.d[3] = std::get<VideoSize>(block_size).width;
+            dims.d[2] = std::get<VideoSize>(tile_size).height;
+            dims.d[3] = std::get<VideoSize>(tile_size).width;
         }
         exec_context->setBindingDimensions(0, dims);
-    } else if (std::holds_alternative<RequestedBlockSize>(block_size)) {
+    } else if (std::holds_alternative<RequestedTileSize>(tile_size)) {
         return set_error("Engine has no dynamic dimensions");
     }
 

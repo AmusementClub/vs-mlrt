@@ -6,14 +6,18 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <variant>
 #include <vector>
 
+#include <onnx/common/version.h>
 #include <onnx/proto_utils.h>
 #include <onnx/shape_inference/implementation.h>
 #include <onnxruntime_c_api.h>
+
+#include "config.h"
 
 #ifdef ENABLE_CUDA
 #include <cuda_runtime.h>
@@ -127,10 +131,11 @@ static std::variant<std::string, std::array<int64_t, 4>> getShape(
 }
 
 
+[[nodiscard]]
 static std::optional<std::string> specifyShape(
     onnx::ModelProto & model,
-    int64_t block_w,
-    int64_t block_h,
+    int64_t tile_w,
+    int64_t tile_h,
     int64_t batch = 1
 ) noexcept {
 
@@ -156,8 +161,8 @@ static std::optional<std::string> specifyShape(
     constexpr auto w_idx = 3;
 
     input_shape->mutable_dim(n_idx)->set_dim_value(batch);
-    input_shape->mutable_dim(h_idx)->set_dim_value(block_h);
-    input_shape->mutable_dim(w_idx)->set_dim_value(block_w);
+    input_shape->mutable_dim(h_idx)->set_dim_value(tile_h);
+    input_shape->mutable_dim(w_idx)->set_dim_value(tile_w);
 
     output_shape->mutable_dim(n_idx)->set_dim_value(batch);
     output_shape->mutable_dim(h_idx)->clear_dim_value();
@@ -329,7 +334,7 @@ static std::optional<std::string> checkNodesAndNetwork(
     auto clip_in_height = vis.front()->height;
     auto clip_in_width = vis.front()->width;
     if (network_in_height > clip_in_height || network_in_width > clip_in_width) {
-        return set_error("block size larger than clip dimension");
+        return set_error("tile size larger than clip dimension");
     }
 
     ortapi->ReleaseTypeInfo(input_type_info);
@@ -404,7 +409,7 @@ struct vsOrtData {
     std::vector<VSNodeRef *> nodes;
     std::unique_ptr<VSVideoInfo> out_vi;
 
-    int pad;
+    int overlap_w, overlap_h;
 
     OrtEnv * environment;
     Backend backend;
@@ -496,36 +501,36 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
         auto ticket = d->acquire();
         Resource & resource = d->resources[ticket];
 
-        auto src_patch_shape = std::get<std::array<int64_t, 4>>(getShape(resource.session, true));
-        auto src_patch_h = src_patch_shape[2];
-        auto src_patch_w = src_patch_shape[3];
-        auto src_patch_w_bytes = src_patch_w * src_bytes;
-        auto src_patch_bytes = src_patch_h * src_patch_w_bytes;
+        auto src_tile_shape = std::get<std::array<int64_t, 4>>(getShape(resource.session, true));
+        auto src_tile_h = src_tile_shape[2];
+        auto src_tile_w = src_tile_shape[3];
+        auto src_tile_w_bytes = src_tile_w * src_bytes;
+        auto src_tile_bytes = src_tile_h * src_tile_w_bytes;
 
         std::vector<const uint8_t *> src_ptrs;
-        src_ptrs.reserve(src_patch_shape[1]);
+        src_ptrs.reserve(src_tile_shape[1]);
         for (unsigned i = 0; i < std::size(d->nodes); ++i) {
             for (int j = 0; j < in_vis[i]->format->numPlanes; ++j) {
                 src_ptrs.emplace_back(vsapi->getReadPtr(src_frames[i], j));
             }
         }
 
-        auto step_w = src_patch_w - 2 * d->pad;
-        auto step_h = src_patch_h - 2 * d->pad;
+        auto step_w = src_tile_w - 2 * d->overlap_w;
+        auto step_h = src_tile_h - 2 * d->overlap_h;
 
-        auto dst_patch_shape = std::get<std::array<int64_t, 4>>(getShape(resource.session, false));
-        auto dst_patch_h = dst_patch_shape[2];
-        auto dst_patch_w = dst_patch_shape[3];
-        auto dst_patch_w_bytes = dst_patch_w * dst_bytes;
-        auto dst_patch_bytes = dst_patch_h * dst_patch_w_bytes;
-        auto dst_planes = dst_patch_shape[1];
+        auto dst_tile_shape = std::get<std::array<int64_t, 4>>(getShape(resource.session, false));
+        auto dst_tile_h = dst_tile_shape[2];
+        auto dst_tile_w = dst_tile_shape[3];
+        auto dst_tile_w_bytes = dst_tile_w * dst_bytes;
+        auto dst_tile_bytes = dst_tile_h * dst_tile_w_bytes;
+        auto dst_planes = dst_tile_shape[1];
         uint8_t * dst_ptrs[3] {};
         for (int i = 0; i < dst_planes; ++i) {
             dst_ptrs[i] = vsapi->getWritePtr(dst_frame, i);
         }
 
-        auto h_scale = dst_patch_h / src_patch_h;
-        auto w_scale = dst_patch_w / src_patch_w;
+        auto h_scale = dst_tile_h / src_tile_h;
+        auto w_scale = dst_tile_w / src_tile_w;
 
         const auto set_error = [&](const std::string & error_message) {
             vsapi->setFilterError(
@@ -546,13 +551,13 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
 
         int y = 0;
         while (true) {
-            int y_pad_start = (y == 0) ? 0 : d->pad;
-            int y_pad_end = (y == src_height - src_patch_h) ? 0 : d->pad;
+            int y_crop_start = (y == 0) ? 0 : d->overlap_h;
+            int y_crop_end = (y == src_height - src_tile_h) ? 0 : d->overlap_h;
 
             int x = 0;
             while (true) {
-                int x_pad_start = (x == 0) ? 0 : d->pad;
-                int x_pad_end = (x == src_width - src_patch_w) ? 0 : d->pad;
+                int x_crop_start = (x == 0) ? 0 : d->overlap_w;
+                int x_crop_end = (x == src_width - src_tile_w) ? 0 : d->overlap_w;
 
                 {
                     uint8_t * input_buffer;
@@ -572,20 +577,20 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
 #ifdef ENABLE_CUDA
                         if (d->backend == Backend::CUDA) {
                             vs_bitblt(
-                                h_input_buffer, src_patch_w_bytes,
+                                h_input_buffer, src_tile_w_bytes,
                                 src_ptr, src_stride,
-                                src_patch_w_bytes, src_patch_h
+                                src_tile_w_bytes, src_tile_h
                             );
-                            h_input_buffer += src_patch_bytes;
+                            h_input_buffer += src_tile_bytes;
                         } else
 #endif // ENABLE_CUDA
                         {
                             vs_bitblt(
-                                input_buffer, src_patch_w_bytes,
+                                input_buffer, src_tile_w_bytes,
                                 src_ptr, src_stride,
-                                src_patch_w_bytes, src_patch_h
+                                src_tile_w_bytes, src_tile_h
                             );
-                            input_buffer += src_patch_bytes;
+                            input_buffer += src_tile_bytes;
                         }
                     }
                 }
@@ -636,44 +641,44 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
 #ifdef ENABLE_CUDA
                         if (d->backend == Backend::CUDA) {
                             vs_bitblt(
-                                dst_ptr + (y_pad_start * dst_stride + x_pad_start * dst_bytes),
+                                dst_ptr + (y_crop_start * dst_stride + x_crop_start * dst_bytes),
                                 dst_stride,
-                                h_output_buffer + (y_pad_start * dst_patch_w_bytes + x_pad_start * dst_bytes),
-                                dst_patch_w_bytes,
-                                dst_patch_w_bytes - (x_pad_start + x_pad_end) * dst_bytes,
-                                dst_patch_h - (y_pad_start + y_pad_end)
+                                h_output_buffer + (y_crop_start * dst_tile_w_bytes + x_crop_start * dst_bytes),
+                                dst_tile_w_bytes,
+                                dst_tile_w_bytes - (x_crop_start + x_crop_end) * dst_bytes,
+                                dst_tile_h - (y_crop_start + y_crop_end)
                             );
 
-                            h_output_buffer += dst_patch_bytes;
+                            h_output_buffer += dst_tile_bytes;
                         } else
 #endif // ENABLE_CUDA
                         {
                             vs_bitblt(
-                                dst_ptr + (y_pad_start * dst_stride + x_pad_start * dst_bytes),
+                                dst_ptr + (y_crop_start * dst_stride + x_crop_start * dst_bytes),
                                 dst_stride,
-                                output_buffer + (y_pad_start * dst_patch_w_bytes + x_pad_start * dst_bytes),
-                                dst_patch_w_bytes,
-                                dst_patch_w_bytes - (x_pad_start + x_pad_end) * dst_bytes,
-                                dst_patch_h - (y_pad_start + y_pad_end)
+                                output_buffer + (y_crop_start * dst_tile_w_bytes + x_crop_start * dst_bytes),
+                                dst_tile_w_bytes,
+                                dst_tile_w_bytes - (x_crop_start + x_crop_end) * dst_bytes,
+                                dst_tile_h - (y_crop_start + y_crop_end)
                             );
 
-                            output_buffer += dst_patch_bytes;
+                            output_buffer += dst_tile_bytes;
                         }
                     }
                 }
 
-                if (x + src_patch_w == src_width) {
+                if (x + src_tile_w == src_width) {
                     break;
                 }
 
-                x = std::min(x + step_w, src_width - src_patch_w);
+                x = std::min(x + step_w, src_width - src_tile_w);
             }
 
-            if (y + src_patch_h == src_height) {
+            if (y + src_tile_h == src_height) {
                 break;
             }
 
-            y = std::min(y + step_h, src_height - src_patch_h);
+            y = std::min(y + step_h, src_height - src_tile_h);
         }
 
         for (const auto & frame : src_frames) {
@@ -777,32 +782,39 @@ static void VS_CC vsOrtCreate(
     // match verbosity of vs-trt
     verbosity = static_cast<OrtLoggingLevel>(4 - static_cast<int>(verbosity));
 
-    d->pad = int64ToIntS(vsapi->propGetInt(in, "pad", 0, &error));
-    if (error) {
-        d->pad = 0;
-    }
-    if (d->pad < 0) {
-        return set_error("\"pad\" should be non-negative");
-    }
-
     int error1, error2;
-    size_t block_w = static_cast<size_t>(vsapi->propGetInt(in, "block_w", 0, &error1));
-    size_t block_h = static_cast<size_t>(vsapi->propGetInt(in, "block_h", 0, &error2));
-    if (!error1) { // manual specification triggered
+    d->overlap_w = int64ToIntS(vsapi->propGetInt(in, "overlap", 0, &error));
+    d->overlap_h = int64ToIntS(vsapi->propGetInt(in, "overlap", 1, &error));
+    if (!error1) {
         if (error2) {
-            block_h = block_w;
+            d->overlap_h = d->overlap_w;
+        }
+
+        if (d->overlap_w < 0 || d->overlap_h < 0) {
+            return set_error("\"overlap\" must be non-negative");
         }
     } else {
-        if (d->pad != 0) {
-            return set_error("\"block_w\" must be specified");
+        d->overlap_w = 0;
+        d->overlap_h = 0;
+    }
+
+    size_t tile_w = static_cast<size_t>(vsapi->propGetInt(in, "tilesize", 0, &error1));
+    size_t tile_h = static_cast<size_t>(vsapi->propGetInt(in, "tilesize", 1, &error2));
+    if (!error1) { // manual specification triggered
+        if (error2) {
+            tile_h = tile_w;
+        }
+    } else {
+        if (d->overlap_w != 0 || d->overlap_h != 0) {
+            return set_error("\"tilesize\" must be specified");
         }
 
-        // set block size to video dimensions
-        block_w = in_vis.front()->width;
-        block_h = in_vis.front()->height;
+        // set tile size to video dimensions
+        tile_w = in_vis.front()->width;
+        tile_h = in_vis.front()->height;
     }
-    if (block_w - 2 * d->pad <= 0 || block_h - 2 * d->pad <= 0) {
-        return set_error("\"pad\" too large");
+    if (tile_w - 2 * d->overlap_w <= 0 || tile_h - 2 * d->overlap_h <= 0) {
+        return set_error("\"overlap\" too large");
     }
 
     const char * _provider = vsapi->propGetData(in, "provider", 0, &error);
@@ -867,7 +879,7 @@ static void VS_CC vsOrtCreate(
         return set_error(e.what());
     }
 
-    if (auto err = specifyShape(onnx_proto, block_w, block_h); err.has_value()) {
+    if (auto err = specifyShape(onnx_proto, tile_w, tile_h); err.has_value()) {
         return set_error(err.value());
     }
 
@@ -1107,9 +1119,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     registerFunc("Model",
         "clips:clip[];"
         "network_path:data;"
-        "pad:int:opt;"
-        "block_w:int:opt;"
-        "block_h:int:opt;"
+        "overlap:int[]:opt;"
+        "tilesize:int[]:opt;"
         "provider:data:opt;" // "": Default (CPU), "CUDA": CUDA
         "device_id:int:opt;"
         "num_streams:int:opt;"
@@ -1121,4 +1132,16 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         nullptr,
         plugin
     );
+
+    auto getVersion = [](const VSMap *, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
+        std::ostringstream version;
+        version << VERSION;
+        version << "-ort-" << ORT_API_VERSION;
+#ifdef ENABLE_CUDA
+        version << "-cudart-" << __CUDART_API_VERSION;
+#endif
+        version << "-onnx-" << ONNX_NAMESPACE::LAST_RELEASE_VERSION;
+        vsapi->propSetData(out, "version", version.str().c_str(), -1, paReplace);
+    };
+    registerFunc("Version", "", getVersion, nullptr, plugin);
 }

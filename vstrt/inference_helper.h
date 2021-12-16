@@ -17,8 +17,8 @@ struct InputInfo {
     int height;
     int pitch;
     int bytes_per_sample;
-    int patch_w;
-    int patch_h;
+    int tile_w;
+    int tile_h;
 };
 
 struct OutputInfo {
@@ -31,7 +31,8 @@ struct IOInfo {
     OutputInfo out;
     int w_scale;
     int h_scale;
-    int pad;
+    int overlap_w;
+    int overlap_h;
 };
 
 static inline
@@ -50,25 +51,25 @@ std::optional<ErrorMessage> inference(
 
     checkError(cudaSetDevice(device_id));
 
-    int src_patch_w_bytes = info.in.patch_w * info.in.bytes_per_sample;
-    int src_patch_bytes = info.in.patch_h * info.in.patch_w * info.in.bytes_per_sample;
-    int dst_patch_w = info.in.patch_w * info.w_scale;
-    int dst_patch_h = info.in.patch_h * info.h_scale;
-    int dst_patch_w_bytes = dst_patch_w * info.out.bytes_per_sample;
-    int dst_patch_bytes = dst_patch_h * dst_patch_w * info.out.bytes_per_sample;
+    int src_tile_w_bytes = info.in.tile_w * info.in.bytes_per_sample;
+    int src_tile_bytes = info.in.tile_h * info.in.tile_w * info.in.bytes_per_sample;
+    int dst_tile_w = info.in.tile_w * info.w_scale;
+    int dst_tile_h = info.in.tile_h * info.h_scale;
+    int dst_tile_w_bytes = dst_tile_w * info.out.bytes_per_sample;
+    int dst_tile_bytes = dst_tile_h * dst_tile_w * info.out.bytes_per_sample;
 
-    int step_w = info.in.patch_w - 2 * info.pad;
-    int step_h = info.in.patch_h - 2 * info.pad;
+    int step_w = info.in.tile_w - 2 * info.overlap_w;
+    int step_h = info.in.tile_h - 2 * info.overlap_h;
 
     int y = 0;
     while (true) {
-        int y_pad_start = (y == 0) ? 0 : info.pad;
-        int y_pad_end = (y == info.in.height - info.in.patch_h) ? 0 : info.pad;
+        int y_crop_start = (y == 0) ? 0 : info.overlap_h;
+        int y_crop_end = (y == info.in.height - info.in.tile_h) ? 0 : info.overlap_h;
 
         int x = 0;
         while (true) {
-            int x_pad_start = (x == 0) ? 0 : info.pad;
-            int x_pad_end = (x == info.in.width - info.in.patch_w) ? 0 : info.pad;
+            int x_crop_start = (x == 0) ? 0 : info.overlap_w;
+            int x_crop_end = (x == info.in.width - info.in.tile_w) ? 0 : info.overlap_w;
 
             {
                 uint8_t * h_data = instance.src.h_data.data;
@@ -78,12 +79,12 @@ std::optional<ErrorMessage> inference(
                     };
 
                     vs_bitblt(
-                        h_data, src_patch_w_bytes,
+                        h_data, src_tile_w_bytes,
                         src_ptr, info.in.pitch,
-                        src_patch_w_bytes, info.in.patch_h
+                        src_tile_w_bytes, info.in.tile_h
                     );
 
-                    h_data += src_patch_bytes;
+                    h_data += src_tile_bytes;
                 }
             }
 
@@ -109,30 +110,30 @@ std::optional<ErrorMessage> inference(
                     };
 
                     vs_bitblt(
-                        dst_ptr + (y_pad_start * info.out.pitch + x_pad_start * info.out.bytes_per_sample),
+                        dst_ptr + (y_crop_start * info.out.pitch + x_crop_start * info.out.bytes_per_sample),
                         info.out.pitch,
-                        h_data + (y_pad_start * dst_patch_w_bytes + x_pad_start * info.out.bytes_per_sample),
-                        dst_patch_w_bytes,
-                        dst_patch_w_bytes - (x_pad_start + x_pad_end) * info.out.bytes_per_sample,
-                        dst_patch_h - (y_pad_start + y_pad_end)
+                        h_data + (y_crop_start * dst_tile_w_bytes + x_crop_start * info.out.bytes_per_sample),
+                        dst_tile_w_bytes,
+                        dst_tile_w_bytes - (x_crop_start + x_crop_end) * info.out.bytes_per_sample,
+                        dst_tile_h - (y_crop_start + y_crop_end)
                     );
 
-                    h_data += dst_patch_bytes;
+                    h_data += dst_tile_bytes;
                 }
             }
 
-            if (x + info.in.patch_w == info.in.width) {
+            if (x + info.in.tile_w == info.in.width) {
                 break;
             }
 
-            x = std::min(x + step_w, info.in.width - info.in.patch_w);
+            x = std::min(x + step_w, info.in.width - info.in.tile_w);
         }
 
-        if (y + info.in.patch_h == info.in.height) {
+        if (y + info.in.tile_h == info.in.height) {
             break;
         }
 
-        y = std::min(y + step_h, info.in.height - info.in.patch_h);
+        y = std::min(y + step_h, info.in.height - info.in.tile_h);
     }
 
     return {};

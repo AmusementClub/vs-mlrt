@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <variant>
@@ -16,6 +17,7 @@
 #include <NvInferPlugin.h>
 #endif
 
+#include "config.h"
 #include "inference_helper.h"
 #include "trt_utils.h"
 #include "utils.h"
@@ -54,7 +56,7 @@ struct vsTrtData {
     int device_id;
     int num_streams;
     bool use_cuda_graph;
-    int pad;
+    int overlap_w, overlap_h;
 
     Logger logger;
     std::unique_ptr<nvinfer1::IRuntime> runtime;
@@ -150,15 +152,15 @@ static const VSFrameRef *VS_CC vsTrtGetFrame(
         InferenceInstance & instance { d->instances[ticket] };
 
         const nvinfer1::Dims src_dim { instance.exec_context->getBindingDimensions(0) };
-        const int src_patch_h { src_dim.d[2] };
-        const int src_patch_w { src_dim.d[3] };
+        const int src_tile_h { src_dim.d[2] };
+        const int src_tile_w { src_dim.d[3] };
 
         const nvinfer1::Dims dst_dim { instance.exec_context->getBindingDimensions(1) };
-        const int dst_patch_h { dst_dim.d[2] };
-        const int dst_patch_w { dst_dim.d[3] };
+        const int dst_tile_h { dst_dim.d[2] };
+        const int dst_tile_w { dst_dim.d[3] };
 
-        const int h_scale = dst_patch_h / src_patch_h;
-        const int w_scale = dst_patch_w / src_patch_w;
+        const int h_scale = dst_tile_h / src_tile_h;
+        const int w_scale = dst_tile_w / src_tile_w;
 
         const IOInfo info {
             .in = InputInfo {
@@ -166,8 +168,8 @@ static const VSFrameRef *VS_CC vsTrtGetFrame(
                 .height = vsapi->getFrameHeight(src_frames[0], 0),
                 .pitch = vsapi->getStride(src_frames[0], 0),
                 .bytes_per_sample = vsapi->getFrameFormat(src_frames[0])->bytesPerSample,
-                .patch_w = src_patch_w,
-                .patch_h = src_patch_h
+                .tile_w = src_tile_w,
+                .tile_h = src_tile_h
             },
             .out = OutputInfo {
                 .pitch = vsapi->getStride(dst_frame, 0),
@@ -175,7 +177,8 @@ static const VSFrameRef *VS_CC vsTrtGetFrame(
             },
             .w_scale = w_scale,
             .h_scale = h_scale,
-            .pad = d->pad
+            .overlap_w = d->overlap_w,
+            .overlap_h = d->overlap_h
         };
 
         const auto inference_result = inference(
@@ -255,45 +258,52 @@ static void VS_CC vsTrtCreate(
 
     int error;
 
-    d->pad = int64ToIntS(vsapi->propGetInt(in, "pad", 0, &error));
-    if (error) {
-        d->pad = 0;
-    }
-    if (d->pad < 0) {
-        return set_error("\"pad\" should be non-negative");
-    }
-
     int error1, error2;
-    int block_w = int64ToIntS(vsapi->propGetInt(in, "block_w", 0, &error1));
-    int block_h = int64ToIntS(vsapi->propGetInt(in, "block_h", 0, &error2));
+    d->overlap_w = int64ToIntS(vsapi->propGetInt(in, "overlap", 0, &error1));
+    d->overlap_h = int64ToIntS(vsapi->propGetInt(in, "overlap", 1, &error2));
+    if (!error1) {
+        if (error2) {
+            d->overlap_h = d->overlap_w;
+        }
 
-    BlockSize block_size;
+        if (d->overlap_w < 0 || d->overlap_h < 0) {
+            return set_error("\"overlap\" must be non-negative");
+        }
+    } else {
+        d->overlap_w = 0;
+        d->overlap_h = 0;
+    }
+
+    int tile_w = int64ToIntS(vsapi->propGetInt(in, "tilesize", 0, &error1));
+    int tile_h = int64ToIntS(vsapi->propGetInt(in, "tilesize", 1, &error2));
+
+    TileSize tile_size;
     if (!error1) { // manual specification triggered
         if (error2) {
-            block_h = block_w;
+            tile_h = tile_w;
         }
 
-        if (block_w - 2 * d->pad <= 0 || block_h - 2 * d->pad <= 0) {
-            return set_error("\"pad\" too large");
+        if (tile_w - 2 * d->overlap_w <= 0 || tile_h - 2 * d->overlap_h <= 0) {
+            return set_error("\"overlap\" too large");
         }
 
-        block_size = RequestedBlockSize {
-            .block_w = block_w,
-            .block_h = block_h
+        tile_size = RequestedTileSize {
+            .tile_w = tile_w,
+            .tile_h = tile_h
         };
     } else {
-        if (d->pad != 0) {
-            return set_error("\"block_w\" must be specified");
+        if (d->overlap_w != 0 || d->overlap_h != 0) {
+            return set_error("\"tilesize\" must be specified");
         }
 
         int width = in_vis[0]->width;
         int height = in_vis[0]->height;
 
-        if (width - 2 * d->pad <= 0 || height - 2 * d->pad <= 0) {
-            return set_error("\"pad\" too large");
+        if (width - 2 * d->overlap_w <= 0 || height - 2 * d->overlap_h <= 0) {
+            return set_error("\"overlap\" too large");
         }
 
-        block_size = VideoSize {
+        tile_size = VideoSize {
             .width = width,
             .height = height
         };
@@ -343,7 +353,7 @@ static void VS_CC vsTrtCreate(
         return set_error(std::get<ErrorMessage>(maybe_engine));
     }
 
-    auto maybe_profile_index = selectProfile(d->engines[0], block_size);
+    auto maybe_profile_index = selectProfile(d->engines[0], tile_size);
 
     bool is_dynamic = false;
     d->instances.reserve(d->num_streams);
@@ -351,14 +361,14 @@ static void VS_CC vsTrtCreate(
         auto maybe_instance = getInstance(
             d->engines.back(),
             maybe_profile_index,
-            block_size,
+            tile_size,
             d->use_cuda_graph,
             is_dynamic
         );
 
         // duplicates ICudaEngine instances
         //
-        // According to 
+        // According to
         // https://docs.nvidia.com/deeplearning/tensorrt/archives/tensorrt-821/developer-guide/index.html#perform-inference
         // each optimization profile can only have one execution context when using dynamic shapes
         if (is_dynamic && i < d->num_streams - 1) {
@@ -412,9 +422,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     registerFunc("Model",
         "clips:clip[];"
         "engine_path:data;"
-        "pad:int:opt;"
-        "block_w:int:opt;"
-        "block_h:int:opt;"
+        "overlap:int[]:opt;"
+        "tilesize:int[]:opt;"
         "device_id:int:opt;"
         "use_cuda_graph:int:opt;"
         "num_streams:int:opt;"
@@ -423,4 +432,13 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         nullptr,
         plugin
     );
+
+    auto getVersion = [](const VSMap *, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
+        std::ostringstream version;
+        version << VERSION;
+        version << "-trt-" << NV_TENSORRT_VERSION;
+        version << "-cudart-" << __CUDART_API_VERSION;
+        vsapi->propSetData(out, "version", version.str().c_str(), -1, paReplace);
+    };
+    registerFunc("Version", "", getVersion, nullptr, plugin);
 }

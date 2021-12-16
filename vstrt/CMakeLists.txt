@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(vs-trt LANGUAGES CXX)
+project(vs-trt VERSION 3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -43,6 +43,19 @@ if (USE_NVINFER_PLUGIN)
         target_link_options(vstrt PRIVATE "/DELAYLOAD:nvinfer_plugin.dll")
     endif()
 endif()
+
+target_include_directories(vstrt PUBLIC
+    "${PROJECT_BINARY_DIR}"
+)
+
+find_package(Git REQUIRED)
+execute_process(
+    COMMAND ${GIT_EXECUTABLE} describe --tags --long --always
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE VCS_TAG
+)
+string(STRIP ${VCS_TAG} VCS_TAG)
+configure_file(config.h.in config.h)
 
 install(TARGETS vstrt
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
