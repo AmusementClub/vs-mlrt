@@ -21,9 +21,8 @@ def Waifu2x(
     clip: vs.VideoNode,
     noise: typing.Literal[-1, 0, 1, 2, 3] = -1,
     scale: typing.Literal[1, 2] = 2,
-    block_w: typing.Optional[int] = None,
-    block_h: typing.Optional[int] = None,
-    pad: int = 0,
+    tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     model: typing.Literal[0, 1, 2, 3, 4, 5, 6] = 6,
     backend: typing.Literal["ort-cpu", "ort-cuda", "ov-cpu"] = "ort-cpu",
     # parameters for "ort-cuda"
@@ -54,15 +53,20 @@ def Waifu2x(
             ' does not support noise reduction level 0'
         )
 
-    if block_h is None:
-        if block_w is None:
-            block_w = clip.width
-            block_h = clip.height
-        else:
-            block_h = block_w
+    if tilesize is not None and overlap is None:
+        overlap = [8, 8, 8, 8, 8, 4, 4][model]
 
-    if model == 6 and (block_w % 4 != 0 or block_h % 4 != 0): # type: ignore
-        raise ValueError(f'{funcName}: block size of cunet model must be divisible by 4')
+    if tilesize is None:
+        tile_w = clip.width
+        tile_h = clip.height
+    elif isinstance(tilesize, int):
+        tile_w = tilesize
+        tile_h = tilesize
+    else:
+        tile_w, tile_h = tilesize
+
+    if model == 6 and (tile_w % 4 != 0 or tile_h % 4 != 0): # type: ignore
+        raise ValueError(f'{funcName}: tile size of cunet model must be divisible by 4')
 
     if model == 0:
         if clip.format.id != vs.GRAYS:
@@ -107,20 +111,20 @@ def Waifu2x(
     if backend == "ort-cpu":
         clip = core.ort.Model(
             clip, network_path,
-            pad=pad, block_w=block_w, block_h=block_h,
+            overlap=overlap, tilesize=(tile_w, tile_h),
             provider="CPU", builtin=1
         )
     elif backend == "ort-cuda":
         clip = core.ort.Model(
             clip, network_path,
-            pad=pad, block_w=block_w, block_h=block_h,
+            overlap=overlap, tilesize=(tile_w, tile_h),
             provider="CUDA", device_id=device_id, cudnn_benchmark=cudnn_benchmark,
             builtin=1
         )
     elif backend == "ov-cpu":
         clip = core.ov.Model(
             clip, network_path,
-            pad=pad, block_w=block_w, block_h=block_h,
+            overlap=overlap, tilesize=(tile_w, tile_h),
             device="CPU", builtin=1
         )
     else:
