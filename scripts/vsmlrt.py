@@ -6,6 +6,10 @@ import vapoursynth as vs
 from vapoursynth import core
 
 
+def Version() -> str:
+    return "3.0.0"
+
+
 @enum.unique
 class Waifu2xModel(enum.IntEnum):
     anime_style_art = 0
