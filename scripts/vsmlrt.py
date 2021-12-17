@@ -121,6 +121,7 @@ def inference(
             opt_shapes=backend.opt_shapes,
             max_shapes=backend.max_shapes,
             fp16=backend.fp16,
+            device_id=backend.device_id,
             workspace=backend.workspace,
             verbose=backend.verbose,
             use_cuda_graph=backend.use_cuda_graph,
@@ -490,6 +491,7 @@ def get_engine_name(
     max_shapes: typing.Tuple[int, int],
     workspace: int,
     fp16: bool,
+    device_id: int,
     use_cublas: bool
 ) -> str:
 
@@ -499,6 +501,7 @@ def get_engine_name(
     return (
         network_path +
         f".{checksum}" +
+        f"_device{device_id}" +
         f"_opt{opt_shapes[1]}x{opt_shapes[0]}" +
         f"_max{max_shapes[1]}x{max_shapes[0]}" +
         f"_workspace{workspace}" +
@@ -514,10 +517,11 @@ def trtexec(
     opt_shapes: typing.Tuple[int, int],
     max_shapes: typing.Tuple[int, int],
     fp16: bool,
+    device_id: int,
     workspace: int = 16,
     verbose: bool = False,
     use_cuda_graph: bool = False,
-    use_cublas: bool = False
+    use_cublas: bool = False,
 ) -> str:
 
     if isinstance(opt_shapes, int):
@@ -532,6 +536,7 @@ def trtexec(
         max_shapes=max_shapes,
         workspace=workspace,
         fp16=fp16,
+        device_id=device_id,
         use_cublas=use_cublas
     )
 
@@ -546,6 +551,7 @@ def trtexec(
         f"--maxShapes=input:1x{channels}x{max_shapes[1]}x{max_shapes[0]}",
         f"--workspace={workspace}",
         f"--timingCacheFile={engine_path + '.cache'}",
+        f"--device={device_id}",
         f"--saveEngine={engine_path}"
     ]
 
