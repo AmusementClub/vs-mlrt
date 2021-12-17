@@ -659,12 +659,18 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     );
 
     auto getVersion = [](const VSMap *, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
-        std::ostringstream version;
-        version << VERSION;
-        version << "-ie-" << IE_VERSION_MAJOR << '.' << IE_VERSION_MINOR << '.' << IE_VERSION_PATCH;
-        version << "-onnx-" << ONNX_NAMESPACE::LAST_RELEASE_VERSION;
+        vsapi->propSetData(out, "version", VERSION, -1, paReplace);
 
-        vsapi->propSetData(out, "version", version.str().c_str(), -1, paReplace);
+        std::ostringstream ostream;
+        ostream << IE_VERSION_MAJOR << '.' << IE_VERSION_MINOR << '.' << IE_VERSION_PATCH;
+        vsapi->propSetData(out, "inference_engine_version", ostream.str().c_str(), -1, paReplace);
+
+        vsapi->propSetData(
+            out, "onnx_version",
+            ONNX_NAMESPACE::LAST_RELEASE_VERSION, -1, paReplace
+        );
+
+        vsapi->propSetData(out, "path", vsapi->getPluginPath(myself), -1, paReplace);
     };
     registerFunc("Version", "", getVersion, nullptr, plugin);
 }

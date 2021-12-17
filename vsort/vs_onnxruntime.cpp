@@ -6,7 +6,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <variant>
@@ -1134,14 +1133,24 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     );
 
     auto getVersion = [](const VSMap *, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
-        std::ostringstream version;
-        version << VERSION;
-        version << "-ort-" << ORT_API_VERSION;
-#ifdef ENABLE_CUDA
-        version << "-cudart-" << __CUDART_API_VERSION;
-#endif
-        version << "-onnx-" << ONNX_NAMESPACE::LAST_RELEASE_VERSION;
-        vsapi->propSetData(out, "version", version.str().c_str(), -1, paReplace);
+        vsapi->propSetData(out, "version", VERSION, -1, paReplace);
+
+        vsapi->propSetData(
+            out, "onnxruntime_version",
+            std::to_string(ORT_API_VERSION).c_str(), -1, paReplace
+        );
+
+        vsapi->propSetData(
+            out, "cuda_runtime_version",
+            std::to_string(__CUDART_API_VERSION).c_str(), -1, paReplace
+        );
+
+        vsapi->propSetData(
+            out, "onnx_version",
+            ONNX_NAMESPACE::LAST_RELEASE_VERSION, -1, paReplace
+        );
+
+        vsapi->propSetData(out, "path", vsapi->getPluginPath(myself), -1, paReplace);
     };
     registerFunc("Version", "", getVersion, nullptr, plugin);
 }

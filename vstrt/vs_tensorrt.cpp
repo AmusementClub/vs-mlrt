@@ -24,6 +24,8 @@
 
 using namespace std::string_literals;
 
+static const VSPlugin * myself = nullptr;
+
 struct TicketSemaphore {
     std::atomic<intptr_t> ticket {};
     std::atomic<intptr_t> current {};
@@ -412,6 +414,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     VSRegisterFunction registerFunc,
     VSPlugin *plugin
 ) noexcept {
+    myself = plugin;
 
     configFunc(
         "io.github.amusementclub.vs_tensorrt", "trt",
@@ -434,11 +437,19 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     );
 
     auto getVersion = [](const VSMap *, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
-        std::ostringstream version;
-        version << VERSION;
-        version << "-trt-" << NV_TENSORRT_VERSION;
-        version << "-cudart-" << __CUDART_API_VERSION;
-        vsapi->propSetData(out, "version", version.str().c_str(), -1, paReplace);
+        vsapi->propSetData(out, "version", VERSION, -1, paReplace);
+
+        vsapi->propSetData(
+            out, "tensorrt_version",
+            std::to_string(NV_TENSORRT_VERSION).c_str(), -1, paReplace
+        );
+
+        vsapi->propSetData(
+            out, "cuda_runtime_version",
+            std::to_string(__CUDART_API_VERSION).c_str(), -1, paReplace
+        );
+
+        vsapi->propSetData(out, "path", vsapi->getPluginPath(myself), -1, paReplace);
     };
     registerFunc("Version", "", getVersion, nullptr, plugin);
 }
