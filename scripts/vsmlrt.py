@@ -67,6 +67,7 @@ class Backend:
         verbose: bool = False
         use_cuda_graph: bool = False
         num_streams: int = 1
+        use_cublas: bool = False # cuBLAS + cuBLASLt
 
         _channels: int = field(default=-1, init=False, repr=False, compare=False)
 
@@ -116,13 +117,14 @@ def inference(
     elif isinstance(backend, Backend.TRT):
         engine_path = trtexec(
             network_path,
-            backend._channels,
-            backend.opt_shapes,
-            backend.max_shapes,
-            backend.fp16,
-            backend.workspace,
-            backend.verbose,
-            backend.use_cuda_graph
+            channels=backend._channels,
+            opt_shapes=backend.opt_shapes,
+            max_shapes=backend.max_shapes,
+            fp16=backend.fp16,
+            workspace=backend.workspace,
+            verbose=backend.verbose,
+            use_cuda_graph=backend.use_cuda_graph,
+            use_cublas=backend.use_cublas
         )
         clip = core.trt.Model(
             clips, engine_path,
@@ -487,7 +489,8 @@ def get_engine_name(
     opt_shapes: typing.Tuple[int, int],
     max_shapes: typing.Tuple[int, int],
     workspace: int,
-    fp16: bool
+    fp16: bool,
+    use_cublas: bool
 ) -> str:
 
     with open(network_path, "rb") as f:
@@ -499,7 +502,8 @@ def get_engine_name(
         f"_opt{opt_shapes[1]}x{opt_shapes[0]}" +
         f"_max{max_shapes[1]}x{max_shapes[0]}" +
         f"_workspace{workspace}" +
-        "_fp16" if fp16 else "" +
+        ("_fp16" if fp16 else "") +
+        ("_cublas" if use_cublas else "") +
         ".engine"
     )
 
@@ -512,10 +516,18 @@ def trtexec(
     fp16: bool,
     workspace: int = 16,
     verbose: bool = False,
-    use_cuda_graph: bool = False
+    use_cuda_graph: bool = False,
+    use_cublas: bool = False
 ) -> str:
 
-    engine_path = get_engine_name(network_path, opt_shapes, max_shapes, workspace, fp16)
+    engine_path = get_engine_name(
+        network_path=network_path,
+        opt_shapes=opt_shapes,
+        max_shapes=max_shapes,
+        workspace=workspace,
+        fp16=fp16,
+        use_cublas=use_cublas
+    )
 
     if os.path.exists(engine_path):
         return engine_path
@@ -526,7 +538,6 @@ def trtexec(
         f"--minShapes=input:1x{channels}x0x0",
         f"--optShapes=input:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}",
         f"--maxShapes=input:1x{channels}x{max_shapes[1]}x{max_shapes[0]}",
-        "--tacticSources=-CUBLAS,-CUBLAS_LT",
         f"--workspace={workspace}",
         f"--timingCacheFile={engine_path + '.cache'}",
         f"--saveEngine={engine_path}"
@@ -537,6 +548,9 @@ def trtexec(
 
     if verbose:
         args.append("--verbose")
+
+    if not use_cublas:
+        args.append("--tacticSources=-CUBLAS,-CUBLAS_LT")
 
     if use_cuda_graph:
         args.extend((
