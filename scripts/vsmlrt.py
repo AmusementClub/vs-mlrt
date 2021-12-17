@@ -69,7 +69,7 @@ class Backend:
         num_streams: int = 1
         use_cublas: bool = False # cuBLAS + cuBLASLt
 
-        _channels: int = field(default=-1, init=False, repr=False, compare=False)
+        _channels: int = field(init=False, repr=False, compare=False)
 
 
 def calc_size(width: int, tiles: int, overlap: int, multiple: int = 1) -> int:
@@ -519,6 +519,12 @@ def trtexec(
     use_cuda_graph: bool = False,
     use_cublas: bool = False
 ) -> str:
+
+    if isinstance(opt_shapes, int):
+        opt_shapes = (opt_shapes, opt_shapes)
+
+    if isinstance(max_shapes, int):
+        max_shapes = (max_shapes, max_shapes)
 
     engine_path = get_engine_name(
         network_path=network_path,
