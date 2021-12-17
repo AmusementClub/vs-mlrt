@@ -1,0 +1,178 @@
+name: Make a Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'which tag to create and release?'
+        required: true
+        default: 'v100'
+      model-tag:
+        description: 'which tag of model release to use?'
+        required: true
+        default: 'model-20211209'
+
+jobs:
+  build-vsov:
+    uses: AmusementClub/vs-mlrt/.github/workflows/windows-ov.yml@master
+    with:
+      tag: ${{ github.event.inputs.tag }}
+
+  build-vsort:
+    uses: AmusementClub/vs-mlrt/.github/workflows/windows-ort.yml@master
+    with:
+      tag: ${{ github.event.inputs.tag }}
+
+  build-vstrt:
+    uses: AmusementClub/vs-mlrt/.github/workflows/windows-trt.yml@master
+    with:
+      tag: ${{ github.event.inputs.tag }}
+    secrets:
+      REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+
+  build-cuda-dependency:
+    uses: AmusementClub/vs-mlrt/.github/workflows/windows-cuda-dependency.yml@master
+    with:
+      tag: ${{ github.event.inputs.tag }}
+    secrets:
+      REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+
+  download-models:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download Models
+      run: |
+        set -ex
+        mkdir models
+        pushd models
+        curl -s https://api.github.com/repos/AmusementClub/vs-mlrt/releases/tags/'${{ github.event.inputs.model-tag }}' > release.json
+        for url in $(cat release.json | jq '.assets | .[] | .url ' | tr -d '"'); do
+          echo "Downloading $url"
+          curl -o dl.7z -LJO -H 'Accept: application/octet-stream' "$url"
+          7za x dl.7z
+        done
+        test -f "dl.7z"
+        rm -f dl.7z release.json
+        ls -lR
+        du -sh
+        popd
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-vsov, build-vsort, build-vstrt, build-cuda-dependency, download-models]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 1
+
+    - name: Download Models
+      run: |
+        set -ex
+        mkdir models
+        pushd models
+        curl -s https://api.github.com/repos/AmusementClub/vs-mlrt/releases/tags/'${{ github.event.inputs.model-tag }}' > release.json
+        for url in $(cat release.json | jq '.assets | .[] | .url ' | tr -d '"'); do
+          echo "Downloading $url"
+          curl -o dl.7z -LJO -H 'Accept: application/octet-stream' "$url"
+          7za x -bb3 dl.7z
+        done
+        test -f "dl.7z"
+        rm -f dl.7z release.json
+        ls -lR
+        du -sh
+        popd
+
+    - name: Download artifact for vsov
+      uses: actions/download-artifact@v2
+      with:
+        name: VSOV-Windows-x64
+        path: vsov-release
+
+    - name: Download artifact for vsort
+      uses: actions/download-artifact@v2
+      with:
+        name: VSORT-Windows-x64
+        path: vsort-release
+
+    - name: Download artifact for vstrt
+      uses: actions/download-artifact@v2
+      with:
+        name: VSTRT-Windows-x64
+        path: vstrt-release
+
+    - name: Download artifact for cuda dependencies
+      uses: actions/download-artifact@v2
+      with:
+        name: vsmlrt-cuda
+        path: cuda-release
+
+    - name: Build CPU-only release
+      shell: bash
+      run: |
+        mkdir release-cpu
+        cp -r models release-cpu/
+        cp -r vsov-release/* release-cpu/
+        cp -r vsort-release/* release-cpu/
+        rm -f release-cpu/vsort/onnxruntime_providers_*.dll
+        cp scripts/*.py release-cpu/
+        cd release-cpu
+        ls -lR
+        7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-cpu.7z .
+
+    - name: Upload CPU-only release
+      uses: actions/upload-artifact@v2
+      with:
+        name: vsmlrt-cpu-release
+        path: vsmlrt-windows-x64-cpu.7z
+        retention-days: 1
+
+    - name: Release CPU
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.tag }}
+        files: vsmlrt-windows-x64-cpu.7z
+        fail_on_unmatched_files: true
+        generate_release_notes: false
+        prerelease: true
+
+    - name: Extract CUDA libraries
+      run: |
+        cd cuda-release
+        7za x -bb3 vsmlrt-cuda.7z
+        rm vsmlrt-cuda.7z
+
+    - name: Build CUDA release
+      shell: bash
+      run: |
+        mkdir release-cuda
+        cp -r models release-cuda/
+        cp -r vsov-release/* release-cuda/
+        cp -r vsort-release/* release-cuda/
+        cp -r vstrt-release/* release-cuda/
+        cp -r cuda-release/* release-cuda/
+        cp scripts/*.py release-cuda/
+        cd release-cuda
+        ls -lR
+        7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-cuda.7z .
+
+    - name: Upload CUDA release
+      uses: actions/upload-artifact@v2
+      with:
+        name: vsmlrt-cuda-release
+        path: vsmlrt-windows-x64-cuda.7z
+        retention-days: 1
+
+    - name: Release CUDA
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.tag }}
+        files: vsmlrt-windows-x64-cuda.7z
+        fail_on_unmatched_files: true
+        generate_release_notes: false
+        prerelease: true

@@ -5,11 +5,30 @@ on:
     paths:
       - 'vstrt/**'
       - '.github/workflows/windows-trt.yml'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'which tag to upload to'
+        required: true
+        type: string
+    secrets:
+      REPO_TOKEN:
+        required: true
+    outputs:
+      runID:
+        description: 'run id'
+        value: ${{ jobs.build-windows.outputs.runID }}
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'which tag to upload to'
+        default: ''
 
 jobs:
   build-windows:
     runs-on: windows-2019
+    outputs:
+      runID: ${{ steps.output.outputs.runID }}
 
     defaults:
       run:
@@ -108,3 +127,23 @@ jobs:
         retention-days: 1
         path: vstrt/artifact
 
+    - name: Compress artifact for release
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
+      run: |
+        cd artifact
+        7z a -t7z -mx=7 ../../VSTRT-Windows-x64.7z .
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
+      with:
+        tag_name: ${{ inputs.tag }}
+        files: VSTRT-Windows-x64.7z
+        fail_on_unmatched_files: true
+        generate_release_notes: false
+        prerelease: true
+
+    - name: Output run-id
+      id: output
+      shell: bash
+      run: echo "::set-output name=runID::$GITHUB_RUN_ID"

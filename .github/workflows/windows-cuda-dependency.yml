@@ -7,10 +7,25 @@ on:
         description: 'which tag to upload to'
         required: true
         default: 'v100'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'which tag to upload to'
+        required: true
+        type: string
+    secrets:
+      REPO_TOKEN:
+        required: true
+    outputs:
+      runID:
+        description: 'run id'
+        value: ${{ jobs.build-windows.outputs.runID }}
 
 jobs:
   build-windows:
     runs-on: windows-2019
+    outputs:
+      runID: ${{ steps.output.outputs.runID }}
 
     defaults:
       run:
@@ -82,7 +97,7 @@ jobs:
     - name: Upload
       uses: actions/upload-artifact@v2
       with:
-        name: vsmlrt-cuda-CUDA_11.4.3-cuDNN-8.2.4
+        name: vsmlrt-cuda
         path: vsmlrt-cuda.7z
         retention-days: 1
 
@@ -93,3 +108,9 @@ jobs:
         files: vsmlrt-cuda.7z
         fail_on_unmatched_files: true
         generate_release_notes: false
+        prerelease: true
+
+    - name: Output run-id
+      id: output
+      shell: bash
+      run: echo "::set-output name=runID::$GITHUB_RUN_ID"
