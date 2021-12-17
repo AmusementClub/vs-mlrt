@@ -7,14 +7,36 @@ __all__ = [
     "RealESRGANv2", "RealESRGANv2Model"
 ]
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import enum
 import math
-import os.path
+import os
+import subprocess
 import typing
 
 import vapoursynth as vs
 from vapoursynth import core
+
+
+def get_plugins_path() -> str:
+    path = b""
+
+    try:
+        path = core.trt.Version()["path"]
+    except Exception:
+        try:
+            path = core.ort.Version()["path"]
+        except Exception:
+            try:
+                path = core.ov.Version()["path"]
+            except Exception as e:
+                raise e
+
+    return os.path.dirname(path).decode()
+
+plugins_path: str = get_plugins_path()
+trtexec_path: str = os.path.join(plugins_path, "vsmlrt-cuda", "trtexec")
+models_path: str = os.path.join(plugins_path, "models")
 
 
 class Backend:
@@ -34,6 +56,20 @@ class Backend:
     class OV_CPU:
         pass
 
+    @dataclass
+    class TRT:
+        max_shapes: typing.Tuple[int, int]
+
+        device_id: int = 0
+        opt_shapes: typing.Tuple[int, int] = (64, 64)
+        fp16: bool = False
+        workspace: int = 128
+        verbose: bool = False
+        use_cuda_graph: bool = False
+        num_streams: int = 1
+
+        _channels: int = field(default=-1, init=False, repr=False, compare=False)
+
 
 def calc_size(width: int, tiles: int, overlap: int, multiple: int = 1) -> int:
     return math.ceil((width + 2 * overlap * (tiles - 1)) / (tiles * multiple)) * multiple
@@ -47,11 +83,17 @@ def inference(
     backend: typing.Union[Backend.OV_CPU, Backend.ORT_CPU, Backend.ORT_CUDA]
 ) -> vs.VideoNode:
 
+    if not os.path.exists(network_path):
+        raise RuntimeError(
+            f'"{network_path}" not found, '
+            f'built-in models can be found at https://github.com/AmusementClub/vs-mlrt/releases'
+        )
+
     if isinstance(backend, Backend.ORT_CPU):
         clip = core.ort.Model(
             clips, network_path,
             overlap=overlap, tilesize=tilesize,
-            provider="CPU", builtin=1,
+            provider="CPU", builtin=False,
             num_streams=backend.num_streams,
             verbosity=backend.verbosity
         )
@@ -59,7 +101,7 @@ def inference(
         clip = core.ort.Model(
             clips, network_path,
             overlap=overlap, tilesize=tilesize,
-            provider="CUDA", builtin=1,
+            provider="CUDA", builtin=False,
             device_id=backend.device_id,
             num_streams=backend.num_streams,
             verbosity=backend.verbosity,
@@ -69,7 +111,26 @@ def inference(
         clip = core.ov.Model(
             clips, network_path,
             overlap=overlap, tilesize=tilesize,
-            device="CPU", builtin=1
+            device="CPU", builtin=False
+        )
+    elif isinstance(backend, Backend.TRT):
+        engine_path = trtexec(
+            network_path,
+            backend._channels,
+            backend.opt_shapes,
+            backend.max_shapes,
+            backend.fp16,
+            backend.workspace,
+            backend.verbose,
+            backend.use_cuda_graph
+        )
+        clip = core.trt.Model(
+            clips, engine_path,
+            overlap=overlap, tilesize=tilesize,
+            device_id=backend.device_id,
+            use_cuda_graph=backend.use_cuda_graph,
+            num_streams=backend.num_streams,
+            verbosity=4 if backend.verbose else 2
         )
     else:
         raise ValueError(f'unknown backend {backend}')
@@ -166,8 +227,20 @@ def Waifu2x(
         backend = Backend.ORT_CUDA()
     elif backend is Backend.OV_CPU: # type: ignore
         backend = Backend.OV_CPU()
+    elif backend is Backend.TRT: # type: ignore
+        raise TypeError(f'{funcName}: trt backend must be instantiated')
 
-    folder_path = os.path.join("waifu2x", tuple(Waifu2xModel.__members__)[model])
+    if isinstance(backend, Backend.TRT):
+        if model == 0:
+            backend._channels = 1
+        else:
+            backend._channels = 3
+
+    folder_path = os.path.join(
+        models_path,
+        "waifu2x",
+        tuple(Waifu2xModel.__members__)[model]
+    )
 
     if model in (0, 1, 2):
         if noise == -1:
@@ -308,8 +381,17 @@ def DPIR(
         backend = Backend.ORT_CUDA()
     elif backend is Backend.OV_CPU: # type: ignore
         backend = Backend.OV_CPU()
+    elif backend is Backend.TRT: # type: ignore
+        raise TypeError(f'{funcName}: trt backend must be instantiated')
 
-    network_path = os.path.join("dpir", f"{tuple(DPIRModel.__members__)[model]}.onnx")
+    if isinstance(backend, Backend.TRT):
+        backend._channels = 3
+
+    network_path = os.path.join(
+        models_path,
+        "dpir",
+        f"{tuple(DPIRModel.__members__)[model]}.onnx"
+    )
 
     clip = inference(
         clips=[clip, strength], network_path=network_path,
@@ -379,8 +461,14 @@ def RealESRGANv2(
         backend = Backend.ORT_CUDA()
     elif backend is Backend.OV_CPU: # type: ignore
         backend = Backend.OV_CPU()
+    elif backend is Backend.TRT: # type: ignore
+        raise TypeError(f'{funcName}: trt backend must be instantiated')
+
+    if isinstance(backend, Backend.TRT):
+        backend._channels = 3
 
     network_path = os.path.join(
+        models_path,
         "RealESRGANv2",
         f"RealESRGANv2-{tuple(RealESRGANv2Model.__members__)[model]}.onnx".replace('_', '-')
     )
@@ -392,3 +480,74 @@ def RealESRGANv2(
     )
 
     return clip
+
+
+def get_engine_name(
+    network_path: str,
+    opt_shapes: typing.Tuple[int, int],
+    max_shapes: typing.Tuple[int, int],
+    workspace: int,
+    fp16: bool
+) -> str:
+
+    import zlib
+
+    with open(network_path, "rb") as f:
+        checksum = zlib.adler32(f.read())
+
+    return (
+        network_path +
+        f".{checksum}" +
+        f"_opt{opt_shapes[1]}x{opt_shapes[0]}" +
+        f"_max{max_shapes[1]}x{max_shapes[0]}" +
+        f"_workspace{workspace}" +
+        "_fp16" if fp16 else "" +
+        ".engine"
+    )
+
+
+def trtexec(
+    network_path: str,
+    channels: int,
+    opt_shapes: typing.Tuple[int, int],
+    max_shapes: typing.Tuple[int, int],
+    fp16: bool,
+    workspace: int = 16,
+    verbose: bool = False,
+    use_cuda_graph: bool = False
+) -> str:
+
+    engine_path = get_engine_name(network_path, opt_shapes, max_shapes, workspace, fp16)
+
+    if os.path.exists(engine_path):
+        return engine_path
+
+    args = [
+        trtexec_path,
+        f"--onnx={network_path}",
+        f"--minShapes=input:1x{channels}x0x0",
+        f"--optShapes=input:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}",
+        f"--maxShapes=input:1x{channels}x{max_shapes[1]}x{max_shapes[0]}",
+        "--tacticSources=-CUBLAS,-CUBLAS_LT",
+        f"--workspace={workspace}",
+        f"--timingCacheFile={engine_path + '.cache'}",
+        f"--saveEngine={engine_path}"
+    ]
+
+    if fp16:
+        args.append("--fp16")
+
+    if verbose:
+        args.append("--verbose")
+
+    if use_cuda_graph:
+        args.extend((
+            "--useCudaGraph",
+            "--noDataTransfers"
+        ))
+    else:
+        args.append("--buildOnly")
+
+    subprocess.run(args)
+
+    return engine_path
