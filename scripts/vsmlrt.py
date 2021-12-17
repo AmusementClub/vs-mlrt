@@ -1,4 +1,4 @@
-__version__ = "3.0.3"
+__version__ = "3.1.0"
 
 __all__ = [
     "Backend",
@@ -12,6 +12,7 @@ import enum
 import math
 import os
 import subprocess
+import sys
 import typing
 import zlib
 
@@ -388,7 +389,10 @@ def DPIR(
         raise TypeError(f'{funcName}: trt backend must be instantiated')
 
     if isinstance(backend, Backend.TRT):
-        backend._channels = 3
+        if model in [0, 2]:
+            backend._channels = 2
+        elif model in [1, 3]:
+            backend._channels = 4
 
     network_path = os.path.join(
         models_path,
@@ -498,9 +502,12 @@ def get_engine_name(
     with open(network_path, "rb") as f:
         checksum = zlib.adler32(f.read())
 
+    trt_version = core.trt.Version()["tensorrt_version"].decode()
+
     return (
         network_path +
         f".{checksum}" +
+        f"_trt-{trt_version}"
         f"_device{device_id}" +
         f"_opt{opt_shapes[1]}x{opt_shapes[0]}" +
         f"_max{max_shapes[1]}x{max_shapes[0]}" +
@@ -518,10 +525,10 @@ def trtexec(
     max_shapes: typing.Tuple[int, int],
     fp16: bool,
     device_id: int,
-    workspace: int = 16,
+    workspace: int = 128,
     verbose: bool = False,
     use_cuda_graph: bool = False,
-    use_cublas: bool = False,
+    use_cublas: bool = False
 ) -> str:
 
     if isinstance(opt_shapes, int):
@@ -572,6 +579,6 @@ def trtexec(
     else:
         args.append("--buildOnly")
 
-    subprocess.run(args, check=True)
+    subprocess.run(args, check=True, stdout=sys.stderr)
 
     return engine_path

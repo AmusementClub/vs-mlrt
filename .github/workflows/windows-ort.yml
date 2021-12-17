@@ -36,7 +36,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v2
       with:
-        fetch-depth: 1
+        fetch-depth: 0
 
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
@@ -196,6 +196,9 @@ jobs:
       run: |
         vs_portable\vspipe -i test.vpy -
         vs_portable\vspipe -p -e 9 test.vpy .
+
+    - name: Describe
+      run: git describe --tags --long
 
     - name: Compress artifact for release
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''

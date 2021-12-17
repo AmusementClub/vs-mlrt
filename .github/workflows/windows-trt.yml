@@ -39,7 +39,7 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v2
       with:
-        fetch-depth: 1
+        fetch-depth: 0
 
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
@@ -120,11 +120,13 @@ jobs:
         mkdir artifact\vsmlrt-cuda
         copy trtexec\bin\trtexec.exe artifact\vsmlrt-cuda
 
+    - name: Describe
+      run: git describe --tags --long
+
     - name: Upload
       uses: actions/upload-artifact@v2
       with:
         name: VSTRT-Windows-x64
-        retention-days: 1
         path: vstrt/artifact
 
     - name: Compress artifact for release
