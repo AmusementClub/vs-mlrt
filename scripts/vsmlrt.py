@@ -13,6 +13,7 @@ import math
 import os
 import subprocess
 import typing
+import zlib
 
 import vapoursynth as vs
 from vapoursynth import core
@@ -23,14 +24,13 @@ def get_plugins_path() -> str:
 
     try:
         path = core.trt.Version()["path"]
-    except Exception:
+    except AttributeError:
         try:
             path = core.ort.Version()["path"]
-        except Exception:
-            try:
-                path = core.ov.Version()["path"]
-            except Exception as e:
-                raise e
+        except AttributeError:
+            path = core.ov.Version()["path"]
+
+    assert path != b""
 
     return os.path.dirname(path).decode()
 
@@ -490,8 +490,6 @@ def get_engine_name(
     fp16: bool
 ) -> str:
 
-    import zlib
-
     with open(network_path, "rb") as f:
         checksum = zlib.adler32(f.read())
 
@@ -548,6 +546,6 @@ def trtexec(
     else:
         args.append("--buildOnly")
 
-    subprocess.run(args)
+    subprocess.run(args, check=True)
 
     return engine_path
