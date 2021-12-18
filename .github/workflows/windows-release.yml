@@ -37,13 +37,41 @@ jobs:
     secrets:
       REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
 
-  download-models:
+  build-scripts:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v2
+
+    - name: Compress scirpts.7z
+      run: |
+        cd scripts
+        7za a -t7z -bb3 -mx=3 ../scripts.${{ github.event.inputs.tag }}.7z .
+
+    - name: Upload scripts release
+      uses: actions/upload-artifact@v2
+      with:
+        name: Scripts
+        path: scripts
+        retention-days: 1
+
+    - name: Release scripts
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.tag }}
+        files: scripts.${{ github.event.inputs.tag }}.7z
+        fail_on_unmatched_files: true
+        generate_release_notes: false
+        prerelease: true
+
+  build-models:
     runs-on: ubuntu-latest
     steps:
     - name: Download Models
       run: |
         set -ex
-        mkdir models
+        mkdir -p release/models
+        cd release
         pushd models
         curl -s https://api.github.com/repos/AmusementClub/vs-mlrt/releases/tags/'${{ github.event.inputs.model-tag }}' > release.json
         for url in $(cat release.json | jq '.assets | .[] | .url ' | tr -d '"'); do
@@ -53,38 +81,50 @@ jobs:
         done
         test -f "dl.7z"
         rm -f dl.7z release.json
+        popd
         ls -lR
         du -sh
-        popd
+        7za a -t7z -bb3 -mx=3 ../models.7z .
+
+    - name: Upload model release
+      uses: actions/upload-artifact@v2
+      with:
+        name: Models
+        path: release
+        retention-days: 1
+
+    - name: Rename release asset
+      run: mv models.7z models.${{ github.event.inputs.tag }}.7z
+
+    - name: Release models
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.tag }}
+        files: models.${{ github.event.inputs.tag }}.7z
+        fail_on_unmatched_files: true
+        generate_release_notes: false
+        prerelease: true
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-vsov, build-vsort, build-vstrt, build-cuda-dependency, download-models]
+    needs: [build-vsov, build-vsort, build-vstrt, build-cuda-dependency, build-scripts, build-models]
 
     defaults:
       run:
         shell: bash
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v2
+    - name: Download artifact for scripts
+      uses: actions/download-artifact@v2
+      with:
+        name: Scripts
+        path: scripts-release
 
-    - name: Download Models
-      run: |
-        set -ex
-        mkdir models
-        pushd models
-        curl -s https://api.github.com/repos/AmusementClub/vs-mlrt/releases/tags/'${{ github.event.inputs.model-tag }}' > release.json
-        for url in $(cat release.json | jq '.assets | .[] | .url ' | tr -d '"'); do
-          echo "Downloading $url"
-          curl -o dl.7z -LJO -H 'Accept: application/octet-stream' "$url"
-          7za x -bb3 dl.7z
-        done
-        test -f "dl.7z"
-        rm -f dl.7z release.json
-        ls -lR
-        du -sh
-        popd
+    - name: Download artifact for models
+      uses: actions/download-artifact@v2
+      with:
+        name: Models
+        path: models-release
 
     - name: Download artifact for vsov
       uses: actions/download-artifact@v2
@@ -114,11 +154,11 @@ jobs:
       shell: bash
       run: |
         mkdir release-cpu
-        cp -r models release-cpu/
+        cp -r models-release/models release-cpu/
         cp -r vsov-release/* release-cpu/
         cp -r vsort-release/* release-cpu/
         rm -f release-cpu/vsort/onnxruntime_providers_*.dll
-        cp scripts/*.py release-cpu/
+        cp scripts-release/*.py release-cpu/
         cd release-cpu
         ls -lR
         7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-cpu.7z .
@@ -152,12 +192,12 @@ jobs:
       shell: bash
       run: |
         mkdir release-cuda
-        cp -r models release-cuda/
+        cp -r models-release/models release-cuda/
         cp -r vsov-release/* release-cuda/
         cp -r vsort-release/* release-cuda/
         cp -r vstrt-release/* release-cuda/
         cp -r cuda-release/* release-cuda/
-        cp scripts/*.py release-cuda/
+        cp scripts-release/*.py release-cuda/
         cd release-cuda
         ls -lR
         7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-cuda.7z .
