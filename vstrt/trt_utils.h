@@ -56,17 +56,6 @@ private:
     Severity verbosity;
 };
 
-#ifdef _WIN32
-#include <locale>
-#include <codecvt>
-static std::wstring translateName(const char *name) {
-	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-	return converter.from_bytes(name);
-}
-#else
-#define translateName(n) (n)
-#endif
-
 static inline
 std::optional<int> selectProfile(
     const std::unique_ptr<nvinfer1::ICudaEngine> & engine,
@@ -376,26 +365,13 @@ std::optional<ErrorMessage> checkEngine(
 
 static inline
 std::variant<ErrorMessage, std::unique_ptr<nvinfer1::ICudaEngine>> initEngine(
-    const char * engine_path,
+    const std::vector<char> & engine_data,
     const std::unique_ptr<nvinfer1::IRuntime> & runtime
 ) noexcept {
 
     const auto set_error = [](const ErrorMessage & error_message) {
         return error_message;
     };
-
-    std::ifstream engine_stream {
-        translateName(engine_path),
-        std::ios::binary | std::ios::ate
-    };
-
-    if (!engine_stream.good()) {
-        return set_error("open engine failed");
-    }
-
-    std::vector<char> engine_data(engine_stream.tellg());
-    engine_stream.seekg(0, std::ios::beg);
-    engine_stream.read(engine_data.data(), engine_data.size());
 
     std::unique_ptr<nvinfer1::ICudaEngine> engine {
         runtime->deserializeCudaEngine(engine_data.data(), std::size(engine_data))

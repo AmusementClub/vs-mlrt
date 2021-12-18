@@ -22,6 +22,17 @@
 #include "trt_utils.h"
 #include "utils.h"
 
+#ifdef _WIN32
+#include <locale>
+#include <codecvt>
+static std::wstring translateName(const char *name) {
+	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+	return converter.from_bytes(name);
+}
+#else
+#define translateName(n) (n)
+#endif
+
 using namespace std::string_literals;
 
 static const VSPlugin * myself = nullptr;
@@ -347,8 +358,24 @@ static void VS_CC vsTrtCreate(
     }
 #endif
 
+    std::vector<char> engine_data;
+    {
+        std::ifstream engine_stream {
+            translateName(engine_path),
+            std::ios::binary | std::ios::ate
+        };
+
+        if (!engine_stream.good()) {
+            return set_error("open engine failed");
+        }
+
+        engine_data.resize(engine_stream.tellg());
+        engine_stream.seekg(0, std::ios::beg);
+        engine_stream.read(engine_data.data(), engine_data.size());
+    }
+
     d->runtime.reset(nvinfer1::createInferRuntime(d->logger));
-    auto maybe_engine = initEngine(engine_path, d->runtime);
+    auto maybe_engine = initEngine(engine_data, d->runtime);
     if (std::holds_alternative<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)) {
         d->engines.push_back(std::move(std::get<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)));
     } else {
@@ -374,7 +401,7 @@ static void VS_CC vsTrtCreate(
         // https://docs.nvidia.com/deeplearning/tensorrt/archives/tensorrt-821/developer-guide/index.html#perform-inference
         // each optimization profile can only have one execution context when using dynamic shapes
         if (is_dynamic && i < d->num_streams - 1) {
-            auto maybe_engine = initEngine(engine_path, d->runtime);
+            auto maybe_engine = initEngine(engine_data, d->runtime);
             if (std::holds_alternative<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)) {
                 d->engines.push_back(std::move(std::get<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)));
             } else {
