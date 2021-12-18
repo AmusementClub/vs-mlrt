@@ -427,7 +427,7 @@ static void VS_CC vsTrtCreate(
     }
 
     d->out_vi = std::make_unique<VSVideoInfo>(*in_vis[0]);
-    setDimensions(d->out_vi, d->instances[0].exec_context);
+    setDimensions(d->out_vi, d->instances[0].exec_context, core, vsapi);
 
     vsapi->createFilter(
         in, out, "Model",

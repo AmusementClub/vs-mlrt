@@ -132,13 +132,13 @@ static std::variant<std::string, std::array<int64_t, 4>> getShape(
 
 [[nodiscard]]
 static std::optional<std::string> specifyShape(
-    onnx::ModelProto & model,
+    ONNX_NAMESPACE::ModelProto & model,
     int64_t tile_w,
     int64_t tile_h,
     int64_t batch = 1
 ) noexcept {
 
-    onnx::TensorShapeProto * input_shape {
+    ONNX_NAMESPACE::TensorShapeProto * input_shape {
         model
             .mutable_graph()
             ->mutable_input(0)
@@ -146,7 +146,7 @@ static std::optional<std::string> specifyShape(
             ->mutable_tensor_type()
             ->mutable_shape()
     };
-    onnx::TensorShapeProto * output_shape {
+    ONNX_NAMESPACE::TensorShapeProto * output_shape {
         model
             .mutable_graph()
             ->mutable_output(0)
@@ -171,8 +171,8 @@ static std::optional<std::string> specifyShape(
     model.mutable_graph()->mutable_value_info()->Clear();
 
     try {
-        onnx::shape_inference::InferShapes(model);
-    } catch (const onnx::InferenceError & e) {
+        ONNX_NAMESPACE::shape_inference::InferShapes(model);
+    } catch (const ONNX_NAMESPACE::InferenceError & e) {
         return e.what();
     }
 
@@ -223,7 +223,8 @@ static std::optional<std::string> checkNodes(
 
 [[nodiscard]]
 static std::optional<std::string> checkIOInfo(
-    const OrtTypeInfo * info
+    const OrtTypeInfo * info,
+    bool is_output
 ) noexcept {
 
     const auto set_error = [](const std::string & error_message) {
@@ -256,6 +257,13 @@ static std::optional<std::string> checkIOInfo(
         return set_error("batch size of network must be 1");
     }
 
+    if (is_output) {
+        int64_t out_channels = shape[1];
+        if (out_channels != 1 && out_channels != 3) {
+            return "output dimensions must be 1 or 3";
+        }
+    }
+
     return {};
 }
 
@@ -279,7 +287,7 @@ static std::optional<std::string> checkSession(
     OrtTypeInfo * input_type_info;
     checkError(ortapi->SessionGetInputTypeInfo(session, 0, &input_type_info));
 
-    if (auto err = checkIOInfo(input_type_info); err.has_value()) {
+    if (auto err = checkIOInfo(input_type_info, false); err.has_value()) {
         return set_error(err.value());
     }
 
@@ -295,7 +303,7 @@ static std::optional<std::string> checkSession(
     OrtTypeInfo * output_type_info;
     checkError(ortapi->SessionGetOutputTypeInfo(session, 0, &output_type_info));
 
-    if (auto err = checkIOInfo(output_type_info); err.has_value()) {
+    if (auto err = checkIOInfo(output_type_info, true); err.has_value()) {
         return set_error(err.value());
     }
 
@@ -344,11 +352,19 @@ static std::optional<std::string> checkNodesAndNetwork(
 static void setDimensions(
     std::unique_ptr<VSVideoInfo> & vi,
     const std::array<int64_t, 4> & input_shape,
-    const std::array<int64_t, 4> & output_shape
+    const std::array<int64_t, 4> & output_shape,
+    VSCore * core,
+    const VSAPI * vsapi
 ) noexcept {
 
     vi->height *= output_shape[2] / input_shape[2];
     vi->width *= output_shape[3] / input_shape[3];
+
+    if (output_shape[1] == 1) {
+        vi->format = vsapi->registerFormat(cmGray, stFloat, 32, 0, 0, core);
+    } else if (output_shape[1] == 3) {
+        vi->format = vsapi->registerFormat(cmRGB, stFloat, 32, 0, 0, core);
+    }
 }
 
 struct TicketSemaphore {
@@ -870,9 +886,9 @@ static void VS_CC vsOrtCreate(
         onnx_stream.read(onnx_data.data(), onnx_data.size());
     }
 
-    onnx::ModelProto onnx_proto;
+    ONNX_NAMESPACE::ModelProto onnx_proto;
     try {
-        onnx::ParseProtoFromBytes(
+        ONNX_NAMESPACE::ParseProtoFromBytes(
             &onnx_proto,
             onnx_data.data(), std::size(onnx_data)
         );
@@ -1090,7 +1106,7 @@ static void VS_CC vsOrtCreate(
         }
 
         if (i == 0) {
-            setDimensions(d->out_vi, input_shape, output_shape);
+            setDimensions(d->out_vi, input_shape, output_shape, core, vsapi);
         }
 
         d->resources.push_back(resource);

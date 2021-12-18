@@ -13,7 +13,9 @@
 static inline
 void setDimensions(
     std::unique_ptr<VSVideoInfo> & vi,
-    const std::unique_ptr<nvinfer1::IExecutionContext> & exec_context
+    const std::unique_ptr<nvinfer1::IExecutionContext> & exec_context,
+    VSCore * core,
+    const VSAPI * vsapi
 ) noexcept {
 
     const nvinfer1::Dims & in_dims = exec_context->getBindingDimensions(0);
@@ -26,6 +28,12 @@ void setDimensions(
 
     vi->height *= out_height / in_height;
     vi->width *= out_width / in_width;
+
+    if (out_dims.d[1] == 1) {
+        vi->format = vsapi->registerFormat(cmGray, stFloat, 32, 0, 0, core);
+    } else if (out_dims.d[1] == 3) {
+        vi->format = vsapi->registerFormat(cmRGB, stFloat, 32, 0, 0, core);
+    }
 }
 
 static inline
@@ -40,7 +48,7 @@ std::vector<const VSVideoInfo *> getVideoInfo(
     for (const auto & node : nodes) {
         vis.emplace_back(vsapi->getVideoInfo(node));
     }
-  
+
     return vis;
 }
 

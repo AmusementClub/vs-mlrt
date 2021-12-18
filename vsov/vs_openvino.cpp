@@ -152,7 +152,8 @@ static std::optional<std::string> checkNodes(
 template <typename T>
 [[nodiscard]]
 static std::optional<std::string> checkIOInfo(
-    const T & info
+    const T & info,
+    bool is_output
 ) noexcept {
 
     if (info->getPrecision() != InferenceEngine::Precision::FP32) {
@@ -166,9 +167,16 @@ static std::optional<std::string> checkIOInfo(
     if (dims.size() != 4) {
         return "expects network with 4-D IO";
     }
-    // 0: dynamic onnx model is loaded with empty dimensions
-    if (dims[0] != 1 && dims[0] != 0) {
+
+    if (dims[0] != 1) {
         return "batch size of network must be 1";
+    }
+
+    if (is_output) {
+        auto out_channels = dims[1];
+        if (out_channels != 1 && out_channels != 3) {
+            return "output dimensions must be 1 or 3";
+        }
     }
 
     return {};
@@ -187,7 +195,7 @@ static std::optional<std::string> checkNetwork(
     }
 
     const auto & input_info = inputs_info.cbegin()->second;
-    if (auto err = checkIOInfo(input_info); err.has_value()) {
+    if (auto err = checkIOInfo(input_info, false); err.has_value()) {
         return err.value();
     }
 
@@ -198,7 +206,7 @@ static std::optional<std::string> checkNetwork(
     }
 
     const auto & output_info = outputs_info.cbegin()->second;
-    if (auto err = checkIOInfo(output_info); err.has_value()) {
+    if (auto err = checkIOInfo(output_info, true); err.has_value()) {
         return err.value();
     }
 
@@ -236,7 +244,9 @@ static std::optional<std::string> checkNodesAndNetwork(
 
 static void setDimensions(
     std::unique_ptr<VSVideoInfo> & vi,
-    const InferenceEngine::ExecutableNetwork & network
+    const InferenceEngine::ExecutableNetwork & network,
+    VSCore * core,
+    const VSAPI * vsapi
 ) noexcept {
 
     auto in_dims = network.GetInputsInfo().cbegin()->second->getTensorDesc().getDims();
@@ -244,6 +254,12 @@ static void setDimensions(
 
     vi->height *= out_dims[2] / in_dims[2];
     vi->width *= out_dims[3] / in_dims[3];
+
+    if (out_dims[1] == 1) {
+        vi->format = vsapi->registerFormat(cmGray, stFloat, 32, 0, 0, core);
+    } else if (out_dims[1] == 3) {
+        vi->format = vsapi->registerFormat(cmRGB, stFloat, 32, 0, 0, core);
+    }
 }
 
 
@@ -616,7 +632,7 @@ static void VS_CC vsOvCreate(
             return set_error(err.value());
         }
 
-        setDimensions(d->out_vi, d->executable_network);
+        setDimensions(d->out_vi, d->executable_network, core, vsapi);
 
         d->input_name = d->executable_network.GetInputsInfo().cbegin()->first;
         d->output_name = d->executable_network.GetOutputsInfo().cbegin()->first;
