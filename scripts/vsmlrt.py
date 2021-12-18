@@ -1,4 +1,4 @@
-__version__ = "3.1.1"
+__version__ = "3.1.2"
 
 __all__ = [
     "Backend",
@@ -60,7 +60,7 @@ class Backend:
     @dataclass
     class TRT:
         max_shapes: typing.Optional[typing.Tuple[int, int]] = None
-        opt_shapes: typing.Tuple[int, int] = (64, 64)
+        opt_shapes: typing.Optional[typing.Tuple[int, int]] = (64, 64)
         fp16: bool = False
 
         device_id: int = 0
@@ -543,6 +543,9 @@ def init_backend(
         if backend.max_shapes is None:
             backend.max_shapes = (width, height)
 
+        if backend.opt_shapes is None:
+            backend.opt_shapes = backend.max_shapes
+
     return backend
 
 
@@ -588,7 +591,7 @@ def inference(
         engine_path = trtexec(
             network_path,
             channels=backend._channels,
-            opt_shapes=backend.opt_shapes,
+            opt_shapes=backend.opt_shapes, # type: ignore
             max_shapes=backend.max_shapes, # type: ignore
             fp16=backend.fp16,
             device_id=backend.device_id,
@@ -606,6 +609,6 @@ def inference(
             verbosity=4 if backend.verbose else 2
         )
     else:
-        raise ValueError(f'unknown backend {backend}')
+        raise TypeError(f'unknown backend {backend}')
 
     return clip
