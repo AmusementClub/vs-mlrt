@@ -32,7 +32,7 @@ Please visit the [vsort](vsort) directory for details.
 for NVidia GPUs. It uses benchmarking to find the optimal kernel to use for your specific
 GPU, and so there is an extra step to build an engine from ONNX network on the machine
 you are going to use the vstrt filter, and this extra step makes deploying models a little
-harder than the others runtimes. However, the resulting performance is also typically
+harder than the other runtimes. However, the resulting performance is also typically
 *much much better* than the CUDA backend of [vsort](vsort).
 
 To install, download the latest release and extract them into your VS `plugins` directory.
