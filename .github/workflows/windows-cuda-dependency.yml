@@ -89,6 +89,7 @@ jobs:
       run: |
         move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
         move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4\bin\*.dll" vsmlrt-cuda
+        del vsmlrt-cuda\cudart32*.dll
 
     - name: Compress
       run: |
