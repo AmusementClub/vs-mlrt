@@ -1,4 +1,4 @@
-__version__ = "3.1.0"
+__version__ = "3.1.1"
 
 __all__ = [
     "Backend",
@@ -59,11 +59,11 @@ class Backend:
 
     @dataclass
     class TRT:
-        max_shapes: typing.Tuple[int, int]
-
-        device_id: int = 0
+        max_shapes: typing.Optional[typing.Tuple[int, int]] = None
         opt_shapes: typing.Tuple[int, int] = (64, 64)
         fp16: bool = False
+
+        device_id: int = 0
         workspace: int = 128
         verbose: bool = False
         use_cuda_graph: bool = False
@@ -72,74 +72,12 @@ class Backend:
 
         _channels: int = field(init=False, repr=False, compare=False)
 
-
-def calc_size(width: int, tiles: int, overlap: int, multiple: int = 1) -> int:
-    return math.ceil((width + 2 * overlap * (tiles - 1)) / (tiles * multiple)) * multiple
-
-
-def inference(
-    clips: typing.List[vs.VideoNode],
-    network_path: str,
-    overlap: typing.Tuple[int, int],
-    tilesize: typing.Tuple[int, int],
-    backend: typing.Union[Backend.OV_CPU, Backend.ORT_CPU, Backend.ORT_CUDA]
-) -> vs.VideoNode:
-
-    if not os.path.exists(network_path):
-        raise RuntimeError(
-            f'"{network_path}" not found, '
-            f'built-in models can be found at https://github.com/AmusementClub/vs-mlrt/releases'
-        )
-
-    if isinstance(backend, Backend.ORT_CPU):
-        clip = core.ort.Model(
-            clips, network_path,
-            overlap=overlap, tilesize=tilesize,
-            provider="CPU", builtin=False,
-            num_streams=backend.num_streams,
-            verbosity=backend.verbosity
-        )
-    elif isinstance(backend, Backend.ORT_CUDA):
-        clip = core.ort.Model(
-            clips, network_path,
-            overlap=overlap, tilesize=tilesize,
-            provider="CUDA", builtin=False,
-            device_id=backend.device_id,
-            num_streams=backend.num_streams,
-            verbosity=backend.verbosity,
-            cudnn_benchmark=backend.cudnn_benchmark
-        )
-    elif isinstance(backend, Backend.OV_CPU):
-        clip = core.ov.Model(
-            clips, network_path,
-            overlap=overlap, tilesize=tilesize,
-            device="CPU", builtin=False
-        )
-    elif isinstance(backend, Backend.TRT):
-        engine_path = trtexec(
-            network_path,
-            channels=backend._channels,
-            opt_shapes=backend.opt_shapes,
-            max_shapes=backend.max_shapes,
-            fp16=backend.fp16,
-            device_id=backend.device_id,
-            workspace=backend.workspace,
-            verbose=backend.verbose,
-            use_cuda_graph=backend.use_cuda_graph,
-            use_cublas=backend.use_cublas
-        )
-        clip = core.trt.Model(
-            clips, engine_path,
-            overlap=overlap, tilesize=tilesize,
-            device_id=backend.device_id,
-            use_cuda_graph=backend.use_cuda_graph,
-            num_streams=backend.num_streams,
-            verbosity=4 if backend.verbose else 2
-        )
-    else:
-        raise ValueError(f'unknown backend {backend}')
-
-    return clip
+backendT = typing.Union[
+    Backend.OV_CPU,
+    Backend.ORT_CPU,
+    Backend.ORT_CUDA,
+    Backend.TRT
+]
 
 
 @enum.unique
@@ -161,37 +99,37 @@ def Waifu2x(
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     model: typing.Literal[0, 1, 2, 3, 4, 5, 6] = 6,
-    backend: typing.Union[Backend.OV_CPU, Backend.ORT_CPU, Backend.ORT_CUDA] = Backend.OV_CPU()
+    backend: backendT = Backend.OV_CPU()
 ) -> vs.VideoNode:
 
-    funcName = "vsmlrt.Waifu2x"
+    func_name = "vsmlrt.Waifu2x"
 
     if not isinstance(clip, vs.VideoNode):
-        raise TypeError(f'{funcName}: "clip" must be a clip!')
+        raise TypeError(f'{func_name}: "clip" must be a clip!')
 
     if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
-        raise ValueError(f"{funcName}: only constant format 32 bit float input supported")
+        raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
 
     if not isinstance(noise, int) or noise not in range(-1, 4):
-        raise ValueError(f'{funcName}: "noise" must be -1, 0, 1, 2, or 3')
+        raise ValueError(f'{func_name}: "noise" must be -1, 0, 1, 2, or 3')
 
     if not isinstance(scale, int) or scale not in (1, 2):
-        raise ValueError(f'{funcName}: "scale" must be 1 or 2')
+        raise ValueError(f'{func_name}: "scale" must be 1 or 2')
 
     if not isinstance(model, int) or model not in Waifu2xModel.__members__.values():
-        raise ValueError(f'{funcName}: "model" must be 0, 1, 2, 3, 4, 5, or 6')
+        raise ValueError(f'{func_name}: "model" must be 0, 1, 2, 3, 4, 5, or 6')
 
     if model == 0 and noise == 0:
         raise ValueError(
-            f'{funcName}: "anime_style_art" model'
+            f'{func_name}: "anime_style_art" model'
             ' does not support noise reduction level 0'
         )
 
     if model == 0:
         if clip.format.id != vs.GRAYS:
-            raise ValueError(f'{funcName}: "clip" must be of GRAYS format')
+            raise ValueError(f'{func_name}: "clip" must be of GRAYS format')
     elif clip.format.id != vs.RGBS:
-        raise ValueError(f'{funcName}: "clip" must be of RGBS format')
+        raise ValueError(f'{func_name}: "clip" must be of RGBS format')
 
     if overlap is None:
         overlap_w = overlap_h = [8, 8, 8, 8, 8, 4, 4][model]
@@ -205,40 +143,28 @@ def Waifu2x(
     else:
         multiple = 1
 
-    if tilesize is None:
-        if tiles is None:
-            overlap = 0
-            tile_w = clip.width
-            tile_h = clip.height
-        elif isinstance(tiles, int):
-            tile_w = calc_size(clip.width, tiles, overlap_w, multiple)
-            tile_h = calc_size(clip.height, tiles, overlap_h, multiple)
-        else:
-            tile_w = calc_size(clip.width, tiles[0], overlap_w, multiple)
-            tile_h = calc_size(clip.height, tiles[1], overlap_h, multiple)
-    elif isinstance(tilesize, int):
-        tile_w = tilesize
-        tile_h = tilesize
+    (tile_w, tile_h), (overlap_w, overlap_h) = calc_tilesize(
+        tiles=tiles, tilesize=tilesize,
+        width=clip.width, height=clip.height,
+        multiple=multiple,
+        overlap_w=overlap_w, overlap_h=overlap_h
+    )
+
+    if tile_w % multiple != 0 or tile_h % multiple != 0:
+        raise ValueError(
+            f'{func_name}: tile size must be divisible by {multiple} ({tile_w}, {tile_h})'
+        )
+
+    if model == 0:
+        channels = 1
     else:
-        tile_w, tile_h = tilesize
+        channels = 3
 
-    if model == 6 and (tile_w % 4 != 0 or tile_h % 4 != 0):
-        raise ValueError(f'{funcName}: tile size of cunet model must be divisible by 4 ({tile_w}, {tile_h})')
-
-    if backend is Backend.ORT_CPU: # type: ignore
-        backend = Backend.ORT_CPU()
-    elif backend is Backend.ORT_CUDA: # type: ignore
-        backend = Backend.ORT_CUDA()
-    elif backend is Backend.OV_CPU: # type: ignore
-        backend = Backend.OV_CPU()
-    elif backend is Backend.TRT: # type: ignore
-        raise TypeError(f'{funcName}: trt backend must be instantiated')
-
-    if isinstance(backend, Backend.TRT):
-        if model == 0:
-            backend._channels = 1
-        else:
-            backend._channels = 3
+    backend = init_backend(
+        backend=backend,
+        channels=channels,
+        width=clip.width, height=clip.height
+    )
 
     folder_path = os.path.join(
         models_path,
@@ -311,42 +237,42 @@ def DPIR(
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     model: typing.Literal[0, 1, 2, 3] = 0,
-    backend: typing.Union[Backend.OV_CPU, Backend.ORT_CPU, Backend.ORT_CUDA] = Backend.OV_CPU()
+    backend: backendT = Backend.OV_CPU()
 ) -> vs.VideoNode:
 
-    funcName = "vsmlrt.DPIR"
+    func_name = "vsmlrt.DPIR"
 
     if not isinstance(clip, vs.VideoNode):
-        raise TypeError(f'{funcName}: "clip" must be a clip!')
+        raise TypeError(f'{func_name}: "clip" must be a clip!')
 
     if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
-        raise ValueError(f"{funcName}: only constant format 32 bit float input supported")
+        raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
 
     if not isinstance(model, int) or model not in DPIRModel.__members__.values():
-        raise ValueError(f'{funcName}: "model" must be 0, 1, 2 or 3')
+        raise ValueError(f'{func_name}: "model" must be 0, 1, 2 or 3')
 
     if model in [0, 2] and clip.format.id != vs.GRAYS:
-        raise ValueError(f'{funcName}: "clip" must be of GRAYS format')
+        raise ValueError(f'{func_name}: "clip" must be of GRAYS format')
     elif model in [1, 3] and clip.format.id != vs.RGBS:
-        raise ValueError(f'{funcName}: "clip" must be of RGBS format')
+        raise ValueError(f'{func_name}: "clip" must be of RGBS format')
 
     if strength is None:
         strength = 5.0
 
     if isinstance(strength, vs.VideoNode):
         if strength.format.id != vs.GRAYS:
-            raise ValueError(f'{funcName}: "strength" must be of GRAYS format')
+            raise ValueError(f'{func_name}: "strength" must be of GRAYS format')
         if strength.width != clip.width or strength.height != clip.height:
-            raise ValueError(f'{funcName}: "strength" must be of the same size as "clip"')
+            raise ValueError(f'{func_name}: "strength" must be of the same size as "clip"')
         if strength.num_frames != clip.num_frames:
-            raise ValueError(f'{funcName}: "strength" must be of the same length as "clip"')
+            raise ValueError(f'{func_name}: "strength" must be of the same length as "clip"')
 
         strength = core.std.Expr(strength, "x 255 /")
     else:
         try:
             strength = float(strength)
         except TypeError as e:
-            raise TypeError(f'{funcName}: "strength" must be a float or a clip') from e
+            raise TypeError(f'{func_name}: "strength" must be a float or a clip') from e
 
         strength = core.std.BlankClip(clip, format=vs.GRAYS, color=strength / 255)
 
@@ -359,40 +285,28 @@ def DPIR(
 
     multiple = 8
 
-    if tilesize is None:
-        if tiles is None:
-            overlap = 0
-            tile_w = clip.width
-            tile_h = clip.height
-        elif isinstance(tiles, int):
-            tile_w = calc_size(clip.width, tiles, overlap_w, multiple)
-            tile_h = calc_size(clip.height, tiles, overlap_h, multiple)
-        else:
-            tile_w = calc_size(clip.width, tiles[0], overlap_w, multiple)
-            tile_h = calc_size(clip.height, tiles[1], overlap_h, multiple)
-    elif isinstance(tilesize, int):
-        tile_w = tilesize
-        tile_h = tilesize
-    else:
-        tile_w, tile_h = tilesize
+    (tile_w, tile_h), (overlap_w, overlap_h) = calc_tilesize(
+        tiles=tiles, tilesize=tilesize,
+        width=clip.width, height=clip.height,
+        multiple=multiple,
+        overlap_w=overlap_w, overlap_h=overlap_h
+    )
 
-    if tile_w % 8 != 0 or tile_h % 8 != 0:
-        raise ValueError(f'{funcName}: tile size must be divisible by 8 ({tile_w}, {tile_h})')
+    if tile_w % multiple != 0 or tile_h % multiple != 0:
+        raise ValueError(
+            f'{func_name}: tile size must be divisible by {multiple} ({tile_w}, {tile_h})'
+        )
 
-    if backend is Backend.ORT_CPU: # type: ignore
-        backend = Backend.ORT_CPU()
-    elif backend is Backend.ORT_CUDA: # type: ignore
-        backend = Backend.ORT_CUDA()
-    elif backend is Backend.OV_CPU: # type: ignore
-        backend = Backend.OV_CPU()
-    elif backend is Backend.TRT: # type: ignore
-        raise TypeError(f'{funcName}: trt backend must be instantiated')
+    if model in [0, 2]:
+        channels = 2
+    elif model in [1, 3]:
+        channels = 4
 
-    if isinstance(backend, Backend.TRT):
-        if model in [0, 2]:
-            backend._channels = 2
-        elif model in [1, 3]:
-            backend._channels = 4
+    backend = init_backend(
+        backend=backend,
+        channels=channels,
+        width=clip.width, height=clip.height
+    )
 
     network_path = os.path.join(
         models_path,
@@ -421,22 +335,22 @@ def RealESRGANv2(
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     model: typing.Literal[0, 1] = 0,
-    backend: typing.Union[Backend.OV_CPU, Backend.ORT_CPU, Backend.ORT_CUDA] = Backend.OV_CPU()
+    backend: backendT = Backend.OV_CPU()
 ) -> vs.VideoNode:
 
-    funcName = "vsmlrt.RealESRGANv2"
+    func_name = "vsmlrt.RealESRGANv2"
 
     if not isinstance(clip, vs.VideoNode):
-        raise TypeError(f'{funcName}: "clip" must be a clip!')
+        raise TypeError(f'{func_name}: "clip" must be a clip!')
 
     if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
-        raise ValueError(f"{funcName}: only constant format 32 bit float input supported")
+        raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
 
     if clip.format.id != vs.RGBS:
-        raise ValueError(f'{funcName}: "clip" must be of RGBS format')
+        raise ValueError(f'{func_name}: "clip" must be of RGBS format')
 
     if not isinstance(model, int) or model not in RealESRGANv2Model.__members__.values():
-        raise ValueError(f'{funcName}: "model" must be 0 or 1')
+        raise ValueError(f'{func_name}: "model" must be 0 or 1')
 
     if overlap is None:
         overlap_w = overlap_h = 8
@@ -445,34 +359,22 @@ def RealESRGANv2(
     else:
         overlap_w, overlap_h = overlap
 
-    if tilesize is None:
-        if tiles is None:
-            overlap = 0
-            tile_w = clip.width
-            tile_h = clip.height
-        elif isinstance(tiles, int):
-            tile_w = calc_size(clip.width, tiles, overlap_w)
-            tile_h = calc_size(clip.height, tiles, overlap_h)
-        else:
-            tile_w = calc_size(clip.width, tiles[0], overlap_w)
-            tile_h = calc_size(clip.height, tiles[1], overlap_h)
-    elif isinstance(tilesize, int):
-        tile_w = tilesize
-        tile_h = tilesize
-    else:
-        tile_w, tile_h = tilesize
+    multiple = 1
 
-    if backend is Backend.ORT_CPU: # type: ignore
-        backend = Backend.ORT_CPU()
-    elif backend is Backend.ORT_CUDA: # type: ignore
-        backend = Backend.ORT_CUDA()
-    elif backend is Backend.OV_CPU: # type: ignore
-        backend = Backend.OV_CPU()
-    elif backend is Backend.TRT: # type: ignore
-        raise TypeError(f'{funcName}: trt backend must be instantiated')
+    (tile_w, tile_h), (overlap_w, overlap_h) = calc_tilesize(
+        tiles=tiles, tilesize=tilesize,
+        width=clip.width, height=clip.height,
+        multiple=multiple,
+        overlap_w=overlap_w, overlap_h=overlap_h
+    )
 
-    if isinstance(backend, Backend.TRT):
-        backend._channels = 3
+    channels = 3
+
+    backend = init_backend(
+        backend=backend,
+        channels=channels,
+        width=clip.width, height=clip.height
+    )
 
     network_path = os.path.join(
         models_path,
@@ -509,8 +411,8 @@ def get_engine_name(
         f".{checksum}" +
         f"_trt-{trt_version}"
         f"_device{device_id}" +
-        f"_opt{opt_shapes[1]}x{opt_shapes[0]}" +
-        f"_max{max_shapes[1]}x{max_shapes[0]}" +
+        f"_opt{opt_shapes[0]}x{opt_shapes[1]}" +
+        f"_max{max_shapes[0]}x{max_shapes[1]}" +
         f"_workspace{workspace}" +
         ("_fp16" if fp16 else "") +
         ("_cublas" if use_cublas else "") +
@@ -557,7 +459,7 @@ def trtexec(
         f"--optShapes=input:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}",
         f"--maxShapes=input:1x{channels}x{max_shapes[1]}x{max_shapes[0]}",
         f"--workspace={workspace}",
-        f"--timingCacheFile={engine_path + '.cache'}",
+        f"--timingCacheFile={engine_path}.cache",
         f"--device={device_id}",
         f"--saveEngine={engine_path}"
     ]
@@ -582,3 +484,128 @@ def trtexec(
     subprocess.run(args, check=True, stdout=sys.stderr)
 
     return engine_path
+
+
+def calc_size(width: int, tiles: int, overlap: int, multiple: int = 1) -> int:
+    return math.ceil((width + 2 * overlap * (tiles - 1)) / (tiles * multiple)) * multiple
+
+
+def calc_tilesize(
+    tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]],
+    tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]],
+    width: int,
+    height: int,
+    multiple: int,
+    overlap_w: int,
+    overlap_h: int
+) -> typing.Tuple[typing.Tuple[int, int], typing.Tuple[int, int]]:
+
+    if tilesize is None:
+        if tiles is None:
+            overlap_w = 0
+            overlap_h = 0
+            tile_w = width
+            tile_h = height
+        elif isinstance(tiles, int):
+            tile_w = calc_size(width, tiles, overlap_w, multiple)
+            tile_h = calc_size(height, tiles, overlap_h, multiple)
+        else:
+            tile_w = calc_size(width, tiles[0], overlap_w, multiple)
+            tile_h = calc_size(height, tiles[1], overlap_h, multiple)
+    elif isinstance(tilesize, int):
+        tile_w = tilesize
+        tile_h = tilesize
+    else:
+        tile_w, tile_h = tilesize
+
+    return (tile_w, tile_h), (overlap_w, overlap_h)
+
+
+def init_backend(
+    backend: backendT,
+    channels: int,
+    width: int,
+    height: int
+) -> backendT:
+
+    if backend is Backend.ORT_CPU: # type: ignore
+        backend = Backend.ORT_CPU()
+    elif backend is Backend.ORT_CUDA: # type: ignore
+        backend = Backend.ORT_CUDA()
+    elif backend is Backend.OV_CPU: # type: ignore
+        backend = Backend.OV_CPU()
+    elif backend is Backend.TRT: # type: ignore
+        backend = Backend.TRT()
+
+    if isinstance(backend, Backend.TRT):
+        backend._channels = channels
+
+        if backend.max_shapes is None:
+            backend.max_shapes = (width, height)
+
+    return backend
+
+
+def inference(
+    clips: typing.List[vs.VideoNode],
+    network_path: str,
+    overlap: typing.Tuple[int, int],
+    tilesize: typing.Tuple[int, int],
+    backend: backendT
+) -> vs.VideoNode:
+
+    if not os.path.exists(network_path):
+        raise RuntimeError(
+            f'"{network_path}" not found, '
+            f'built-in models can be found at https://github.com/AmusementClub/vs-mlrt/releases'
+        )
+
+    if isinstance(backend, Backend.ORT_CPU):
+        clip = core.ort.Model(
+            clips, network_path,
+            overlap=overlap, tilesize=tilesize,
+            provider="CPU", builtin=False,
+            num_streams=backend.num_streams,
+            verbosity=backend.verbosity
+        )
+    elif isinstance(backend, Backend.ORT_CUDA):
+        clip = core.ort.Model(
+            clips, network_path,
+            overlap=overlap, tilesize=tilesize,
+            provider="CUDA", builtin=False,
+            device_id=backend.device_id,
+            num_streams=backend.num_streams,
+            verbosity=backend.verbosity,
+            cudnn_benchmark=backend.cudnn_benchmark
+        )
+    elif isinstance(backend, Backend.OV_CPU):
+        clip = core.ov.Model(
+            clips, network_path,
+            overlap=overlap, tilesize=tilesize,
+            device="CPU", builtin=False
+        )
+    elif isinstance(backend, Backend.TRT):
+        engine_path = trtexec(
+            network_path,
+            channels=backend._channels,
+            opt_shapes=backend.opt_shapes,
+            max_shapes=backend.max_shapes, # type: ignore
+            fp16=backend.fp16,
+            device_id=backend.device_id,
+            workspace=backend.workspace,
+            verbose=backend.verbose,
+            use_cuda_graph=backend.use_cuda_graph,
+            use_cublas=backend.use_cublas
+        )
+        clip = core.trt.Model(
+            clips, engine_path,
+            overlap=overlap, tilesize=tilesize,
+            device_id=backend.device_id,
+            use_cuda_graph=backend.use_cuda_graph,
+            num_streams=backend.num_streams,
+            verbosity=4 if backend.verbose else 2
+        )
+    else:
+        raise ValueError(f'unknown backend {backend}')
+
+    return clip
