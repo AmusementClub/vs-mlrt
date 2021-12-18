@@ -2,7 +2,7 @@
 #include <atomic>
 #include <cstdint>
 #include <fstream>
-#include <iterator>
+#include <ios>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -854,19 +854,21 @@ static void VS_CC vsOrtCreate(
         path = dir + path;
     }
 
-    std::ifstream onnx_stream(
-        translateName(path.c_str()),
-        std::ios::in | std::ios::binary
-    );
+    std::string onnx_data;
+    {
+        std::ifstream onnx_stream(
+            translateName(path.c_str()),
+            std::ios::binary | std::ios::ate
+        );
 
-    if (!onnx_stream.good()) {
-        return set_error("open "s + path + " failed"s);
+        if (!onnx_stream.good()) {
+            return set_error("open "s + path + " failed"s);
+        }
+
+        onnx_data.resize(onnx_stream.tellg());
+        onnx_stream.seekg(0, std::ios::beg);
+        onnx_stream.read(onnx_data.data(), onnx_data.size());
     }
-
-    std::string onnx_data {
-        std::istreambuf_iterator<char>{ onnx_stream },
-        std::istreambuf_iterator<char>{}
-    };
 
     onnx::ModelProto onnx_proto;
     try {

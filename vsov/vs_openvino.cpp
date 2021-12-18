@@ -1,6 +1,7 @@
 #include <array>
 #include <cstdint>
 #include <fstream>
+#include <ios>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -407,7 +408,6 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
                 {
                     InferenceEngine::Blob::CPtr output = infer_request.GetBlob(d->output_name);
 
-
                     auto moutput = output->as<const InferenceEngine::MemoryBlob>();
                     auto moutputHolder = moutput->rmap();
                     const uint8_t * output_buffer = moutputHolder.as<const uint8_t *>();
@@ -560,19 +560,21 @@ static void VS_CC vsOvCreate(
         path = dir + path;
     }
 
-    std::ifstream onnx_stream(
-        translateName(path.c_str()),
-        std::ios::in | std::ios::binary
-    );
+    std::string onnx_data;
+    {
+        std::ifstream onnx_stream(
+            translateName(path.c_str()),
+            std::ios::binary | std::ios::ate
+        );
 
-    if (!onnx_stream.good()) {
-        return set_error("open "s + path + " failed"s);
+        if (!onnx_stream.good()) {
+            return set_error("open "s + path + " failed"s);
+        }
+
+        onnx_data.resize(onnx_stream.tellg());
+        onnx_stream.seekg(0, std::ios::beg);
+        onnx_stream.read(onnx_data.data(), onnx_data.size());
     }
-
-    std::string onnx_data {
-        std::istreambuf_iterator<char>{ onnx_stream },
-        std::istreambuf_iterator<char>{}
-    };
 
     ONNX_NAMESPACE::ModelProto onnx_proto;
     try {
@@ -594,7 +596,6 @@ static void VS_CC vsOvCreate(
     }
 
     {
-
         InferenceEngine::CNNNetwork network;
         try {
             auto empty = InferenceEngine::Blob::CPtr();

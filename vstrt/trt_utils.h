@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include <cuda_runtime.h>
 #include <NvInferRuntime.h>
@@ -385,17 +386,16 @@ std::variant<ErrorMessage, std::unique_ptr<nvinfer1::ICudaEngine>> initEngine(
 
     std::ifstream engine_stream {
         translateName(engine_path),
-        std::ios::in | std::ios::binary
+        std::ios::binary | std::ios::ate
     };
 
     if (!engine_stream.good()) {
         return set_error("open engine failed");
     }
 
-    std::string engine_data {
-        std::istreambuf_iterator<char>{ engine_stream },
-        std::istreambuf_iterator<char>{}
-    };
+    std::vector<char> engine_data(engine_stream.tellg());
+    engine_stream.seekg(0, std::ios::beg);
+    engine_stream.read(engine_data.data(), engine_data.size());
 
     std::unique_ptr<nvinfer1::ICudaEngine> engine {
         runtime->deserializeCudaEngine(engine_data.data(), std::size(engine_data))
