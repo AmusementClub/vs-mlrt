@@ -117,14 +117,14 @@ jobs:
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
       run: |
         cd artifact
-        7z a -t7z -mx=7 ../../VSOV-Windows-x64.7z .
+        7z a -t7z -mx=7 ../../VSOV-Windows-x64.${{ github.event.inputs.tag }}.7z .
 
     - name: Release
       uses: softprops/action-gh-release@v1
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
       with:
         tag_name: ${{ inputs.tag }}
-        files: VSOV-Windows-x64.7z
+        files: VSOV-Windows-x64.${{ github.event.inputs.tag }}.7z
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true

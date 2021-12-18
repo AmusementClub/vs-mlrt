@@ -130,11 +130,14 @@ jobs:
         path: vsmlrt-windows-x64-cpu.7z
         retention-days: 1
 
+    - name: Rename release asset
+      run: mv vsmlrt-windows-x64-cpu.7z vsmlrt-windows-x64-cpu.${{ github.event.inputs.tag }}.7z
+
     - name: Release CPU
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.event.inputs.tag }}
-        files: vsmlrt-windows-x64-cpu.7z
+        files: vsmlrt-windows-x64-cpu.${{ github.event.inputs.tag}}.7z
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true
@@ -166,11 +169,14 @@ jobs:
         path: vsmlrt-windows-x64-cuda.7z
         retention-days: 1
 
+    - name: Rename release asset
+      run: mv vsmlrt-windows-x64-cuda.7z vsmlrt-windows-x64-cuda.${{ github.event.inputs.tag }}.7z
+
     - name: Release CUDA
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.event.inputs.tag }}
-        files: vsmlrt-windows-x64-cuda.7z
+        files: vsmlrt-windows-x64-cuda.${{ github.event.inputs.tag }}.7z
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true

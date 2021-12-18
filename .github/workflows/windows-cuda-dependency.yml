@@ -102,11 +102,15 @@ jobs:
         path: vsmlrt-cuda.7z
         retention-days: 1
 
+    - name: Rename release asset
+      run: |
+        mv vsmlrt-cuda.7z vsmlrt-cuda.${{ github.event.inputs.tag}}.7z
+
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.event.inputs.tag }}
-        files: vsmlrt-cuda.7z
+        files: vsmlrt-cuda.${{ github.event.inputs.tag }}.7z
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true
