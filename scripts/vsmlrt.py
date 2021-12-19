@@ -407,7 +407,8 @@ def get_engine_name(
     trt_version = core.trt.Version()["tensorrt_version"].decode()
 
     try:
-        device_name = core.trt.DeviceName(device_id).decode().replace(' ', '-')
+        device_name = core.trt.DeviceProperties(device_id)["name"].decode()
+        device_name = device_name.replace(' ', '-')
     except AttributeError:
         device_name = f"device{device_id}"
 
