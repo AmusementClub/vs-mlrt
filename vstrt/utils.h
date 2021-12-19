@@ -185,7 +185,7 @@ static void VS_CC getDeviceProp(
     setProp("mem_pitch", prop.memPitch);
     setProp("max_threads_per_block", prop.maxThreadsPerBlock);
     setProp("clock_rate", prop.clockRate);
-    setProp("total_const_mem", prop.totalGlobalMem);
+    setProp("total_const_mem", prop.totalConstMem);
     setProp("major", prop.major);
     setProp("minor", prop.minor);
     setProp("device_overlap", prop.deviceOverlap);
