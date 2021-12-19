@@ -1,4 +1,4 @@
-__version__ = "3.1.2"
+__version__ = "3.1.3"
 
 __all__ = [
     "Backend",
@@ -401,21 +401,26 @@ def get_engine_name(
     use_cublas: bool
 ) -> str:
 
-    with open(network_path, "rb") as f:
-        checksum = zlib.adler32(f.read())
+    with open(network_path, "rb") as file:
+        checksum = zlib.adler32(file.read())
 
     trt_version = core.trt.Version()["tensorrt_version"].decode()
 
+    try:
+        device_name = core.trt.DeviceName(device_id).decode().replace(' ', '-')
+    except AttributeError:
+        device_name = f"device{device_id}"
+
     return (
         network_path +
-        f".{checksum}" +
-        f"_trt-{trt_version}"
-        f"_device{device_id}" +
-        f"_opt{opt_shapes[0]}x{opt_shapes[1]}" +
+        f".opt{opt_shapes[0]}x{opt_shapes[1]}" +
         f"_max{max_shapes[0]}x{max_shapes[1]}" +
-        f"_workspace{workspace}" +
         ("_fp16" if fp16 else "") +
+        f"_workspace{workspace}" +
+        f"_trt-{trt_version}" +
         ("_cublas" if use_cublas else "") +
+        f"_{device_name}" +
+        f"_{checksum}" +
         ".engine"
     )
 
