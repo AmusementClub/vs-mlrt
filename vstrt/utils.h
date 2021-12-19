@@ -1,6 +1,8 @@
 #ifndef VSTRT_UTILS_H_
 #define VSTRT_UTILS_H_
 
+#include <array>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -135,5 +137,104 @@ std::optional<std::string> checkNodesAndContext(
 
     return {};
 }
+
+static void VS_CC getDeviceProp(
+    const VSMap *in, VSMap *out, void *userData,
+    VSCore *core, const VSAPI *vsapi
+) {
+
+    int err;
+    int device_id = static_cast<int>(vsapi->propGetInt(in, "device_id", 0, &err));
+    if (err) {
+        device_id = 0;
+    }
+
+    cudaDeviceProp prop;
+    if (auto err = cudaGetDeviceProperties(&prop, device_id); err != cudaSuccess) {
+        vsapi->setError(out, cudaGetErrorString(err));
+        return ;
+    }
+
+    auto setProp = [&](const char * name, auto value, int data_length = -1) {
+        using T = std::decay_t<decltype(value)>;
+        if constexpr (std::is_same_v<T, int>) {
+            vsapi->propSetInt(out, name, value, paReplace);
+        } else if constexpr (std::is_same_v<T, size_t>) {
+            vsapi->propSetInt(out, name, static_cast<int64_t>(value), paReplace);
+        } else if constexpr (std::is_same_v<T, char *>) {
+            vsapi->propSetData(out, name, value, data_length, paReplace);
+        }
+    };
+
+    int driver_version;
+    cudaDriverGetVersion(&driver_version);
+    setProp("driver_version", driver_version);
+
+    setProp("name", prop.name);
+    {
+        std::array<int64_t, 16> uuid;
+        for (int i = 0; i < 16; ++i) {
+            uuid[i] = prop.uuid.bytes[i];
+        }
+        vsapi->propSetIntArray(out, "uuid", uuid.data(), 16);
+    }
+    setProp("total_global_memory", prop.totalGlobalMem);
+    setProp("shared_memory_per_block", prop.sharedMemPerBlock);
+    setProp("regs_per_block", prop.regsPerBlock);
+    setProp("warp_size", prop.warpSize);
+    setProp("mem_pitch", prop.memPitch);
+    setProp("max_threads_per_block", prop.maxThreadsPerBlock);
+    setProp("clock_rate", prop.clockRate);
+    setProp("total_const_mem", prop.totalGlobalMem);
+    setProp("major", prop.major);
+    setProp("minor", prop.minor);
+    setProp("device_overlap", prop.deviceOverlap);
+    setProp("multi_processor_count", prop.multiProcessorCount);
+    setProp("kernel_exec_timeout_enabled", prop.kernelExecTimeoutEnabled);
+    setProp("integrated", prop.integrated);
+    setProp("can_map_host_memory", prop.canMapHostMemory);
+    setProp("compute_mode", prop.computeMode);
+    setProp("concurrent_kernels", prop.concurrentKernels);
+    setProp("ecc_enabled", prop.ECCEnabled);
+    setProp("pci_bus_id", prop.pciBusID);
+    setProp("pci_device_id", prop.pciDeviceID);
+    setProp("pci_domain_id", prop.pciDomainID);
+    setProp("tcc_driver", prop.tccDriver);
+    setProp("async_engine_count", prop.asyncEngineCount);
+    setProp("unified_addressing", prop.unifiedAddressing);
+    setProp("memory_clock_rate", prop.memoryClockRate);
+    setProp("memory_bus_width", prop.memoryBusWidth);
+    setProp("l2_cache_size", prop.l2CacheSize);
+    setProp("persisting_l2_cache_max_size", prop.persistingL2CacheMaxSize);
+    setProp("max_threads_per_multiprocessor", prop.maxThreadsPerMultiProcessor);
+    setProp("stream_priorities_supported", prop.streamPrioritiesSupported);
+    setProp("global_l1_cache_supported", prop.globalL1CacheSupported);
+    setProp("local_l1_cache_supported", prop.localL1CacheSupported);
+    setProp("shared_mem_per_multiprocessor", prop.sharedMemPerMultiprocessor);
+    setProp("regs_per_multiprocessor", prop.regsPerMultiprocessor);
+    setProp("managed_memory", prop.managedMemory);
+    setProp("is_multi_gpu_board", prop.isMultiGpuBoard);
+    setProp("multi_gpu_board_group_id", prop.multiGpuBoardGroupID);
+    setProp("host_native_atomic_supported", prop.hostNativeAtomicSupported);
+    setProp("single_to_double_precision_perf_ratio", prop.singleToDoublePrecisionPerfRatio);
+    setProp("pageable_memory_access", prop.pageableMemoryAccess);
+    setProp("conccurrent_managed_access", prop.concurrentManagedAccess);
+    setProp("compute_preemption_supported", prop.computePreemptionSupported);
+    setProp(
+        "can_use_host_pointer_for_registered_mem", 
+        prop.canUseHostPointerForRegisteredMem
+    );
+    setProp("cooperative_launch", prop.cooperativeLaunch);
+    setProp("cooperative_multi_device_launch", prop.cooperativeMultiDeviceLaunch);
+    setProp("shared_mem_per_block_optin", prop.sharedMemPerBlockOptin);
+    setProp(
+        "pageable_memory_access_uses_host_page_tables", 
+        prop.pageableMemoryAccessUsesHostPageTables
+    );
+    setProp("direct_managed_mem_access_from_host", prop.directManagedMemAccessFromHost);
+    setProp("max_blocks_per_multi_processor", prop.maxBlocksPerMultiProcessor);
+    setProp("access_policy_max_window_size", prop.accessPolicyMaxWindowSize);
+    setProp("reserved_shared_mem_per_block", prop.reservedSharedMemPerBlock);
+};
 
 #endif // VSTRT_UTILS_H_
