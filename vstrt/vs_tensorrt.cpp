@@ -479,4 +479,17 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         vsapi->propSetData(out, "path", vsapi->getPluginPath(myself), -1, paReplace);
     };
     registerFunc("Version", "", getVersion, nullptr, plugin);
+
+    auto getDeviceName = [](const VSMap * in, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
+        int device_id = int64ToIntS(vsapi->propGetInt(in, "device_id", 0, nullptr));
+
+        cudaDeviceProp prop;
+        if (auto err = cudaGetDeviceProperties(&prop, device_id); err != cudaSuccess) {
+            vsapi->setError(out, cudaGetErrorString(err));
+            return ;
+        }
+
+        vsapi->propSetData(out, "name", prop.name, -1, paReplace);
+    };
+    registerFunc("DeviceName", "device_id:int;", getDeviceName, nullptr, plugin);
 }
