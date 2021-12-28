@@ -12,7 +12,7 @@
 #include <vector>
 
 #include <onnx/common/version.h>
-#include <onnx/proto_utils.h>
+#include <onnx/onnx_pb.h>
 #include <onnx/shape_inference/implementation.h>
 #include <onnxruntime_c_api.h>
 
@@ -20,6 +20,11 @@
 
 #ifdef ENABLE_CUDA
 #include <cuda_runtime.h>
+
+extern void convert_float_to_float16(
+    ONNX_NAMESPACE::ModelProto & model,
+    bool force_fp16_initializers
+) noexcept;
 
 #define checkCUDAError(expr) do {                                              \
     if (cudaError_t result = expr; result != cudaSuccess) {                    \
@@ -138,6 +143,9 @@ static std::optional<std::string> specifyShape(
     int64_t batch = 1
 ) noexcept {
 
+    if (model.graph().input_size() != 1) {
+        return "graph must has a single input";
+    }
     ONNX_NAMESPACE::TensorShapeProto * input_shape {
         model
             .mutable_graph()
@@ -146,6 +154,10 @@ static std::optional<std::string> specifyShape(
             ->mutable_tensor_type()
             ->mutable_shape()
     };
+
+    if (model.graph().output_size() != 1) {
+        return "graph must has a single input";
+    }
     ONNX_NAMESPACE::TensorShapeProto * output_shape {
         model
             .mutable_graph()
@@ -159,9 +171,17 @@ static std::optional<std::string> specifyShape(
     constexpr auto h_idx = 2;
     constexpr auto w_idx = 3;
 
+    if (input_shape->dim_size() != 4) {
+        return "input dimension must be 4";
+    }
+
     input_shape->mutable_dim(n_idx)->set_dim_value(batch);
     input_shape->mutable_dim(h_idx)->set_dim_value(tile_h);
     input_shape->mutable_dim(w_idx)->set_dim_value(tile_w);
+
+    if (output_shape->dim_size() != 4) {
+        return "output dimsion must be 4";
+    }
 
     output_shape->mutable_dim(n_idx)->set_dim_value(batch);
     output_shape->mutable_dim(h_idx)->clear_dim_value();
@@ -857,6 +877,11 @@ static void VS_CC vsOrtCreate(
         return set_error(err.value());
     }
 
+    bool fp16 = !!vsapi->propGetInt(in, "fp16", 0, &error);
+    if (error) {
+        fp16 = false;
+    }
+
     checkError(ortapi->CreateEnv(verbosity, "vs-ort", &d->environment));
 
     std::string path { vsapi->propGetData(in, "network_path", 0, nullptr) };
@@ -870,37 +895,31 @@ static void VS_CC vsOrtCreate(
         path = dir + path;
     }
 
-    std::string onnx_data;
+    ONNX_NAMESPACE::ModelProto onnx_proto;
     {
         std::ifstream onnx_stream(
             translateName(path.c_str()),
-            std::ios::binary | std::ios::ate
+            std::ios::binary
         );
 
         if (!onnx_stream.good()) {
             return set_error("open "s + path + " failed"s);
         }
 
-        onnx_data.resize(onnx_stream.tellg());
-        onnx_stream.seekg(0, std::ios::beg);
-        onnx_stream.read(onnx_data.data(), onnx_data.size());
-    }
-
-    ONNX_NAMESPACE::ModelProto onnx_proto;
-    try {
-        ONNX_NAMESPACE::ParseProtoFromBytes(
-            &onnx_proto,
-            onnx_data.data(), std::size(onnx_data)
-        );
-    } catch (const std::runtime_error & e) {
-        return set_error(e.what());
+        if (!onnx_proto.ParseFromIstream(&onnx_stream)) {
+            return set_error("parse "s + path + " failed"s);
+        }
     }
 
     if (auto err = specifyShape(onnx_proto, tile_w, tile_h); err.has_value()) {
         return set_error(err.value());
     }
 
-    onnx_data = onnx_proto.SerializeAsString();
+    if (fp16) {
+        convert_float_to_float16(onnx_proto, false);
+    }
+
+    std::string onnx_data = onnx_proto.SerializeAsString();
     if (std::size(onnx_data) == 0) {
         return set_error("proto serialization failed");
     }
@@ -1145,6 +1164,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "cudnn_benchmark:int:opt;"
         "builtin:int:opt;"
         "builtindir:data:opt;"
+        "fp16:int:opt;"
         , vsOrtCreate,
         nullptr,
         plugin

@@ -62,6 +62,7 @@ jobs:
         -D InferenceEngine_DIR=openvino/runtime/cmake
         -D OpenVINO_DIR=openvino/runtime/cmake
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
+        -D ENABLE_VISUALIZATION=ON
 
     - name: Build
       run: cmake --build build --verbose
@@ -103,12 +104,21 @@ jobs:
 
     - name: Create script
       shell: bash
-      run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ov, file=sys.stderr);core.std.BlankClip(format=vs.RGBS).ov.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True).set_output()" >> test.vpy
+      run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ov, file=sys.stderr);core.std.BlankClip(format=vs.RGBS).ov.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True).set_output()" > test.vpy
 
     - name: Run vspipe
       run: |
         vs_portable\vspipe -i test.vpy -
         vs_portable\vspipe -p -e 9 test.vpy .
+
+    - name: Create script (fp16)
+      shell: bash
+      run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ov, file=sys.stderr);core.std.BlankClip(format=vs.RGBS).ov.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True, fp16=True).set_output()" > test_fp16.vpy
+
+    - name: Run vspipe (fp16)
+      run: |
+        vs_portable\vspipe -i test_fp16.vpy -
+        vs_portable\vspipe -p -e 9 test_fp16.vpy .
 
     - name: Describe
       run: git describe --tags --long

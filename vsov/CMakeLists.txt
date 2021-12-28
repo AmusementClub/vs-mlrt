@@ -3,11 +3,16 @@ cmake_minimum_required(VERSION 3.20)
 project(vs-ov VERSION 3.0 LANGUAGES CXX)
 
 set(VAPOURSYNTH_INCLUDE_DIRECTORY "" CACHE PATH "Path to VapourSynth headers")
+set(ENABLE_VISUALIZATION OFF CACHE BOOL "Enable support for network visualization")
 
 find_package(OpenVINO REQUIRED CONFIG)
 find_package(InferenceEngine REQUIRED CONFIG)
 
-add_library(vsov SHARED vs_openvino.cpp win32.cpp)
+add_library(vsov SHARED vs_openvino.cpp win32.cpp convert_float_to_float16.cpp)
+
+if (ENABLE_VISUALIZATION)
+    add_compile_definitions(ENABLE_VISUALIZATION)
+endif()
 
 target_include_directories(vsov PRIVATE
     ${VAPOURSYNTH_INCLUDE_DIRECTORY}

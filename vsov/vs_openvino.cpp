@@ -15,11 +15,22 @@
 #include <VSHelper.h>
 
 #include <onnx/common/version.h>
-#include <onnx/proto_utils.h>
+#include <onnx/onnx_pb.h>
 #include <onnx/shape_inference/implementation.h>
+
 #include <ie_core.hpp>
+#include <openvino/pass/constant_folding.hpp>
+
+#ifdef ENABLE_VISUALIZATION
+#include <openvino/pass/visualize_tree.hpp>
+#endif // ENABLE_VISUALIZATION
 
 #include "config.h"
+
+extern void convert_float_to_float16(
+    ONNX_NAMESPACE::ModelProto & model,
+    bool force_fp16_initializers
+) noexcept;
 
 #ifdef _WIN32
 #include <locale>
@@ -66,6 +77,9 @@ static std::optional<std::string> specifyShape(
     int64_t batch = 1
 ) noexcept {
 
+    if (model.graph().input_size() != 1) {
+        return "graph must has a single input";
+    }
     ONNX_NAMESPACE::TensorShapeProto * input_shape {
         model
             .mutable_graph()
@@ -74,6 +88,10 @@ static std::optional<std::string> specifyShape(
             ->mutable_tensor_type()
             ->mutable_shape()
     };
+
+    if (model.graph().output_size() != 1) {
+        return "graph must has a single input";
+    }
     ONNX_NAMESPACE::TensorShapeProto * output_shape {
         model
             .mutable_graph()
@@ -87,9 +105,17 @@ static std::optional<std::string> specifyShape(
     constexpr auto h_idx = 2;
     constexpr auto w_idx = 3;
 
+    if (input_shape->dim_size() != 4) {
+        return "input dimension must be 4";
+    }
+
     input_shape->mutable_dim(n_idx)->set_dim_value(batch);
     input_shape->mutable_dim(h_idx)->set_dim_value(tile_h);
     input_shape->mutable_dim(w_idx)->set_dim_value(tile_w);
+
+    if (output_shape->dim_size() != 4) {
+        return "output dimsion must be 4";
+    }
 
     output_shape->mutable_dim(n_idx)->set_dim_value(batch);
     output_shape->mutable_dim(h_idx)->clear_dim_value();
@@ -565,6 +591,11 @@ static void VS_CC vsOvCreate(
         return set_error("\"overlap\" too large");
     }
 
+    bool fp16 = !!vsapi->propGetInt(in, "fp16", 0, &error);
+    if (error) {
+        fp16 = false;
+    }
+
     std::string path { vsapi->propGetData(in, "network_path", 0, nullptr) };
     bool builtin = !!vsapi->propGetInt(in, "builtin", 0, &error);
     if (builtin) {
@@ -576,37 +607,31 @@ static void VS_CC vsOvCreate(
         path = dir + path;
     }
 
-    std::string onnx_data;
+    ONNX_NAMESPACE::ModelProto onnx_proto;
     {
         std::ifstream onnx_stream(
             translateName(path.c_str()),
-            std::ios::binary | std::ios::ate
+            std::ios::binary
         );
 
         if (!onnx_stream.good()) {
             return set_error("open "s + path + " failed"s);
         }
 
-        onnx_data.resize(onnx_stream.tellg());
-        onnx_stream.seekg(0, std::ios::beg);
-        onnx_stream.read(onnx_data.data(), onnx_data.size());
-    }
-
-    ONNX_NAMESPACE::ModelProto onnx_proto;
-    try {
-        ONNX_NAMESPACE::ParseProtoFromBytes(
-            &onnx_proto,
-            onnx_data.data(), std::size(onnx_data)
-        );
-    } catch (const std::runtime_error & e) {
-        return set_error(e.what());
+        if (!onnx_proto.ParseFromIstream(&onnx_stream)) {
+            return set_error("parse "s + path + " failed"s);
+        }
     }
 
     if (auto err = specifyShape(onnx_proto, tile_w, tile_h); err.has_value()) {
         return set_error(err.value());
     }
 
-    onnx_data = onnx_proto.SerializeAsString();
+    if (fp16) {
+        convert_float_to_float16(onnx_proto, false);
+    }
+
+    std::string onnx_data = onnx_proto.SerializeAsString();
     if (std::size(onnx_data) == 0) {
         return set_error("proto serialization failed");
     }
@@ -625,6 +650,25 @@ static void VS_CC vsOvCreate(
         if (auto err = checkNetwork(network); err.has_value()) {
             return set_error(err.value());
         }
+
+        auto function = network.getFunction(); // mutable
+
+        try {
+            ov::pass::ConstantFolding().run_on_function(function);
+        } catch (const ov::Exception & e) {
+            return set_error(e.what());
+        }
+
+#ifdef ENABLE_VISUALIZATION
+        const char * dot_path = vsapi->propGetData(in, "dot_path", 0, &error);
+        if (!error) {
+            try {
+                ov::pass::VisualizeTree(dot_path, nullptr, true).run_on_function(function);
+            } catch (const ov::Exception & e) {
+                return set_error(e.what());
+            }
+        }
+#endif // ENABLE_VISUALIZATION
 
         d->executable_network = d->core.LoadNetwork(network, device);
 
@@ -670,6 +714,10 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "device:data:opt;" // "CPU": CPU
         "builtin:int:opt;"
         "builtindir:data:opt;"
+        "fp16:int:opt;"
+#ifdef ENABLE_VISUALIZATION
+        "dot_path:data:opt;"
+#endif
         , vsOvCreate,
         nullptr,
         plugin
@@ -686,6 +734,10 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
             out, "onnx_version",
             ONNX_NAMESPACE::LAST_RELEASE_VERSION, -1, paReplace
         );
+
+#ifdef ENABLE_VISUALIZATION
+        vsapi->propSetInt(out, "enable_visualization", 1, paReplace);
+#endif // ENABLE_VISUALIZATION
 
         vsapi->propSetData(out, "path", vsapi->getPluginPath(myself), -1, paReplace);
     };

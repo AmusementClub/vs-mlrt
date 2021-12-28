@@ -11,7 +11,7 @@ set(ENABLE_CUDA OFF CACHE BOOL "Enable CUDA backend")
 find_package(protobuf REQUIRED CONFIG)
 find_package(ONNX REQUIRED CONFIG)
 
-add_library(vsort SHARED vs_onnxruntime.cpp win32.cpp)
+add_library(vsort SHARED vs_onnxruntime.cpp win32.cpp convert_float_to_float16.cpp)
 
 target_include_directories(vsort PRIVATE
     ${VAPOURSYNTH_INCLUDE_DIRECTORY}
