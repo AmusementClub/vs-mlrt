@@ -1,4 +1,4 @@
-__version__ = "3.1.3"
+__version__ = "3.1.4"
 
 __all__ = [
     "Backend",
@@ -45,6 +45,7 @@ class Backend:
     class ORT_CPU:
         num_streams: int = 1
         verbosity: int = 2
+        fp16: bool = False
 
     @dataclass(frozen=True)
     class ORT_CUDA:
@@ -52,10 +53,11 @@ class Backend:
         cudnn_benchmark: bool = True
         num_streams: int = 1
         verbosity: int = 2
+        fp16: bool = False
 
     @dataclass(frozen=True)
     class OV_CPU:
-        pass
+        fp16: bool = False
 
     @dataclass
     class TRT:
@@ -575,7 +577,8 @@ def inference(
             overlap=overlap, tilesize=tilesize,
             provider="CPU", builtin=False,
             num_streams=backend.num_streams,
-            verbosity=backend.verbosity
+            verbosity=backend.verbosity,
+            fp16=backend.fp16
         )
     elif isinstance(backend, Backend.ORT_CUDA):
         clip = core.ort.Model(
@@ -585,13 +588,15 @@ def inference(
             device_id=backend.device_id,
             num_streams=backend.num_streams,
             verbosity=backend.verbosity,
-            cudnn_benchmark=backend.cudnn_benchmark
+            cudnn_benchmark=backend.cudnn_benchmark,
+            fp16=backend.fp16
         )
     elif isinstance(backend, Backend.OV_CPU):
         clip = core.ov.Model(
             clips, network_path,
             overlap=overlap, tilesize=tilesize,
-            device="CPU", builtin=False
+            device="CPU", builtin=False,
+            fp16=backend.fp16
         )
     elif isinstance(backend, Backend.TRT):
         engine_path = trtexec(
