@@ -6,9 +6,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <fstream>
-#include <ios>
-#include <iostream>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -192,10 +189,10 @@ static inline void convert_float_to_float16(
     int n
 ) noexcept {
 
-    for (int i = 0; i < n; ++i) {
-        union { float f32; uint32_t u32; } val { src_array[i] };
+    auto src_array_u32 = reinterpret_cast<const uint32_t *>(src_array);
 
-        dst_array[i] = static_cast<T>(float_to_half(val.u32));
+    for (int i = 0; i < n; ++i) {
+        dst_array[i] = static_cast<T>(float_to_half(src_array_u32[i]));
     }
 }
 

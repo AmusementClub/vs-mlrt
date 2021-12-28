@@ -8,7 +8,12 @@ set(ENABLE_VISUALIZATION OFF CACHE BOOL "Enable support for network visualizatio
 find_package(OpenVINO REQUIRED CONFIG)
 find_package(InferenceEngine REQUIRED CONFIG)
 
-add_library(vsov SHARED vs_openvino.cpp win32.cpp convert_float_to_float16.cpp)
+add_library(vsov SHARED
+    vs_openvino.cpp
+    win32.cpp
+    ../common/onnx_utils.cpp
+    ../common/convert_float_to_float16.cpp
+)
 
 if (ENABLE_VISUALIZATION)
     add_compile_definitions(ENABLE_VISUALIZATION)

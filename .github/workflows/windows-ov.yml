@@ -3,6 +3,7 @@ name: Build (Windows-OV)
 on:
   push:
     paths:
+      - 'common/**'
       - 'vsov/**'
       - '.github/workflows/windows-ov.yml'
   workflow_call:

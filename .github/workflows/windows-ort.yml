@@ -3,6 +3,7 @@ name: Build (Windows-ORT)
 on:
   push:
     paths:
+      - 'common/**'
       - 'vsort/**'
       - '.github/workflows/windows-ort.yml'
   workflow_call:
