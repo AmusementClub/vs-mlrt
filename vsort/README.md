@@ -17,7 +17,7 @@ However, if you also use the CUDA backend, you will need to download some CUDA l
 
 ## Usage
 
-Prototype: `core.ort.Model(clip[] clips, string network_path[, int[] overlap = None, int[] tilesize = None, string provider = "", int device_id = 0, int verbosity = 2, bint cudnn_benchmark = True, bint builtin = False, string builtindir="models"])`
+Prototype: `core.ort.Model(clip[] clips, string network_path[, int[] overlap = None, int[] tilesize = None, string provider = "", int device_id = 0, int verbosity = 2, bint cudnn_benchmark = True, bint builtin = False, string builtindir="models", bint fp16 = False])`
 
 Arguments:
  - `clip[] clips`: the input clips, only 32-bit floating point RGB or GRAY clips are supported. For model specific input requirements, please consult our [wiki](https://github.com/AmusementClub/vs-mlrt/wiki).
@@ -37,6 +37,7 @@ Arguments:
  - `bint cudnn_benchmark`: whether to let cuDNN use benchmarking to search for the best convolution kernel to use. Default True. It might incur some startup latency.
  - `bint builtin`: whether to load the model from the VS plugins directory, see also `builtindir`.
  - `string builtindir`: the model directory under VS plugins directory for builtin models, default "models".
+ - `bint fp16`: whether to quantize model to fp16 for faster and memory efficient computation.
 
 When `overlap` and `tilesize` are not specified, the filter will internally try to resize the network to fit the input clips. This might not always work (for example, the network might require the width to be divisible by 8), and the filter will error out in this case.
 

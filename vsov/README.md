@@ -29,7 +29,7 @@ directory for `vsov.dll` to find.
 
 ## Usage
 
-Prototype: `core.ov.Model(clip[] clips, string network_path[, int[] overlap = None, int[] tilesize = None, string device = "CPU", bint builtin = 0, string builtindir="models"])`
+Prototype: `core.ov.Model(clip[] clips, string network_path[, int[] overlap = None, int[] tilesize = None, string device = "CPU", bint builtin = 0, string builtindir="models", bint fp16 = False])`
 
 Arguments:
  - `clip[] clips`: the input clips, only 32-bit floating point RGB or GRAY clips are supported. For model specific input requirements, please consult our [wiki](https://github.com/AmusementClub/vs-mlrt/wiki).
@@ -39,6 +39,7 @@ Arguments:
  - `string device`: Specifies the device to run the inference on. Currently only `"CPU"` is supported, which is also the default.
  - `bint builtin`: whether to load the model from the VS plugins directory, see also `builtindir`.
  - `string builtindir`: the model directory under VS plugins directory for builtin models, default "models".
+ - `bint fp16`: whether to quantize model to fp16 for faster and memory efficient computation.
 
 When `overlap` and `tilesize` are not specified, the filter will internally try to resize the network to fit the input clips. This might not always work (for example, the network might require the width to be divisible by 8), and the filter will error out in this case.
 
