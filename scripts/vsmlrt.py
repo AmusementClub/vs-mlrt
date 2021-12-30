@@ -1,4 +1,4 @@
-__version__ = "3.1.4"
+__version__ = "3.1.5"
 
 __all__ = [
     "Backend",
@@ -101,7 +101,8 @@ def Waifu2x(
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     model: typing.Literal[0, 1, 2, 3, 4, 5, 6] = 6,
-    backend: backendT = Backend.OV_CPU()
+    backend: backendT = Backend.OV_CPU(),
+    preprocess: bool = True
 ) -> vs.VideoNode:
 
     func_name = "vsmlrt.Waifu2x"
@@ -144,6 +145,15 @@ def Waifu2x(
         multiple = 4
     else:
         multiple = 1
+
+    width, height = clip.width, clip.height
+    if preprocess and model in (0, 1, 2):
+        # emulating cv2.resize(interpolation=cv2.INTER_CUBIC)
+        clip = core.resize.Bicubic(
+            clip,
+            width * 2, height * 2,
+            filter_param_a=0, filter_param_b=0.75
+        )
 
     (tile_w, tile_h), (overlap_w, overlap_h) = calc_tilesize(
         tiles=tiles, tilesize=tilesize,
@@ -196,15 +206,6 @@ def Waifu2x(
             model_name = f"noise{noise}_{scale_name}model.onnx"
 
     network_path = os.path.join(folder_path, model_name)
-
-    width, height = clip.width, clip.height
-    if model in (0, 1, 2):
-        # emulating cv2.resize(interpolation=cv2.INTER_CUBIC)
-        clip = core.resize.Bicubic(
-            clip,
-            width * 2, height * 2,
-            filter_param_a=0, filter_param_b=0.75
-        )
 
     clip = inference(
         clips=[clip], network_path=network_path,
