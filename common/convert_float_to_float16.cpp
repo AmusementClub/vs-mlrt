@@ -151,6 +151,7 @@ static ONNX_NAMESPACE::NodeProto make_node(
 
     node.set_name(std::data(name), std::size(name));
 
+    static_assert(sizeof...(kwargs) % 2 == 0, "format: key1, value1, ...");
     if constexpr (constexpr auto size = sizeof...(kwargs) / 2; size > 0) {
         node.mutable_attribute()->Reserve(size);
     }
@@ -163,39 +164,30 @@ static ONNX_NAMESPACE::NodeProto make_node(
 // simplified from
 // https://github.com/numpy/numpy/blob/v1.21.5/numpy/core/src/npymath/halffloat.c#L243-L364
 // Inf or NaN overflow to signed inf
+// underflow to signed zero
 // NPY_HALF_ROUND_TIES_TO_EVEN = 1
 // NPY_HALF_GENERATE_OVERFLOW = 0
 // NPY_HALF_GENERATE_UNDERFLOW 0
 static inline uint16_t float_to_half(uint32_t f) noexcept {
     uint16_t h_sgn = static_cast<uint16_t>((f & 0x80000000u) >> 16);
     uint32_t f_exp = f & 0x7f800000u;
+
+    /* Exponent overflow/NaN converts to signed inf */
     if (f_exp >= 0x47800000u) {
-        /* overflow to signed inf */
         return static_cast<uint16_t>(h_sgn + 0x7c00u);
     }
 
-    uint32_t f_sig;
-    uint16_t h_sig;
+    /* Exponent underflow converts to a signed zero */
     if (f_exp <= 0x38000000u) {
-        if (f_exp < 0x33000000u) {
-            return h_sgn;
-        }
-        f_exp >>= 23;
-        f_sig = 0x00800000u + (f & 0x007fffffu);
-        f_sig >>= (113 - f_exp);
-        if (((f_sig & 0x00003fffu) != 0x00001000u) || (f & 0x000007ffu)) {
-            f_sig += 0x00001000u;
-        }
-        h_sig = static_cast<uint16_t>(f_sig >> 13);
-        return static_cast<uint16_t>(h_sgn + h_sig);
+        return h_sgn;
     }
 
     uint16_t h_exp = static_cast<uint16_t>((f_exp - 0x38000000u) >> 13);
-    f_sig = f & 0x007fffffu;
+    uint32_t f_sig = f & 0x007fffffu;
     if ((f_sig & 0x00003fffu) != 0x00001000u) {
         f_sig += 0x00001000u;
     }
-    h_sig = static_cast<uint16_t>(f_sig >> 13);
+    uint16_t h_sig = static_cast<uint16_t>(f_sig >> 13);
     return h_sgn + h_exp + h_sig;
 }
 
@@ -433,7 +425,7 @@ void convert_float_to_float16(
     queue.emplace_back(&model);
 
     std::unordered_map<std::string, InitializerTracker> fp32_initializers {};
-    while (!queue.empty()) {
+    while (!std::empty(queue)) {
         decltype(queue) next_level {};
         for (auto & q : queue) {
             // if q is model, push q.graph (GraphProto)
@@ -558,10 +550,10 @@ void convert_float_to_float16(
     for (auto & [_, value] : fp32_initializers) {
         // to avoid precision loss,
         // do not convert an initializer to fp16 when it is used only by fp32 nodes.
-        if (force_fp16_initializers || !value.fp16_nodes.empty()) {
+        if (force_fp16_initializers || !std::empty(value.fp16_nodes)) {
             convert_tensor_float_to_float16(*value.initializer);
             value_info_list.emplace_back(make_value_info_from_tensor(*value.initializer));
-            if (!value.fp32_nodes.empty() && !force_fp16_initializers) {
+            if (!std::empty(value.fp32_nodes) && !force_fp16_initializers) {
                 std::cerr << "initializer is used by both fp32 and fp16 nodes.";
             }
         }
