@@ -97,7 +97,7 @@ static std::variant<std::string, std::array<int64_t, 4>> getShape(
     };
 
     std::array<int64_t, 4> shape;
-    checkError(ortapi->GetDimensions(tensor_info, shape.data(), std::size(shape)));
+    checkError(ortapi->GetDimensions(tensor_info, std::data(shape), std::size(shape)));
 
     return shape;
 }
@@ -924,7 +924,7 @@ static void VS_CC vsOrtCreate(
 
         checkError(ortapi->CreateSessionFromArray(
             d->environment,
-            onnx_data.data(), std::size(onnx_data),
+            std::data(onnx_data), std::size(onnx_data),
             session_options,
             &resource.session
         ));
@@ -966,7 +966,7 @@ static void VS_CC vsOrtCreate(
             checkError(ortapi->CreateTensorWithDataAsOrtValue(
                 memory_info,
                 resource.input.d_data, resource.input.size,
-                input_shape.data(), std::size(input_shape),
+                std::data(input_shape), std::size(input_shape),
                 ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &resource.input_tensor
             ));
 
@@ -976,8 +976,7 @@ static void VS_CC vsOrtCreate(
         {
             checkError(ortapi->CreateTensorAsOrtValue(
                 allocator,
-                input_shape.data(),
-                std::size(input_shape),
+                std::data(input_shape), std::size(input_shape),
                 ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
                 &resource.input_tensor
             ));
@@ -1009,7 +1008,7 @@ static void VS_CC vsOrtCreate(
             checkError(ortapi->CreateTensorWithDataAsOrtValue(
                 memory_info,
                 resource.output.d_data, resource.output.size,
-                output_shape.data(), std::size(output_shape),
+                std::data(output_shape), std::size(output_shape),
                 ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &resource.output_tensor
             ));
 
@@ -1019,8 +1018,7 @@ static void VS_CC vsOrtCreate(
         {
             checkError(ortapi->CreateTensorAsOrtValue(
                 allocator,
-                output_shape.data(),
-                std::size(output_shape),
+                std::data(output_shape), std::size(output_shape),
                 ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
                 &resource.output_tensor
             ));

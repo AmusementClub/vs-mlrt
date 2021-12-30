@@ -50,7 +50,7 @@ static std::optional<std::string> specifyShape(
     };
 
     if (model.graph().output_size() != 1) {
-        return "graph must has a single input";
+        return "graph must has a single output";
     }
     ONNX_NAMESPACE::TensorShapeProto * output_shape {
         model
@@ -82,7 +82,9 @@ static std::optional<std::string> specifyShape(
     output_shape->mutable_dim(w_idx)->clear_dim_value();
 
     // remove shape info
-    model.mutable_graph()->mutable_value_info()->Clear();
+    if (model.graph().value_info_size() != 0) {
+        model.mutable_graph()->mutable_value_info()->Clear();
+    }
 
     try {
         ONNX_NAMESPACE::shape_inference::InferShapes(model);

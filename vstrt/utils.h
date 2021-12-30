@@ -176,7 +176,7 @@ static void VS_CC getDeviceProp(
         for (int i = 0; i < 16; ++i) {
             uuid[i] = prop.uuid.bytes[i];
         }
-        vsapi->propSetIntArray(out, "uuid", uuid.data(), 16);
+        vsapi->propSetIntArray(out, "uuid", std::data(uuid), std::size(uuid));
     }
     setProp("total_global_memory", prop.totalGlobalMem);
     setProp("shared_memory_per_block", prop.sharedMemPerBlock);
@@ -188,6 +188,8 @@ static void VS_CC getDeviceProp(
     setProp("total_const_mem", prop.totalConstMem);
     setProp("major", prop.major);
     setProp("minor", prop.minor);
+    setProp("texture_alignment", prop.textureAlignment);
+    setProp("texture_pitch_alignment", prop.texturePitchAlignment);
     setProp("device_overlap", prop.deviceOverlap);
     setProp("multi_processor_count", prop.multiProcessorCount);
     setProp("kernel_exec_timeout_enabled", prop.kernelExecTimeoutEnabled);

@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <memory>
 #include <iostream>
-#include <fstream>
 #include <optional>
 #include <string>
 #include <variant>
@@ -365,7 +364,7 @@ std::optional<ErrorMessage> checkEngine(
 
 static inline
 std::variant<ErrorMessage, std::unique_ptr<nvinfer1::ICudaEngine>> initEngine(
-    const std::vector<char> & engine_data,
+    const char * engine_data, size_t engine_nbytes,
     const std::unique_ptr<nvinfer1::IRuntime> & runtime
 ) noexcept {
 
@@ -374,7 +373,7 @@ std::variant<ErrorMessage, std::unique_ptr<nvinfer1::ICudaEngine>> initEngine(
     };
 
     std::unique_ptr<nvinfer1::ICudaEngine> engine {
-        runtime->deserializeCudaEngine(engine_data.data(), std::size(engine_data))
+        runtime->deserializeCudaEngine(engine_data, engine_nbytes)
     };
 
     if (!engine) {

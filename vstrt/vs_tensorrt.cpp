@@ -1,5 +1,7 @@
 #include <atomic>
 #include <cstdint>
+#include <cstdlib>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -358,24 +360,24 @@ static void VS_CC vsTrtCreate(
     }
 #endif
 
-    std::vector<char> engine_data;
-    {
-        std::ifstream engine_stream {
-            translateName(engine_path),
-            std::ios::binary | std::ios::ate
-        };
+    std::ifstream engine_stream {
+        translateName(engine_path),
+        std::ios::binary | std::ios::ate
+    };
 
-        if (!engine_stream.good()) {
-            return set_error("open engine failed");
-        }
-
-        engine_data.resize(engine_stream.tellg());
-        engine_stream.seekg(0, std::ios::beg);
-        engine_stream.read(engine_data.data(), engine_data.size());
+    if (!engine_stream.good()) {
+        return set_error("open engine failed");
     }
 
+    size_t engine_nbytes = engine_stream.tellg();
+    std::unique_ptr<char [], decltype(&free)> engine_data {
+        (char *) malloc(engine_nbytes), free
+    };
+    engine_stream.seekg(0, std::ios::beg);
+    engine_stream.read(engine_data.get(), engine_nbytes);
+
     d->runtime.reset(nvinfer1::createInferRuntime(d->logger));
-    auto maybe_engine = initEngine(engine_data, d->runtime);
+    auto maybe_engine = initEngine(engine_data.get(), engine_nbytes, d->runtime);
     if (std::holds_alternative<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)) {
         d->engines.push_back(std::move(std::get<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)));
     } else {
@@ -401,7 +403,7 @@ static void VS_CC vsTrtCreate(
         // https://docs.nvidia.com/deeplearning/tensorrt/archives/tensorrt-821/developer-guide/index.html#perform-inference
         // each optimization profile can only have one execution context when using dynamic shapes
         if (is_dynamic && i < d->num_streams - 1) {
-            auto maybe_engine = initEngine(engine_data, d->runtime);
+            auto maybe_engine = initEngine(engine_data.get(), engine_nbytes, d->runtime);
             if (std::holds_alternative<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)) {
                 d->engines.push_back(std::move(std::get<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)));
             } else {
@@ -410,7 +412,7 @@ static void VS_CC vsTrtCreate(
         }
 
         if (std::holds_alternative<InferenceInstance>(maybe_instance)) {
-            InferenceInstance instance = std::move(std::get<InferenceInstance>(maybe_instance));
+            auto instance = std::move(std::get<InferenceInstance>(maybe_instance));
             if (auto err = checkNodesAndContext(instance.exec_context, in_vis); err.has_value()) {
                 return set_error(err.value());
             }
