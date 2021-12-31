@@ -1,4 +1,4 @@
-__version__ = "3.2.0"
+__version__ = "3.2.1"
 
 __all__ = [
     "Backend",
@@ -62,7 +62,7 @@ class Backend:
     @dataclass
     class TRT:
         max_shapes: typing.Optional[typing.Tuple[int, int]] = None
-        opt_shapes: typing.Optional[typing.Tuple[int, int]] = (64, 64)
+        opt_shapes: typing.Optional[typing.Tuple[int, int]] = None
         fp16: bool = False
 
         device_id: int = 0
