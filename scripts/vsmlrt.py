@@ -1,4 +1,4 @@
-__version__ = "3.1.5"
+__version__ = "3.2.0"
 
 __all__ = [
     "Backend",
@@ -175,7 +175,7 @@ def Waifu2x(
     backend = init_backend(
         backend=backend,
         channels=channels,
-        width=clip.width, height=clip.height
+        trt_max_shapes=(tile_w, tile_h)
     )
 
     folder_path = os.path.join(
@@ -308,7 +308,7 @@ def DPIR(
     backend = init_backend(
         backend=backend,
         channels=channels,
-        width=clip.width, height=clip.height
+        trt_max_shapes=(tile_w, tile_h)
     )
 
     network_path = os.path.join(
@@ -376,7 +376,7 @@ def RealESRGANv2(
     backend = init_backend(
         backend=backend,
         channels=channels,
-        width=clip.width, height=clip.height
+        trt_max_shapes=(tile_w, tile_h)
     )
 
     network_path = os.path.join(
@@ -533,8 +533,7 @@ def calc_tilesize(
 def init_backend(
     backend: backendT,
     channels: int,
-    width: int,
-    height: int
+    trt_max_shapes: typing.Tuple[int, int]
 ) -> backendT:
 
     if backend is Backend.ORT_CPU: # type: ignore
@@ -550,7 +549,7 @@ def init_backend(
         backend._channels = channels
 
         if backend.max_shapes is None:
-            backend.max_shapes = (width, height)
+            backend.max_shapes = trt_max_shapes
 
         if backend.opt_shapes is None:
             backend.opt_shapes = backend.max_shapes
