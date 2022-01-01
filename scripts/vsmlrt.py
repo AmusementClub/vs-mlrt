@@ -7,6 +7,7 @@ __all__ = [
     "RealESRGANv2", "RealESRGANv2Model"
 ]
 
+import copy
 from dataclasses import dataclass, field
 import enum
 import math
@@ -42,13 +43,13 @@ models_path: str = os.path.join(plugins_path, "models")
 
 
 class Backend:
-    @dataclass(frozen=True)
+    @dataclass(frozen=False)
     class ORT_CPU:
         num_streams: int = 1
         verbosity: int = 2
         fp16: bool = False
 
-    @dataclass(frozen=True)
+    @dataclass(frozen=False)
     class ORT_CUDA:
         device_id: int = 0
         cudnn_benchmark: bool = True
@@ -56,11 +57,11 @@ class Backend:
         verbosity: int = 2
         fp16: bool = False
 
-    @dataclass(frozen=True)
+    @dataclass(frozen=False)
     class OV_CPU:
         fp16: bool = False
 
-    @dataclass
+    @dataclass(frozen=False)
     class TRT:
         max_shapes: typing.Optional[typing.Tuple[int, int]] = None
         opt_shapes: typing.Optional[typing.Tuple[int, int]] = None
@@ -567,6 +568,8 @@ def init_backend(
         backend = Backend.OV_CPU()
     elif backend is Backend.TRT: # type: ignore
         backend = Backend.TRT()
+
+    backend = copy.deepcopy(backend)
 
     if isinstance(backend, Backend.TRT):
         backend._channels = channels
