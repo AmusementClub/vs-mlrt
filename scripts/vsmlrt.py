@@ -1,4 +1,4 @@
-__version__ = "3.2.1"
+__version__ = "3.2.2"
 
 __all__ = [
     "Backend",
@@ -13,6 +13,7 @@ import math
 import os
 import subprocess
 import sys
+import tempfile
 import typing
 import zlib
 
@@ -394,7 +395,7 @@ def RealESRGANv2(
     return clip
 
 
-def get_engine_name(
+def get_engine_path(
     network_path: str,
     opt_shapes: typing.Tuple[int, int],
     max_shapes: typing.Tuple[int, int],
@@ -448,7 +449,7 @@ def trtexec(
     if isinstance(max_shapes, int):
         max_shapes = (max_shapes, max_shapes)
 
-    engine_path = get_engine_name(
+    engine_path = get_engine_path(
         network_path=network_path,
         opt_shapes=opt_shapes,
         max_shapes=max_shapes,
@@ -458,8 +459,25 @@ def trtexec(
         use_cublas=use_cublas
     )
 
-    if os.path.exists(engine_path):
+    if os.access(engine_path, mode=os.R_OK):
         return engine_path
+
+    try:
+        # test writability
+        with open(engine_path, "w") as f:
+            pass
+        os.remove(engine_path)
+    except PermissionError:
+        print(f"{engine_path} not writable", file=sys.stderr)
+        engine_path = os.path.join(
+            tempfile.gettempdir(),
+            os.path.splitdrive(engine_path)[1][1:]
+        )
+        dirname = os.path.dirname(engine_path)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+        print(f"change engine path to {engine_path}", file=sys.stderr)
+
 
     args = [
         trtexec_path,
