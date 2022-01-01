@@ -1,4 +1,4 @@
-__version__ = "3.3.0"
+__version__ = "3.3.1"
 
 __all__ = [
     "Backend",
@@ -462,6 +462,14 @@ def trtexec(
     if os.access(engine_path, mode=os.R_OK):
         return engine_path
 
+    alter_engine_path = os.path.join(
+        tempfile.gettempdir(),
+        os.path.splitdrive(engine_path)[1][1:]
+    )
+
+    if os.access(alter_engine_path, mode=os.R_OK):
+        return alter_engine_path
+
     try:
         # test writability
         with open(engine_path, "w") as f:
@@ -469,10 +477,7 @@ def trtexec(
         os.remove(engine_path)
     except PermissionError:
         print(f"{engine_path} not writable", file=sys.stderr)
-        engine_path = os.path.join(
-            tempfile.gettempdir(),
-            os.path.splitdrive(engine_path)[1][1:]
-        )
+        engine_path = alter_engine_path
         dirname = os.path.dirname(engine_path)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
