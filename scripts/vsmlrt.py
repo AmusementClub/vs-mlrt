@@ -1,4 +1,4 @@
-__version__ = "3.2.2"
+__version__ = "3.3.0"
 
 __all__ = [
     "Backend",
@@ -425,7 +425,7 @@ def get_engine_path(
         f"_trt-{trt_version}" +
         ("_cublas" if use_cublas else "") +
         f"_{device_name}" +
-        f"_{checksum}" +
+        f"_{checksum:x}" +
         ".engine"
     )
 
