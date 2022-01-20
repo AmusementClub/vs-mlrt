@@ -1,4 +1,4 @@
-__version__ = "3.3.1"
+__version__ = "3.4.0"
 
 __all__ = [
     "Backend",
@@ -73,6 +73,7 @@ class Backend:
         use_cuda_graph: bool = False
         num_streams: int = 1
         use_cublas: bool = False # cuBLAS + cuBLASLt
+        static_shape: bool = False
 
         _channels: int = field(init=False, repr=False, compare=False)
 
@@ -403,7 +404,8 @@ def get_engine_path(
     workspace: int,
     fp16: bool,
     device_id: int,
-    use_cublas: bool
+    use_cublas: bool,
+    static_shape: bool
 ) -> str:
 
     with open(network_path, "rb") as file:
@@ -417,10 +419,14 @@ def get_engine_path(
     except AttributeError:
         device_name = f"device{device_id}"
 
+    if static_shape:
+        shape_str = f".{max_shapes[0]}x{max_shapes[1]}"
+    else:
+        shape_str = f".opt{opt_shapes[0]}x{opt_shapes[1]}" + f"_max{max_shapes[0]}x{max_shapes[1]}"
+
     return (
         network_path +
-        f".opt{opt_shapes[0]}x{opt_shapes[1]}" +
-        f"_max{max_shapes[0]}x{max_shapes[1]}" +
+        shape_str +
         ("_fp16" if fp16 else "") +
         f"_workspace{workspace}" +
         f"_trt-{trt_version}" +
@@ -441,7 +447,8 @@ def trtexec(
     workspace: int = 128,
     verbose: bool = False,
     use_cuda_graph: bool = False,
-    use_cublas: bool = False
+    use_cublas: bool = False,
+    static_shape: bool = True
 ) -> str:
 
     if isinstance(opt_shapes, int):
@@ -457,7 +464,8 @@ def trtexec(
         workspace=workspace,
         fp16=fp16,
         device_id=device_id,
-        use_cublas=use_cublas
+        use_cublas=use_cublas,
+        static_shape=static_shape
     )
 
     if os.access(engine_path, mode=os.R_OK):
@@ -484,18 +492,23 @@ def trtexec(
             os.makedirs(dirname)
         print(f"change engine path to {engine_path}", file=sys.stderr)
 
-
     args = [
         trtexec_path,
         f"--onnx={network_path}",
-        f"--minShapes=input:1x{channels}x0x0",
-        f"--optShapes=input:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}",
-        f"--maxShapes=input:1x{channels}x{max_shapes[1]}x{max_shapes[0]}",
         f"--workspace={workspace}",
         f"--timingCacheFile={engine_path}.cache",
         f"--device={device_id}",
         f"--saveEngine={engine_path}"
     ]
+
+    if static_shape:
+        args.append(f"--shapes=input:1x{channels}x{max_shapes[1]}x{max_shapes[0]}")
+    else:
+        args.extend([
+            f"--minShapes=input:1x{channels}x0x0",
+            f"--optShapes=input:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}",
+            f"--maxShapes=input:1x{channels}x{max_shapes[1]}x{max_shapes[0]}"
+        ])
 
     if fp16:
         args.append("--fp16")
@@ -635,11 +648,13 @@ def inference(
             workspace=backend.workspace,
             verbose=backend.verbose,
             use_cuda_graph=backend.use_cuda_graph,
-            use_cublas=backend.use_cublas
+            use_cublas=backend.use_cublas,
+            static_shape=backend.static_shape
         )
         clip = core.trt.Model(
             clips, engine_path,
-            overlap=overlap, tilesize=tilesize,
+            overlap=overlap,
+            tilesize=None if backend.static_shape else tilesize,
             device_id=backend.device_id,
             use_cuda_graph=backend.use_cuda_graph,
             num_streams=backend.num_streams,
