@@ -1,4 +1,4 @@
-__version__ = "3.4.0"
+__version__ = "3.4.1"
 
 __all__ = [
     "Backend",
@@ -73,7 +73,7 @@ class Backend:
         use_cuda_graph: bool = False
         num_streams: int = 1
         use_cublas: bool = False # cuBLAS + cuBLASLt
-        static_shape: bool = False
+        static_shape: bool = True
 
         _channels: int = field(init=False, repr=False, compare=False)
 
