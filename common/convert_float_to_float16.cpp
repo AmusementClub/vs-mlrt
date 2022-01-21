@@ -160,7 +160,6 @@ static ONNX_NAMESPACE::NodeProto make_node(
 }
 
 
-
 // simplified from
 // https://github.com/numpy/numpy/blob/v1.21.5/numpy/core/src/npymath/halffloat.c#L243-L364
 // Inf or NaN overflow to signed inf
@@ -604,7 +603,7 @@ void convert_float_to_float16(
                             ONNX_NAMESPACE::TensorProto::FLOAT
                         );
                     // add Cast node (from tensor(float) to tensor(float16) after current node
-                    const std::string node_name = node->name() + "_input_cast" + std::to_string(i);
+                    const std::string node_name = node->name() + "_output_cast" + std::to_string(i);
                     auto new_node = make_node(
                         "Cast", {input_name}, {output}, node_name,
                         "to", ONNX_NAMESPACE::TensorProto::FLOAT16
