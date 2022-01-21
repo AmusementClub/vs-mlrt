@@ -199,20 +199,30 @@ jobs:
       run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ort, file=sys.stderr);core.std.BlankClip(format=vs.RGBS).ort.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True).resize.Bicubic(format=vs.YUV420P10, matrix_s='709').set_output()" > test.vpy
 
     - name: Run vspipe
+      shell: bash
       run: |
-        vs_portable\vspipe -i test.vpy -
-        vs_portable\vspipe --y4m -p -e 9 test.vpy - | vs_portable\x265 --y4m -D 10 --preset ultrafast -o out.hevc -
-        dir out.hevc
+        vs_portable/vspipe -i test.vpy -
+        vs_portable/vspipe --y4m -p -e 9 test.vpy - | vs_portable/x265 --log-file x265.log --log-file-level info --y4m -D 10 --preset ultrafast -o out.hevc -
+        ls -l out.hevc x265.log
+        cat x265.log
+        grep -F 'encoded 10 frames' x265.log || exit 2
+        grep -i 'error' x265.log && exit 1
+        exit 0
 
     - name: Create script (fp16)
       shell: bash
       run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ort, file=sys.stderr);core.std.BlankClip(format=vs.RGBS).ort.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True, fp16=True).resize.Bicubic(format=vs.YUV420P10, matrix_s='709').set_output()" > test_fp16.vpy
 
     - name: Run vspipe (fp16)
+      shell: bash
       run: |
-        vs_portable\vspipe -i test_fp16.vpy -
-        vs_portable\vspipe --y4m -p -e 9 test.vpy - | vs_portable\x265 --y4m -D 10 --preset ultrafast -o out.hevc -
-        dir out.hevc
+        vs_portable/vspipe -i test.vpy -
+        vs_portable/vspipe --y4m -p -e 9 test.vpy - | vs_portable/x265 --log-file x265.log --log-file-level info --y4m -D 10 --preset ultrafast -o out.hevc -
+        ls -l out.hevc x265.log
+        cat x265.log
+        grep -F 'encoded 10 frames' x265.log || exit 2
+        grep -i 'error' x265.log && exit 1
+        exit 0
 
     - name: Describe
       run: git describe --tags --long
