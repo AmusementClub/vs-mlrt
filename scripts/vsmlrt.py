@@ -1,4 +1,4 @@
-__version__ = "3.4.1"
+__version__ = "3.4.2"
 
 __all__ = [
     "Backend",
@@ -654,7 +654,7 @@ def inference(
         clip = core.trt.Model(
             clips, engine_path,
             overlap=overlap,
-            tilesize=None if backend.static_shape else tilesize,
+            tilesize=tilesize,
             device_id=backend.device_id,
             use_cuda_graph=backend.use_cuda_graph,
             num_streams=backend.num_streams,
