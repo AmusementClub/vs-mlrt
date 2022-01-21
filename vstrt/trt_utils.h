@@ -238,7 +238,23 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
         }
         exec_context->setBindingDimensions(0, dims);
     } else if (std::holds_alternative<RequestedTileSize>(tile_size)) {
-        return set_error("Engine has no dynamic dimensions");
+        is_dynamic = false;
+
+        nvinfer1::Dims dims = exec_context->getBindingDimensions(0);
+
+        if (std::holds_alternative<RequestedTileSize>(tile_size)) {
+            if (dims.d[2] != std::get<RequestedTileSize>(tile_size).tile_h ||
+                dims.d[3] != std::get<RequestedTileSize>(tile_size).tile_w
+            ) {
+                return set_error("requested tile size not applicable");
+            }
+        } else {
+            if (dims.d[2] != std::get<VideoSize>(tile_size).height ||
+                dims.d[3] != std::get<VideoSize>(tile_size).width
+            ) {
+                return set_error("not supported video dimensions");
+            }
+        }
     }
 
     MemoryResource src {};
