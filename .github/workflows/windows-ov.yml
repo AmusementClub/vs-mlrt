@@ -105,7 +105,7 @@ jobs:
 
     - name: Download x265
       run: |
-        curl -s -o x265.7z -LJO https://github.com/AmusementClub/x265/releases/download/Yuuki-3.5-AC2/x265-win64-x86-64-clang.Yuuki-3.5-AC2.7z
+        curl -s -o x265.7z -LJO https://github.com/AmusementClub/x265/releases/download/Yuuki-3.5-AC3/x265-win64-x86-64-clang.Yuuki-3.5-AC3.7z
         7z x x265.7z -ovs_portable\
 
     - name: Create script
@@ -115,6 +115,7 @@ jobs:
     - name: Run vspipe
       shell: bash
       run: |
+        set -ex
         vs_portable/vspipe -i test.vpy -
         vs_portable/vspipe --y4m -p -e 9 test.vpy - | vs_portable/x265 --log-file x265.log --log-file-level info --y4m -D 10 --preset ultrafast -o out.hevc -
         ls -l out.hevc x265.log
@@ -130,6 +131,7 @@ jobs:
     - name: Run vspipe (fp16)
       shell: bash
       run: |
+        set -ex
         vs_portable/vspipe -i test.vpy -
         vs_portable/vspipe --y4m -p -e 9 test.vpy - | vs_portable/x265 --log-file x265.log --log-file-level info --y4m -D 10 --preset ultrafast -o out.hevc -
         ls -l out.hevc x265.log
