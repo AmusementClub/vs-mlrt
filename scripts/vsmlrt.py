@@ -1,4 +1,4 @@
-__version__ = "3.5.0"
+__version__ = "3.5.1"
 
 __all__ = [
     "Backend",
@@ -406,7 +406,8 @@ def CUGAN(
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     backend: backendT = Backend.OV_CPU(),
-    preprocess: bool = True
+    preprocess: bool = True,
+    alpha: float = 1.0
 ) -> vs.VideoNode:
 
     func_name = "vsmlrt.CUGAN"
@@ -473,6 +474,45 @@ def CUGAN(
         model_name = f"up{scale}x-latest-denoise{noise}x.onnx"
 
     network_path = os.path.join(folder_path, model_name)
+
+    # https://github.com/bilibili/ailab/blob/978f3be762183d7fa79525f29a43e65afb995f6b/Real-CUGAN/upcunet_v3.py#L207
+    # mutates network_path
+    if alpha != 1.0:
+        alpha = float(alpha)
+
+        import numpy as np
+        import onnx
+        from onnx import numpy_helper
+
+        model = onnx.load(network_path)
+
+        for idx, node in reversed(list(enumerate(model.graph.node))):
+            if node.op_type == "ConvTranspose":
+                break
+
+        upstream_name = node.input[0]
+        downstream_name = node.input[0] + "_mul"
+        node.input[0] = downstream_name
+
+        alpha_array = np.array(alpha, dtype=np.float32)
+        alpha_tensor = numpy_helper.from_array(alpha_array)
+        alpha_constant = onnx.helper.make_node(
+            "Constant",
+            inputs=[],
+            outputs=["alpha"],
+            value=alpha_tensor
+        )
+        model.graph.node.insert(idx, alpha_constant)
+
+        mul_node = onnx.helper.make_node(
+            "Mul",
+            inputs=[upstream_name, "alpha"],
+            outputs=[downstream_name]
+        )
+        model.graph.node.insert(idx+1, mul_node)
+
+        network_path = f"{network_path}_alpha{alpha!r}.onnx"
+        onnx.save(model, network_path)
 
     clip = inference(
         clips=[clip], network_path=network_path,
