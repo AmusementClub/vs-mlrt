@@ -470,11 +470,23 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
 
         vsapi->propSetData(
             out, "tensorrt_version",
-            std::to_string(NV_TENSORRT_VERSION).c_str(), -1, paReplace
+            std::to_string(getInferLibVersion()).c_str(), -1, paReplace
         );
 
         vsapi->propSetData(
+            out, "tensorrt_version_build",
+            std::to_string(NV_TENSORRT_VERSION).c_str(), -1, paReplace
+        );
+
+        int runtime_version;
+        cudaRuntimeGetVersion(&runtime_version);
+        vsapi->propSetData(
             out, "cuda_runtime_version",
+            std::to_string(runtime_version).c_str(), -1, paReplace
+        );
+
+        vsapi->propSetData(
+            out, "cuda_runtime_version_build",
             std::to_string(__CUDART_API_VERSION).c_str(), -1, paReplace
         );
 
