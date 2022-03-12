@@ -107,11 +107,11 @@ jobs:
       run: |
         curl -s -o zlib.tar.gz -LJO https://www.zlib.net/zlib-1.2.11.tar.gz
         tar -xf zlib.tar.gz
-        cd zlib-1.2.11
-        msbuild contrib\vstudio\vc14\zlibvc.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 -maxCpuCount
-        cd ..
-        mkdir zlib-release
-        move zlib-1.2.11\contrib\vstudio\vc14\x64\ZlibDllRelease\zlibwapi.dll zlib-release
+        cd zlib-1.2.11\contrib\vstudio\vc14
+        python -c "f=open('zlibvc.vcxproj','r+b');s=f.read();f.seek(0);f.write(s.replace(b'MultiThreadedDLL',b'MultiThreaded'));f.truncate();f.close()"
+        msbuild zlibvc.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 -maxCpuCount
+        mkdir %GITHUB_WORKSPACE%\zlib-release
+        move x64\ZlibDllRelease\zlibwapi.dll %GITHUB_WORKSPACE%\zlib-release
 
     - name: Move zlib
       shell: cmd
