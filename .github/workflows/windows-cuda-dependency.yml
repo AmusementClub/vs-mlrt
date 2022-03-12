@@ -53,7 +53,7 @@ jobs:
       run: 7z x cudnn.7z
 
     - name: Move cuDNN library
-      run: mv cudnn/bin vsmlrt-cuda
+      run: mv cudnn/bin vsmlrt-cuda -v
 
     # Same licensing issue with the tensorrt libraries.
     - name: Download TensorRT library
@@ -76,7 +76,7 @@ jobs:
       run: 7z x trt.7z
 
     - name: Move TensorRT library
-      run: mv trt-*/*.dll vsmlrt-cuda
+      run: mv TensorRT/*.dll vsmlrt-cuda -v
 
     - name: Download CUDA Libraries
       shell: cmd
