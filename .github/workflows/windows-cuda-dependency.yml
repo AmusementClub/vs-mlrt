@@ -23,7 +23,7 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-2019
+    runs-on: windows-2022
     outputs:
       runID: ${{ steps.output.outputs.runID }}
 
@@ -39,7 +39,7 @@ jobs:
       run: |
         # https://stackoverflow.com/questions/20396329/how-to-download-github-release-from-private-repo-using-command-line/35688093#35688093
 
-        tag=cudnn-8.2.4-Inference
+        tag=cudnn-8.3.2-bin
         name=cudnn.7z
 
         AUTH="Authorization: token ${{ secrets.REPO_TOKEN }}"
@@ -60,8 +60,8 @@ jobs:
       run: |
         # https://stackoverflow.com/questions/20396329/how-to-download-github-release-from-private-repo-using-command-line/35688093#35688093
 
-        tag=tensorrt-8.2.1-bin
-        name=trt8.2.1.7z
+        tag=tensorrt-8.4.0-ea-bin
+        name=TensorRT.7z
 
         AUTH="Authorization: token ${{ secrets.REPO_TOKEN }}"
         response=$(curl -sH "$AUTH" https://api.github.com/repos/AmusementClub/cuda/releases/tags/$tag)
@@ -81,15 +81,41 @@ jobs:
     - name: Download CUDA Libraries
       shell: cmd
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.4.3/network_installers/cuda_11.4.3_win10_network.exe
-        cuda_installer.exe -s cudart_11.4 cublas_11.4 cufft_11.4 cupti_11.4 nvrtc_11.4
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.6.1/network_installers/cuda_11.6.1_windows_network.exe
+        cuda_installer.exe -s cudart_11.6 cublas_11.6 cufft_11.6 cupti_11.6 nvrtc_11.6
 
     - name: Move CUDA Libraries
       shell: cmd
       run: |
-        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
-        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.4\bin\*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6\bin\*.dll" vsmlrt-cuda
         del vsmlrt-cuda\cudart32*.dll
+
+    - name: Cache zlib
+      id: cache-zlib
+      uses: actions/cache@v2
+      with:
+        path: ${{ github.workspace }}/zlib-release
+        key: ${{ runner.os }}-zlib-1.2.11
+
+    - name: Setup msbuild
+      if: steps.cache-zlib.outputs.cache-hit != 'true'
+      uses: microsoft/setup-msbuild@v1
+
+    - name: Compile zlib
+      if: steps.cache-zlib.outputs.cache-hit != 'true'
+      run: |
+        curl -s -o zlib.tar.gz -LJO https://www.zlib.net/zlib-1.2.11.tar.gz
+        tar -xf zlib.tar.gz
+        cd zlib-1.2.11
+        msbuild contrib\vstudio\vc14\zlibvc.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 -maxCpuCount
+        cd ..
+        mkdir zlib-release
+        move zlib-1.2.11\contrib\vstudio\vc14\x64\ZlibDllRelease\zlibwapi.dll zlib-release
+
+    - name: Move zlib
+      shell: cmd
+      run: move zlib-release\zlibwapi.dll vsmlrt-cuda
 
     - name: Compress
       run: |
