@@ -14,24 +14,24 @@ on:
 
 jobs:
   build-vsov:
-    uses: AmusementClub/vs-mlrt/.github/workflows/windows-ov.yml@master
+    uses: AmusementClub/vs-mlrt/.github/workflows/windows-ov.yml@trt-8.4.0-ea
     with:
       tag: ${{ github.event.inputs.tag }}
 
   build-vsort:
-    uses: AmusementClub/vs-mlrt/.github/workflows/windows-ort.yml@master
+    uses: AmusementClub/vs-mlrt/.github/workflows/windows-ort.yml@trt-8.4.0-ea
     with:
       tag: ${{ github.event.inputs.tag }}
 
   build-vstrt:
-    uses: AmusementClub/vs-mlrt/.github/workflows/windows-trt.yml@master
+    uses: AmusementClub/vs-mlrt/.github/workflows/windows-trt.yml@trt-8.4.0-ea
     with:
       tag: ${{ github.event.inputs.tag }}
     secrets:
       REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
 
   build-cuda-dependency:
-    uses: AmusementClub/vs-mlrt/.github/workflows/windows-cuda-dependency.yml@master
+    uses: AmusementClub/vs-mlrt/.github/workflows/windows-cuda-dependency.yml@trt-8.4.0-ea
     with:
       tag: ${{ github.event.inputs.tag }}
     secrets:
