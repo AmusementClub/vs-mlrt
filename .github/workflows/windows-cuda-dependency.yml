@@ -96,7 +96,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ github.workspace }}/zlib-release
-        key: ${{ runner.os }}-zlib-1.2.11
+        key: ${{ runner.os }}-zlib-1.2.11-v2
 
     - name: Setup msbuild
       if: steps.cache-zlib.outputs.cache-hit != 'true'
@@ -114,9 +114,8 @@ jobs:
         mkdir %GITHUB_WORKSPACE%\zlib-release
         move x64\ZlibDllRelease\zlibwapi.dll %GITHUB_WORKSPACE%\zlib-release
 
-    - name: Move zlib
-      shell: cmd
-      run: move zlib-release\zlibwapi.dll vsmlrt-cuda
+    - name: Copy zlib
+      run: cp -v zlib-release/zlibwapi.dll vsmlrt-cuda
 
     - name: Compress
       run: |
