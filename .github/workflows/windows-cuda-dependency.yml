@@ -104,6 +104,7 @@ jobs:
 
     - name: Compile zlib
       if: steps.cache-zlib.outputs.cache-hit != 'true'
+      shell: cmd
       run: |
         curl -s -o zlib.tar.gz -LJO https://www.zlib.net/zlib-1.2.11.tar.gz
         tar -xf zlib.tar.gz
