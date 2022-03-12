@@ -13,6 +13,7 @@
 namespace {
 std::vector<std::wstring> dlls = {
 	// This list must be sorted by dependency.
+	L"zlibwapi.dll", // cuDNN version 8.3.0+ depends on zlib as a shared library dependency
 	L"cudnn_ops_infer64_8.dll",
 	L"cudnn_cnn_infer64_8.dll",
 	L"cudnn64_8.dll",
