@@ -1,4 +1,4 @@
-__version__ = "3.5.1"
+__version__ = "3.6.0"
 
 __all__ = [
     "Backend",
@@ -75,6 +75,7 @@ class Backend:
         num_streams: int = 1
         use_cublas: bool = False # cuBLAS + cuBLASLt
         static_shape: bool = True
+        tf32: bool = True
 
         _channels: int = field(init=False, repr=False, compare=False)
 
@@ -531,7 +532,8 @@ def get_engine_path(
     fp16: bool,
     device_id: int,
     use_cublas: bool,
-    static_shape: bool
+    static_shape: bool,
+    tf32: bool
 ) -> str:
 
     with open(network_path, "rb") as file:
@@ -554,6 +556,7 @@ def get_engine_path(
         network_path +
         shape_str +
         ("_fp16" if fp16 else "") +
+        ("_no-tf32" if not tf32 else "") +
         f"_workspace{workspace}" +
         f"_trt-{trt_version}" +
         ("_cublas" if use_cublas else "") +
@@ -574,7 +577,8 @@ def trtexec(
     verbose: bool = False,
     use_cuda_graph: bool = False,
     use_cublas: bool = False,
-    static_shape: bool = True
+    static_shape: bool = True,
+    tf32: bool = True
 ) -> str:
 
     if isinstance(opt_shapes, int):
@@ -591,7 +595,8 @@ def trtexec(
         fp16=fp16,
         device_id=device_id,
         use_cublas=use_cublas,
-        static_shape=static_shape
+        static_shape=static_shape,
+        tf32=tf32
     )
 
     if os.access(engine_path, mode=os.R_OK):
@@ -652,6 +657,9 @@ def trtexec(
         ))
     else:
         args.append("--buildOnly")
+
+    if not tf32:
+        args.append("--noTF32")
 
     subprocess.run(args, check=True, stdout=sys.stderr)
 
@@ -775,7 +783,8 @@ def inference(
             verbose=backend.verbose,
             use_cuda_graph=backend.use_cuda_graph,
             use_cublas=backend.use_cublas,
-            static_shape=backend.static_shape
+            static_shape=backend.static_shape,
+            tf32=backend.tf32
         )
         clip = core.trt.Model(
             clips, engine_path,
