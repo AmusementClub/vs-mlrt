@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import typing
 import zlib
 
@@ -76,6 +77,7 @@ class Backend:
         use_cublas: bool = False # cuBLAS + cuBLASLt
         static_shape: bool = True
         tf32: bool = True
+        log: bool = False # subject to change
 
         _channels: int = field(init=False, repr=False, compare=False)
 
@@ -578,7 +580,8 @@ def trtexec(
     use_cuda_graph: bool = False,
     use_cublas: bool = False,
     static_shape: bool = True,
-    tf32: bool = True
+    tf32: bool = True,
+    log: bool = False
 ) -> str:
 
     if isinstance(opt_shapes, int):
@@ -661,7 +664,23 @@ def trtexec(
     if not tf32:
         args.append("--noTF32")
 
-    subprocess.run(args, check=True, stdout=sys.stderr)
+    if log:
+        completed_process = subprocess.run(args, check=False, capture_output=True)
+
+        if completed_process.returncode != 0:
+            time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
+
+            temp_filename = os.path.join(
+                tempfile.gettempdir(),
+                f"trtexec_{time_str}.log"
+            )
+
+            with open(temp_filename, "wb") as f:
+                f.write(completed_process.stdout)
+
+            raise RuntimeError(f"trtexec execution fails, log has been written to {temp_filename}")
+    else:
+        subprocess.run(args, check=True, stdout=sys.stderr)
 
     return engine_path
 
@@ -784,7 +803,8 @@ def inference(
             use_cuda_graph=backend.use_cuda_graph,
             use_cublas=backend.use_cublas,
             static_shape=backend.static_shape,
-            tf32=backend.tf32
+            tf32=backend.tf32,
+            log=backend.log
         )
         clip = core.trt.Model(
             clips, engine_path,
