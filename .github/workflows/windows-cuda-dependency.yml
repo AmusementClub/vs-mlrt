@@ -91,6 +91,32 @@ jobs:
         move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6\bin\*.dll" vsmlrt-cuda
         del vsmlrt-cuda\cudart32*.dll
 
+    - name: Setup VC commands
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: amd64
+
+    - name: Copy VC Runtime Libraries
+      shell: bash
+      run: |
+        cd vsmlrt-cuda
+        while true; do
+          changed=false
+          for dll in *.[dD][lL][lL]; do
+             for dep in $(dumpbin -dependents "$dll" | grep -o -i '\(vc\|msvc\)[a-z0-9_-]*\.dll'); do
+                echo "finding $dep for $dll"
+                if ! test -f ./"$dep"; then
+                  changed=true
+                  src="$(where "$dep" | grep -i 'MSVC' | head -1)"
+                  echo "copying $src for $dep"
+                  test -f "$src" || exit 1
+                  cp -f "$src" .
+                fi
+             done
+          done
+          $changed || break
+        done
+
     - name: Cache zlib
       id: cache-zlib
       uses: actions/cache@v2
