@@ -77,7 +77,7 @@ class Backend:
         use_cublas: bool = False # cuBLAS + cuBLASLt
         static_shape: bool = True
         tf32: bool = True
-        log: bool = False # subject to change
+        log: bool = True
 
         _channels: int = field(init=False, repr=False, compare=False)
 
@@ -667,17 +667,27 @@ def trtexec(
     if log:
         time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
 
-        completed_process = subprocess.run(args, check=False, capture_output=True)
+        temp_filename = os.path.join(
+            tempfile.gettempdir(),
+            f"trtexec_{time_str}.log"
+        )
 
-        if completed_process.returncode != 0:
-            temp_filename = os.path.join(
-                tempfile.gettempdir(),
-                f"trtexec_{time_str}.log"
-            )
+        env_key = "TRTEXEC_LOG_FILE"
 
-            with open(temp_filename, "wb") as f:
-                f.write(completed_process.stdout)
+        prev_env_value = os.environ.get(env_key)
 
+        os.environ[env_key] = temp_filename
+
+        completed_process = subprocess.run(args, check=False, stdout=sys.stderr)
+
+        if prev_env_value is None:
+            os.unsetenv(env_key)
+        else:
+            os.environ[env_key] = prev_env_value
+
+        if completed_process.returncode == 0:
+            os.remove(temp_filename)
+        else:
             raise RuntimeError(f"trtexec execution fails, log has been written to {temp_filename}")
     else:
         subprocess.run(args, check=True, stdout=sys.stderr)
