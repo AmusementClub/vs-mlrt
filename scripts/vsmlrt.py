@@ -1,4 +1,4 @@
-__version__ = "3.6.0"
+__version__ = "3.7.0"
 
 __all__ = [
     "Backend",
@@ -665,30 +665,29 @@ def trtexec(
         args.append("--noTF32")
 
     if log:
-        time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
-
-        temp_filename = os.path.join(
-            tempfile.gettempdir(),
-            f"trtexec_{time_str}.log"
-        )
-
         env_key = "TRTEXEC_LOG_FILE"
-
         prev_env_value = os.environ.get(env_key)
 
-        os.environ[env_key] = temp_filename
-
-        completed_process = subprocess.run(args, check=False, stdout=sys.stderr)
-
-        if prev_env_value is None:
-            os.unsetenv(env_key)
+        if prev_env_value is not None and len(prev_env_value) > 0:
+            # env_key has been set, no extra action
+            env = {env_key: prev_env_value}
+            subprocess.run(args, env=env, check=True, stdout=sys.stderr)
         else:
-            os.environ[env_key] = prev_env_value
+            time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
 
-        if completed_process.returncode == 0:
-            os.remove(temp_filename)
-        else:
-            raise RuntimeError(f"trtexec execution fails, log has been written to {temp_filename}")
+            temp_filename = os.path.join(
+                tempfile.gettempdir(),
+                f"trtexec_{time_str}.log"
+            )
+
+            env = {env_key: temp_filename}
+
+            completed_process = subprocess.run(args, env=env, check=False, stdout=sys.stderr)
+
+            if completed_process.returncode == 0:
+                os.remove(temp_filename)
+            else:
+                raise RuntimeError(f"trtexec execution fails, log has been written to {temp_filename}")
     else:
         subprocess.run(args, check=True, stdout=sys.stderr)
 
