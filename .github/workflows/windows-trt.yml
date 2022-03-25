@@ -98,7 +98,9 @@ jobs:
         path: tensorrt-oss
 
     - name: Override trtexec CMake file
-      run: mv trtexec/CMakeLists.txt ../tensorrt-oss/samples/trtexec
+      run: |
+        mv trtexec/CMakeLists.txt ../tensorrt-oss/samples/trtexec
+        mv trtexec/*.cpp ../tensorrt-oss/samples/trtexec
 
     - name: Configure trtexec
       run: cmake -S ../tensorrt-oss/samples/trtexec -B build_trtexec -G Ninja

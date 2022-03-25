@@ -8,6 +8,7 @@ find_package(CUDAToolkit REQUIRED)
 
 add_executable(trtexec
     trtexec.cpp
+    logfile.cpp
     ../common/logger.cpp
     ../common/sampleEngines.cpp
     ../common/sampleInference.cpp
