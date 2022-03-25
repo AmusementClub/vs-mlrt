@@ -675,19 +675,26 @@ def trtexec(
         else:
             time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
 
-            temp_filename = os.path.join(
+            log_filename = os.path.join(
                 tempfile.gettempdir(),
                 f"trtexec_{time_str}.log"
             )
 
-            env = {env_key: temp_filename}
+            env = {env_key: log_filename}
 
             completed_process = subprocess.run(args, env=env, check=False, stdout=sys.stderr)
 
             if completed_process.returncode == 0:
-                os.remove(temp_filename)
+                try:
+                    os.remove(log_filename)
+                except FileNotFoundError:
+                    # maybe the official trtexec is used?
+                    pass
             else:
-                raise RuntimeError(f"trtexec execution fails, log has been written to {temp_filename}")
+                if os.path.exists(log_filename):
+                    raise RuntimeError(f"trtexec execution fails, log has been written to {log_filename}")
+                else:
+                    raise RuntimeError(f"trtexec execution fails but no log is found")
     else:
         subprocess.run(args, check=True, stdout=sys.stderr)
 
