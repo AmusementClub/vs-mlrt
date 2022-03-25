@@ -665,11 +665,11 @@ def trtexec(
         args.append("--noTF32")
 
     if log:
+        time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
+
         completed_process = subprocess.run(args, check=False, capture_output=True)
 
         if completed_process.returncode != 0:
-            time_str = time.strftime('%y%m%d_%H%M%S', time.localtime())
-
             temp_filename = os.path.join(
                 tempfile.gettempdir(),
                 f"trtexec_{time_str}.log"
