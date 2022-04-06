@@ -12,6 +12,11 @@ on:
         description: 'which tag to upload to'
         required: true
         type: string
+      ov_tag:
+        description: 'which tag of openvino to use'
+        required: true
+        default: 'latest'
+        type: string
     outputs:
       runID:
         description: 'run id'
@@ -21,6 +26,11 @@ on:
       tag:
         description: 'which tag to upload to'
         default: ''
+      ov_tag:
+        description: 'which tag of openvino to use'
+        required: true
+        default: 'latest'
+        type: string
 
 jobs:
   build-windows:
@@ -53,7 +63,7 @@ jobs:
 
     - name: Download OpenVINO Runtime Precompilation
       run: |
-        curl -s -o openvino.zip -LJO https://github.com/AmusementClub/openvino/releases/latest/download/openvino-cpu-win64.zip
+        curl -s -o openvino.zip -LJO https://github.com/AmusementClub/openvino/releases/${{github.event.inputs.ov_tag || inputs.ov_tag || 'latest'}}/download/openvino-cpu-win64.zip
         unzip -q openvino.zip
 
     - name: Configure
