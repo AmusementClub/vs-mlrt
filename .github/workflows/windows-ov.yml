@@ -62,8 +62,15 @@ jobs:
         mv vapoursynth-*/ vapoursynth/
 
     - name: Download OpenVINO Runtime Precompilation
+      shell: bash
       run: |
-        curl -s -o openvino.zip -LJO https://github.com/AmusementClub/openvino/releases/${{github.event.inputs.ov_tag || inputs.ov_tag || 'latest'}}/download/openvino-cpu-win64.zip
+        rev="${{github.event.inputs.ov_tag || inputs.ov_tag || 'latest'}}"
+        if [ "$rev" == "latest" ]; then
+          url="https://github.com/AmusementClub/openvino/releases/latest/download/openvino-cpu-win64.zip"
+        else
+          url="https://github.com/AmusementClub/openvino/releases/download/$rev/openvino-cpu-win64.zip"
+        fi
+        curl -s -o openvino.zip -LJO "$url"
         unzip -q openvino.zip
 
     - name: Configure
