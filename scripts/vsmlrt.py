@@ -1,4 +1,4 @@
-__version__ = "3.7.1"
+__version__ = "3.7.2"
 
 __all__ = [
     "Backend",
@@ -337,7 +337,7 @@ def DPIR(
 class RealESRGANv2Model(enum.IntEnum):
     animevideo_xsx2 = 0
     animevideo_xsx4 = 1
-    realesr_animevideov3 = 2
+    animevideov3 = 2 # 4x
 
 
 def RealESRGANv2(
@@ -346,7 +346,8 @@ def RealESRGANv2(
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     model: typing.Literal[0, 1, 2] = 0,
-    backend: backendT = Backend.OV_CPU()
+    backend: backendT = Backend.OV_CPU(),
+    scale: typing.Optional[float] = None
 ) -> vs.VideoNode:
 
     func_name = "vsmlrt.RealESRGANv2"
@@ -400,11 +401,26 @@ def RealESRGANv2(
             "realesr-animevideov3.onnx"
         )
 
+    clip_org = clip
     clip = inference(
         clips=[clip], network_path=network_path,
         overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
         backend=backend
     )
+
+    if scale is not None:
+        scale_h = clip.width // clip_org.width
+        scale_v = clip.height // clip_org.height
+
+        assert scale_h == scale_v
+
+        if scale != scale_h:
+            rescale = scale / scale_h
+            
+            if rescale > 1:
+                clip = core.fmtc.resample(clip, scale=rescale, kernel="lanczos", taps=4)
+            else:
+                clip = core.fmtc.resample(clip, scale=rescale, kernel="lanczos", taps=4, fh=1/rescale, fv=1/rescale)
 
     return clip
 
