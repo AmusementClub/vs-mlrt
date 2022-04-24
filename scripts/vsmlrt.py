@@ -1,4 +1,4 @@
-__version__ = "3.7.0"
+__version__ = "3.7.1"
 
 __all__ = [
     "Backend",
@@ -337,6 +337,7 @@ def DPIR(
 class RealESRGANv2Model(enum.IntEnum):
     animevideo_xsx2 = 0
     animevideo_xsx4 = 1
+    realesr_animevideov3 = 2
 
 
 def RealESRGANv2(
@@ -344,7 +345,7 @@ def RealESRGANv2(
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
-    model: typing.Literal[0, 1] = 0,
+    model: typing.Literal[0, 1, 2] = 0,
     backend: backendT = Backend.OV_CPU()
 ) -> vs.VideoNode:
 
@@ -360,7 +361,7 @@ def RealESRGANv2(
         raise ValueError(f'{func_name}: "clip" must be of RGBS format')
 
     if not isinstance(model, int) or model not in RealESRGANv2Model.__members__.values():
-        raise ValueError(f'{func_name}: "model" must be 0 or 1')
+        raise ValueError(f'{func_name}: "model" must be 0, 1 or 2')
 
     if overlap is None:
         overlap_w = overlap_h = 8
@@ -386,11 +387,18 @@ def RealESRGANv2(
         trt_max_shapes=(tile_w, tile_h)
     )
 
-    network_path = os.path.join(
-        models_path,
-        "RealESRGANv2",
-        f"RealESRGANv2-{tuple(RealESRGANv2Model.__members__)[model]}.onnx".replace('_', '-')
-    )
+    if model in [0, 1]:
+        network_path = os.path.join(
+            models_path,
+            "RealESRGANv2",
+            f"RealESRGANv2-{tuple(RealESRGANv2Model.__members__)[model]}.onnx".replace('_', '-')
+        )
+    elif model == 2:
+        network_path = os.path.join(
+            models_path,
+            "RealESRGANv2",
+            "realesr-animevideov3.onnx"
+        )
 
     clip = inference(
         clips=[clip], network_path=network_path,
