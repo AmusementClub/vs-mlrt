@@ -1,9 +1,10 @@
-__version__ = "3.7.2"
+__version__ = "3.8.0"
 
 __all__ = [
     "Backend",
     "Waifu2x", "Waifu2xModel",
     "DPIR", "DPIRModel",
+    "RealESRGAN", "RealESRGANModel",
     "RealESRGANv2", "RealESRGANv2Model",
     "CUGAN"
 ]
@@ -334,13 +335,16 @@ def DPIR(
 
 
 @enum.unique
-class RealESRGANv2Model(enum.IntEnum):
+class RealESRGANModel(enum.IntEnum):
+    # v2
     animevideo_xsx2 = 0
     animevideo_xsx4 = 1
+    # v3
     animevideov3 = 2 # 4x
 
+RealESRGANModel2 = RealESRGANModel
 
-def RealESRGANv2(
+def RealESRGAN(
     clip: vs.VideoNode,
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
@@ -350,7 +354,7 @@ def RealESRGANv2(
     scale: typing.Optional[float] = None
 ) -> vs.VideoNode:
 
-    func_name = "vsmlrt.RealESRGANv2"
+    func_name = "vsmlrt.RealESRGAN"
 
     if not isinstance(clip, vs.VideoNode):
         raise TypeError(f'{func_name}: "clip" must be a clip!')
@@ -424,6 +428,7 @@ def RealESRGANv2(
 
     return clip
 
+RealESRGANv2 = RealESRGAN
 
 def CUGAN(
     clip: vs.VideoNode,
