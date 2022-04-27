@@ -1,4 +1,4 @@
-__version__ = "3.8.0"
+__version__ = "3.8.1"
 
 __all__ = [
     "Backend",
@@ -342,7 +342,7 @@ class RealESRGANModel(enum.IntEnum):
     # v3
     animevideov3 = 2 # 4x
 
-RealESRGANModel2 = RealESRGANModel
+RealESRGANv2Model = RealESRGANModel
 
 def RealESRGAN(
     clip: vs.VideoNode,
