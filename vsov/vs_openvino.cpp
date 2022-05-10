@@ -1,5 +1,6 @@
 #include <array>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -45,7 +46,7 @@ static const VSPlugin * myself = nullptr;
 static std::array<int, 4> getShape(
     const InferenceEngine::ExecutableNetwork & network,
     bool input
-) noexcept {
+) {
 
     InferenceEngine::SizeVector dims;
 
@@ -66,7 +67,7 @@ static std::array<int, 4> getShape(
 
 static int numPlanes(
     const std::vector<const VSVideoInfo *> & vis
-) noexcept {
+) {
 
     int num_planes = 0;
 
@@ -81,7 +82,7 @@ static int numPlanes(
 [[nodiscard]]
 static std::optional<std::string> checkNodes(
     const std::vector<const VSVideoInfo *> & vis
-) noexcept {
+) {
 
     for (const auto & vi : vis) {
         if (vi->format->sampleType != stFloat || vi->format->bitsPerSample != 32) {
@@ -110,7 +111,7 @@ template <typename T>
 static std::optional<std::string> checkIOInfo(
     const T & info,
     bool is_output
-) noexcept {
+) {
 
     if (info->getPrecision() != InferenceEngine::Precision::FP32) {
         return "expects network IO with type fp32";
@@ -142,7 +143,7 @@ static std::optional<std::string> checkIOInfo(
 [[nodiscard]]
 static std::optional<std::string> checkNetwork(
     const InferenceEngine::CNNNetwork & network
-) noexcept {
+) {
 
     const auto & inputs_info = network.getInputsInfo();
 
@@ -174,7 +175,7 @@ static std::optional<std::string> checkNetwork(
 static std::optional<std::string> checkNodesAndNetwork(
     const InferenceEngine::ExecutableNetwork & network,
     const std::vector<const VSVideoInfo *> & vis
-) noexcept {
+) {
 
     const auto & network_in_dims = (
         network.GetInputsInfo().cbegin()->second->getTensorDesc().getDims()
@@ -203,7 +204,7 @@ static void setDimensions(
     const InferenceEngine::ExecutableNetwork & network,
     VSCore * core,
     const VSAPI * vsapi
-) noexcept {
+) {
 
     auto in_dims = network.GetInputsInfo().cbegin()->second->getTensorDesc().getDims();
     auto out_dims = network.GetOutputsInfo().cbegin()->second->getTensorDesc().getDims();
@@ -216,6 +217,59 @@ static void setDimensions(
     } else if (out_dims[1] == 3) {
         vi->format = vsapi->registerFormat(cmRGB, stFloat, 32, 0, 0, core);
     }
+}
+
+
+static std::variant<std::string, std::map<std::string, std::string>> getConfig(
+    VSFuncRef * config_func,
+    VSCore * core,
+    const VSAPI * vsapi
+) {
+
+    std::map<std::string, std::string> config;
+
+    if (config_func == nullptr) {
+        return config;
+    }
+
+    auto in_map = vsapi->createMap();
+    auto out_map = vsapi->createMap();
+
+    auto set_error = [&](const std::string & error_message) -> std::string {
+        vsapi->freeMap(out_map);
+        vsapi->freeMap(in_map);
+        return error_message;
+    };
+
+    vsapi->callFunc(config_func, in_map, out_map, core, vsapi);
+
+    if (auto error_message = vsapi->getError(out_map); error_message) {
+        return set_error(error_message);
+    }
+
+    int num_keys { vsapi->propNumKeys(out_map) };
+    for (int index = 0; index < num_keys; index++) {
+        auto key = vsapi->propGetKey(out_map, index);
+        auto num_elements { vsapi->propNumElements(out_map, key) };
+        if (num_elements != 1) {
+            return set_error("each value in the \"config\" dict must have exactly one element");
+        }
+        auto type = vsapi->propGetType(out_map, key);
+        if (type == ptData) {
+            config[key] = vsapi->propGetData(out_map, key, 0, nullptr);
+        } else if (type == ptInt) {
+            config[key] = std::to_string(vsapi->propGetInt(out_map, key, 0, nullptr));
+        } else if (type == ptFloat) {
+            config[key] = std::to_string(vsapi->propGetFloat(out_map, key, 0, nullptr));
+        } else {
+            return set_error("unknown type of key \""s + key + "\": (" + type + ")");
+        }
+    }
+
+    vsapi->freeMap(out_map);
+    vsapi->freeMap(in_map);
+
+    return config;
 }
 
 
@@ -241,7 +295,7 @@ static void VS_CC vsOvInit(
     VSNode *node,
     VSCore *core,
     const VSAPI *vsapi
-) noexcept {
+) {
 
     OVData * d = static_cast<OVData *>(*instanceData);
     vsapi->setVideoInfo(d->out_vi.get(), 1, node);
@@ -256,7 +310,7 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
     VSFrameContext *frameCtx,
     VSCore *core,
     const VSAPI *vsapi
-) noexcept {
+) {
 
     OVData * d = static_cast<OVData *>(*instanceData);
 
@@ -431,7 +485,7 @@ static void VS_CC vsOvFree(
     void *instanceData,
     VSCore *core,
     const VSAPI *vsapi
-) noexcept {
+) {
 
     OVData * d = static_cast<OVData *>(instanceData);
 
@@ -449,7 +503,7 @@ static void VS_CC vsOvCreate(
     void *userData,
     VSCore *core,
     const VSAPI *vsapi
-) noexcept {
+) {
 
     auto d { std::make_unique<OVData>() };
 
@@ -587,7 +641,19 @@ static void VS_CC vsOvCreate(
         }
 #endif // ENABLE_VISUALIZATION
 
-        d->executable_network = d->core.LoadNetwork(network, device);
+        auto config_func = vsapi->propGetFunc(in, "config", 0, &error);
+        auto config_ret = getConfig(config_func, core, vsapi);
+        vsapi->freeFunc(config_func);
+        if (std::holds_alternative<std::string>(config_ret)) {
+            return set_error(std::get<std::string>(config_ret));
+        }
+        auto & config = std::get<std::map<std::string, std::string>>(config_ret);
+
+        try {
+            d->executable_network = d->core.LoadNetwork(network, device, config);
+        } catch (const InferenceEngine::Exception & e) {
+            return set_error(e.what());
+        }
 
         if (auto err = checkNodesAndNetwork(d->executable_network, in_vis); err.has_value()) {
             return set_error(err.value());
@@ -615,7 +681,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     VSConfigPlugin configFunc,
     VSRegisterFunction registerFunc,
     VSPlugin *plugin
-) noexcept {
+) {
     myself = plugin;
 
     configFunc(
@@ -632,6 +698,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "builtin:int:opt;"
         "builtindir:data:opt;"
         "fp16:int:opt;"
+        "config:func:opt;"
 #ifdef ENABLE_VISUALIZATION
         "dot_path:data:opt;"
 #endif
