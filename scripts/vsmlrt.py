@@ -271,8 +271,8 @@ def DPIR(
         strength = 5.0
 
     if isinstance(strength, vs.VideoNode):
-        if strength.format.id != vs.GRAYS and strength.format.id != vs.GRAY8:
-            raise ValueError(f'{func_name}: "strength" must be of GRAYS or GRAY8 format')
+        if strength.format.color_family != vs.GRAY:
+            raise ValueError(f'{func_name}: "strength" must be of GRAY color family')
         if strength.width != clip.width or strength.height != clip.height:
             raise ValueError(f'{func_name}: "strength" must be of the same size as "clip"')
         if strength.num_frames != clip.num_frames:
