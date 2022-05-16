@@ -441,6 +441,7 @@ def CUGAN(
     preprocess: bool = True,
     alpha: float = 1.0
 ) -> vs.VideoNode:
+    """ denoising strength: 0 < -1 < 1 < 2 < 3 """
 
     func_name = "vsmlrt.CUGAN"
 
