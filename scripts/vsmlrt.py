@@ -1,4 +1,4 @@
-__version__ = "3.8.1"
+__version__ = "3.9.0"
 
 __all__ = [
     "Backend",
@@ -420,7 +420,7 @@ def RealESRGAN(
 
         if scale != scale_h:
             rescale = scale / scale_h
-            
+
             if rescale > 1:
                 clip = core.fmtc.resample(clip, scale=rescale, kernel="lanczos", taps=4)
             else:
@@ -439,9 +439,16 @@ def CUGAN(
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     backend: backendT = Backend.OV_CPU(),
     preprocess: bool = True,
-    alpha: float = 1.0
+    alpha: float = 1.0,
+    version: typing.Literal[1, 2] = 1 # 1: legacy, 2: pro
 ) -> vs.VideoNode:
-    """ denoising strength: 0 < -1 < 1 < 2 < 3 """
+    """
+    denoising strength: 0 < -1 < 1 < 2 < 3
+
+    version: (1 or 2)
+        1 -> legacy,
+        2 -> pro (only models for "noise" in [-1, 0, 3] and "scale" in [2, 3] are published currently)
+    """
 
     func_name = "vsmlrt.CUGAN"
 
@@ -499,12 +506,22 @@ def CUGAN(
 
     folder_path = os.path.join(models_path, "cugan")
 
-    if noise == -1:
-        model_name = f"up{scale}x-latest-no-denoise.onnx"
-    elif noise == 0:
-        model_name = f"up{scale}x-latest-conservative.onnx"
+    if version == 1:
+        if noise == -1:
+            model_name = f"up{scale}x-latest-no-denoise.onnx"
+        elif noise == 0:
+            model_name = f"up{scale}x-latest-conservative.onnx"
+        else:
+            model_name = f"up{scale}x-latest-denoise{noise}x.onnx"
+    elif version == 2:
+        if noise == -1:
+            model_name = f"pro-no-denoise3x-up{scale}x.onnx"
+        elif noise == 0:
+            model_name = f"pro-conservative-up{scale}x.onnx"
+        else:
+            model_name = f"pro-denoise{noise}x-up{scale}x.onnx"
     else:
-        model_name = f"up{scale}x-latest-denoise{noise}x.onnx"
+        raise ValueError(f'{func_name}: unknown version ({version}), must be 1 (legacy) or 2 (pro)')
 
     network_path = os.path.join(folder_path, model_name)
 
