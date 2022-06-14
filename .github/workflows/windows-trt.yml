@@ -65,7 +65,7 @@ jobs:
       with:
         repository: AmusementClub/cuda
         token: ${{ secrets.REPO_TOKEN }}
-        ref: tensorrt-8.4.0-ea
+        ref: tensorrt-8.4.1
         path: tensorrt
 
     - name: Download VapourSynth headers
