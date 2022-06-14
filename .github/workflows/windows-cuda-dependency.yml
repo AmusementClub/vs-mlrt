@@ -122,7 +122,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ github.workspace }}/zlib-release
-        key: ${{ runner.os }}-zlib-1.2.11-v2
+        key: ${{ runner.os }}-zlib-1.2.12
 
     - name: Setup msbuild
       if: steps.cache-zlib.outputs.cache-hit != 'true'
@@ -132,9 +132,9 @@ jobs:
       if: steps.cache-zlib.outputs.cache-hit != 'true'
       shell: cmd
       run: |
-        curl -s -o zlib.tar.gz -LJO https://www.zlib.net/zlib-1.2.11.tar.gz
+        curl -s -o zlib.tar.gz -LJO https://www.zlib.net/zlib-1.2.12.tar.gz
         tar -xf zlib.tar.gz
-        cd zlib-1.2.11\contrib\vstudio\vc14
+        cd zlib-1.2.12\contrib\vstudio\vc14
         python -c "f=open('zlibvc.vcxproj','r+b');s=f.read();f.seek(0);f.write(s.replace(b'MultiThreadedDLL',b'MultiThreaded'));f.truncate();f.close()"
         msbuild zlibvc.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 -maxCpuCount
         mkdir %GITHUB_WORKSPACE%\zlib-release
