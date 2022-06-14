@@ -153,7 +153,7 @@ static ONNX_NAMESPACE::NodeProto make_node(
 
     static_assert(sizeof...(kwargs) % 2 == 0, "format: key1, value1, ...");
     if constexpr (constexpr auto size = sizeof...(kwargs) / 2; size > 0) {
-        node.mutable_attribute()->Reserve(size);
+        node.mutable_attribute()->Reserve(sizeof...(kwargs) / 2);
     }
 
     return make_node(std::move(node), kwargs...);
