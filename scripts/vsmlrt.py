@@ -64,8 +64,8 @@ class Backend:
     @dataclass(frozen=False)
     class OV_CPU:
         fp16: bool = False
-        num_streams: int = 1
-        bind_threads: bool = True
+        num_streams: typing.Union[int, str] = 1
+        bind_thread: bool = True
 
     @dataclass(frozen=False)
     class TRT:
@@ -852,7 +852,7 @@ def inference(
     elif isinstance(backend, Backend.OV_CPU):
         config = lambda: dict(
             CPU_THROUGHPUT_STREAMS=backend.num_streams,
-            CPU_BIND_THREAD="YES" if backend.bind_threads else "NO"
+            CPU_BIND_THREAD="YES" if backend.bind_thread else "NO"
         )
         clip = core.ov.Model(
             clips, network_path,
