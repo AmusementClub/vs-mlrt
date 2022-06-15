@@ -54,6 +54,7 @@ class Backend:
 
     @dataclass(frozen=False)
     class ORT_CUDA:
+        """ `num_streams` for ORT CUDA may not be useful in improving utilization """
         device_id: int = 0
         cudnn_benchmark: bool = True
         num_streams: int = 1
@@ -88,7 +89,6 @@ backendT = typing.Union[
     Backend.ORT_CUDA,
     Backend.TRT
 ]
-
 
 @enum.unique
 class Waifu2xModel(enum.IntEnum):
