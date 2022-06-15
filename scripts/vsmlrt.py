@@ -1,4 +1,4 @@
-__version__ = "3.9.0"
+__version__ = "3.9.1"
 
 __all__ = [
     "Backend",
@@ -64,6 +64,8 @@ class Backend:
     @dataclass(frozen=False)
     class OV_CPU:
         fp16: bool = False
+        num_streams: int = 0 # 0: auto
+        bind_threads: bool = True
 
     @dataclass(frozen=False)
     class TRT:
@@ -89,6 +91,7 @@ backendT = typing.Union[
     Backend.ORT_CUDA,
     Backend.TRT
 ]
+
 
 @enum.unique
 class Waifu2xModel(enum.IntEnum):
@@ -847,11 +850,16 @@ def inference(
             fp16=backend.fp16
         )
     elif isinstance(backend, Backend.OV_CPU):
+        config = lambda: dict(
+            CPU_THROUGHPUT_STREAMS=backend.num_streams,
+            CPU_BIND_THREAD="YES" if backend.bind_threads else "NO"
+        )
         clip = core.ov.Model(
             clips, network_path,
             overlap=overlap, tilesize=tilesize,
             device="CPU", builtin=False,
-            fp16=backend.fp16
+            fp16=backend.fp16,
+            config=config
         )
     elif isinstance(backend, Backend.TRT):
         engine_path = trtexec(
