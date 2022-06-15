@@ -683,7 +683,7 @@ static void VS_CC vsOrtFree(
 
 #ifdef ENABLE_CUDA
         if (d->backend == Backend::CUDA) {
-            cudaStreamDestroy(resource.stream);
+            // cudaStreamDestroy(resource.stream);
             cudaFreeHost(resource.input.h_data);
             cudaFree(resource.input.d_data);
             cudaFreeHost(resource.output.h_data);
@@ -869,8 +869,9 @@ static void VS_CC vsOrtCreate(
         }
 #ifdef ENABLE_CUDA
         else if (provider == "CUDA") {
+            OrtCUDAProviderOptionsV2 * cuda_options;
+            checkError(ortapi->CreateCUDAProviderOptions(&cuda_options));
             d->backend = Backend::CUDA;
-            checkError(ortapi->DisableMemPattern(session_options));
 #ifdef _MSC_VER
             // Preload cuda dll from vsort directory.
             static std::once_flag cuda_dll_preloaded_flag;
@@ -882,32 +883,21 @@ static void VS_CC vsOrtCreate(
             checkCUDAError(cudaSetDevice(device_id));
             d->device_id = device_id;
 
-            checkCUDAError(cudaStreamCreate(&resource.stream));
+            // ort cuda provider options v1 allows to use user compute stream
+            // this is not available in the v2 implementation
+            // here we conservatively use the default stream
+            resource.stream = cudaStreamDefault;
 
-            OrtCUDAProviderOptions cuda_options;
-            cuda_options.device_id = device_id;
-
-#if ORT_API_VERSION >= 10
-            if (cudnn_benchmark) {
-                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchExhaustive;
-            } else {
-                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearchHeuristic;
+            // should not set 'do_copy_in_default_stream' to false
+            const char * keys [] { "device_id", "cudnn_conv_algo_search", "cudnn_conv_use_max_workspace" };
+            auto device_id_str = std::to_string(device_id);
+            const char * values [] { device_id_str.c_str(), "EXHAUSTIVE", "1" };
+            if (!cudnn_benchmark) {
+                values[1] = "HEURISTIC";
             }
-#else
-            if (cudnn_benchmark) {
-                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearch::Exhaustive;
-            } else {
-                cuda_options.cudnn_conv_algo_search = OrtCudnnConvAlgoSearch::Heuristic;
-            }
-#endif // ORT_API_VERSION >= 10
+            checkError(ortapi->UpdateCUDAProviderOptions(cuda_options, keys, values, std::size(keys)));
 
-            cuda_options.user_compute_stream = resource.stream;
-            cuda_options.has_user_compute_stream = 1;
-
-            checkError(ortapi->SessionOptionsAppendExecutionProvider_CUDA(
-                session_options,
-                &cuda_options
-            ));
+            checkError(ortapi->SessionOptionsAppendExecutionProvider_CUDA_V2(session_options, cuda_options));
         }
 #endif // ENABLE_CUDA
 #ifdef ENABLE_COREML
