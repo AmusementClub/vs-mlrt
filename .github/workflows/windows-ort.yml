@@ -57,7 +57,7 @@ jobs:
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
       with:
         repository: protocolbuffers/protobuf
-        # follows protobuf in https://github.com/AmusementClub/onnxruntime/tree/cudnn_mod/cmake/external
+        # follows protobuf in https://github.com/AmusementClub/onnxruntime/tree/master/cmake/external
         # if you change this, remember to bump the version of the cache key.
         ref: 0dab03ba7bc438d7ba3eac2b2c1eb39ed520f928
         fetch-depth: 1
@@ -89,7 +89,7 @@ jobs:
       uses: actions/checkout@v2
       with:
         repository: onnx/onnx
-        # follows onnx in https://github.com/AmusementClub/onnxruntime/tree/cudnn_mod/cmake/external
+        # follows onnx in https://github.com/AmusementClub/onnxruntime/tree/master/cmake/external
         # if you change this, remember to bump the version of the cache key.
         ref: 850a81b0b77786bf99ea90580242b084f86a6235
         fetch-depth: 1
@@ -130,13 +130,13 @@ jobs:
       uses: actions/cache@v2
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-cuda-11.6.1
+        key: ${{ runner.os }}-cuda-11.7.0
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.6.1/network_installers/cuda_11.6.1_windows_network.exe
-        cuda_installer.exe -s nvcc_11.6 cudart_11.6
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.7.0/network_installers/cuda_11.7.0_windows_network.exe
+        cuda_installer.exe -s nvcc_11.7 cudart_11.7
 
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
@@ -148,7 +148,7 @@ jobs:
         -D ONNX_RUNTIME_API_DIRECTORY=onnxruntime-gpu\include\onnxruntime\core\session
         -D ONNX_RUNTIME_LIB_DIRECTORY=onnxruntime-gpu\lib
         -D ENABLE_CUDA=1
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.6"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.7"
         -D CMAKE_CXX_STANDARD=20
 
     - name: Build
