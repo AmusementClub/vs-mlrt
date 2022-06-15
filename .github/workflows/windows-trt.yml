@@ -52,13 +52,13 @@ jobs:
       uses: actions/cache@v2
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-cuda-11.6.1
+        key: ${{ runner.os }}-cuda-11.6.1-v2
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
         curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.6.1/network_installers/cuda_11.6.1_windows_network.exe
-        cuda_installer.exe -s nvcc_11.6 cudart_11.6
+        cuda_installer.exe -s nvcc_11.6 cudart_11.6 nvprof_11.6
 
     - name: Checkout tensorrt
       uses: actions/checkout@v2
