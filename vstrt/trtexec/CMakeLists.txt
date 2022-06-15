@@ -14,6 +14,7 @@ add_executable(trtexec
     ../common/sampleInference.cpp
     ../common/sampleOptions.cpp
     ../common/sampleReporting.cpp
+    ../common/sampleUtils.cpp
 )
 
 target_include_directories(trtexec PRIVATE
