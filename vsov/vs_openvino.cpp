@@ -2,7 +2,9 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
+#include <shared_mutex>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -282,6 +284,7 @@ struct OVData {
     InferenceEngine::Core core;
     InferenceEngine::ExecutableNetwork executable_network;
     std::unordered_map<std::thread::id, InferenceEngine::InferRequest> infer_requests;
+    std::shared_mutex infer_requests_lock;
 
     std::string input_name;
     std::string output_name;
@@ -373,10 +376,22 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
         auto w_scale = dst_tile_w / src_tile_w;
 
         auto thread_id = std::this_thread::get_id();
-        if (d->infer_requests.count(thread_id) == 0) {
-            d->infer_requests.emplace(thread_id, d->executable_network.CreateInferRequest());
+        bool initialized = true;
+        InferenceEngine::InferRequest * infer_request;
+
+        d->infer_requests_lock.lock_shared();
+        try {
+            infer_request = &d->infer_requests.at(thread_id);
+        } catch (const std::out_of_range &) {
+            initialized = false;
         }
-        InferenceEngine::InferRequest & infer_request = d->infer_requests[thread_id];
+        d->infer_requests_lock.unlock_shared();
+
+        if (!initialized) {
+            std::lock_guard _ { d->infer_requests_lock };
+            d->infer_requests.emplace(thread_id, d->executable_network.CreateInferRequest());
+            infer_request = &d->infer_requests[thread_id];
+        }
 
         const auto set_error = [&](const std::string & error_message) {
             vsapi->setFilterError(
@@ -404,7 +419,7 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
                 int x_crop_end = (x == src_width - src_tile_w) ? 0 : d->overlap_w;
 
                 {
-                    InferenceEngine::Blob::Ptr input = infer_request.GetBlob(d->input_name);
+                    InferenceEngine::Blob::Ptr input = infer_request->GetBlob(d->input_name);
 
                     auto minput = input->as<InferenceEngine::MemoryBlob>();
                     auto minputHolder = minput->wmap();
@@ -426,13 +441,13 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
                 }
 
                 try {
-                    infer_request.Infer();
+                    infer_request->Infer();
                 } catch (const InferenceEngine::Exception & e) {
                     return set_error(e.what());
                 }
 
                 {
-                    InferenceEngine::Blob::CPtr output = infer_request.GetBlob(d->output_name);
+                    InferenceEngine::Blob::CPtr output = infer_request->GetBlob(d->output_name);
 
                     auto moutput = output->as<const InferenceEngine::MemoryBlob>();
                     auto moutputHolder = moutput->rmap();
