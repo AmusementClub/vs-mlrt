@@ -311,7 +311,10 @@ void convert_float_to_float16(
         "LinearClassifier", "LinearRegressor", "Normalizer", "OneHotEncoder",
         "SVMClassifier", "SVMRegressor", "Scaler", "TreeEnsembleClassifier",
         "TreeEnsembleRegressor", "ZipMap", "NonMaxSuppression", "TopK",
-        "RoiAlign", "Resize", "Range", "CumSum", "Min", "Max", "Upsample"
+        "RoiAlign", "Range", "CumSum", "Min", "Max"
+#ifndef HAVE_ONNX_FP16_RESIZE // exclude fp32 up-conversion
+        , "Resize", "Upsample"
+#endif // HAVE_ONNX_FP16_RESIZE
     };
 
     std::vector<ONNX_NAMESPACE::ValueInfoProto> value_info_list {};
