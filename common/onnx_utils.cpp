@@ -3,6 +3,7 @@
 #include <optional>
 #include <variant>
 #include <string>
+#include <string_view>
 
 #include <onnx/onnx_pb.h>
 #include <onnx/shape_inference/implementation.h>
@@ -97,24 +98,30 @@ static std::optional<std::string> specifyShape(
 
 
 std::variant<std::string, ONNX_NAMESPACE::ModelProto> loadONNX(
-    const std::string & path,
+    const std::string_view & path,
     int64_t tile_w,
-    int64_t tile_h
+    int64_t tile_h,
+    bool path_is_serialization
 ) noexcept {
 
     ONNX_NAMESPACE::ModelProto onnx_proto;
-    {
+
+    if (path_is_serialization) {
+        if (!onnx_proto.ParseFromArray(path.data(), static_cast<int>(path.size()))) {
+            return "parse onnx serialization failed"s;
+        }
+    } else {
         std::ifstream onnx_stream(
-            translateName(path.c_str()),
+            translateName(path.data()),
             std::ios::binary
         );
 
         if (!onnx_stream.good()) {
-            return "open "s + path + " failed"s;
+            return "open "s + std::string{ path } + " failed"s;
         }
 
         if (!onnx_proto.ParseFromIstream(&onnx_stream)) {
-            return "parse "s + path + " failed"s;
+            return "parse "s + std::string{ path } + " failed"s;
         }
     }
 
