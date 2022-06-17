@@ -7,6 +7,7 @@
 #include <shared_mutex>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 #include <variant>
@@ -29,9 +30,10 @@
 
 
 extern std::variant<std::string, ONNX_NAMESPACE::ModelProto> loadONNX(
-    const std::string & path,
+    const std::string_view & path,
     int64_t tile_w,
-    int64_t tile_h
+    int64_t tile_h,
+    bool path_is_serialization
 ) noexcept;
 
 extern void convert_float_to_float16(
@@ -547,7 +549,6 @@ static void VS_CC vsOvCreate(
 
     d->out_vi = std::make_unique<VSVideoInfo>(*in_vis.front()); // mutable
 
-
     int error;
 
     const char * device = vsapi->propGetData(in, "device", 0, &error);
@@ -595,18 +596,33 @@ static void VS_CC vsOvCreate(
         fp16 = false;
     }
 
-    std::string path { vsapi->propGetData(in, "network_path", 0, nullptr) };
-    bool builtin = !!vsapi->propGetInt(in, "builtin", 0, &error);
-    if (builtin) {
-        const char *modeldir = vsapi->propGetData(in, "builtindir", 0, &error);
-        if (!modeldir) modeldir = "models";
-        path = std::string(modeldir) + "/" + path;
-        std::string dir { vsapi->getPluginPath(myself) };
-        dir = dir.substr(0, dir.rfind('/') + 1);
-        path = dir + path;
+    bool path_is_serialization = !!vsapi->propGetInt(in, "path_is_serialization", 0, &error);
+    if (error) {
+        path_is_serialization = false;
     }
 
-    auto result = loadONNX(path, tile_w, tile_h);
+    std::string_view path_view;
+    std::string path;
+    if (path_is_serialization) {
+        path_view = {
+            vsapi->propGetData(in, "network_path", 0, nullptr),
+            static_cast<size_t>(vsapi->propGetDataSize(in, "network_path", 0, nullptr))
+        };
+    } else {
+        path = vsapi->propGetData(in, "network_path", 0, nullptr);
+        bool builtin = !!vsapi->propGetInt(in, "builtin", 0, &error);
+        if (builtin) {
+            const char *modeldir = vsapi->propGetData(in, "builtindir", 0, &error);
+            if (!modeldir) modeldir = "models";
+            path = std::string(modeldir) + "/" + path;
+            std::string dir { vsapi->getPluginPath(myself) };
+            dir = dir.substr(0, dir.rfind('/') + 1);
+            path = dir + path;
+        }
+        path_view = path;
+    }
+
+    auto result = loadONNX(path_view, tile_w, tile_h, path_is_serialization);
     if (std::holds_alternative<std::string>(result)) {
         return set_error(std::get<std::string>(result));
     }
@@ -714,6 +730,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "builtindir:data:opt;"
         "fp16:int:opt;"
         "config:func:opt;"
+        "path_is_serialization:int:opt;"
 #ifdef ENABLE_VISUALIZATION
         "dot_path:data:opt;"
 #endif
