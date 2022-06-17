@@ -564,6 +564,14 @@ def CUGAN(
         )
         model.graph.node.insert(idx+1, mul_node)
 
+        if isinstance(backend, (Backend.ORT_CPU, Backend.ORT_CUDA, Backend.OV_CPU)):
+            clip = inference(
+                clips=[clip], network_path=model.SerializeToString(),
+                overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
+                backend=backend, path_is_serialization=True
+            )
+            return clip
+
         network_path = f"{network_path}_alpha{alpha!r}.onnx"
         onnx.save(model, network_path)
 
@@ -817,13 +825,14 @@ def init_backend(
 
 def inference(
     clips: typing.List[vs.VideoNode],
-    network_path: str,
+    network_path: typing.Union[bytes, str],
     overlap: typing.Tuple[int, int],
     tilesize: typing.Tuple[int, int],
-    backend: backendT
+    backend: backendT,
+    path_is_serialization: bool = False
 ) -> vs.VideoNode:
 
-    if not os.path.exists(network_path):
+    if not path_is_serialization and not os.path.exists(network_path):
         raise RuntimeError(
             f'"{network_path}" not found, '
             f'built-in models can be found at https://github.com/AmusementClub/vs-mlrt/releases'
@@ -836,7 +845,8 @@ def inference(
             provider="CPU", builtin=False,
             num_streams=backend.num_streams,
             verbosity=backend.verbosity,
-            fp16=backend.fp16
+            fp16=backend.fp16,
+            path_is_serialization=path_is_serialization
         )
     elif isinstance(backend, Backend.ORT_CUDA):
         clip = core.ort.Model(
@@ -847,7 +857,8 @@ def inference(
             num_streams=backend.num_streams,
             verbosity=backend.verbosity,
             cudnn_benchmark=backend.cudnn_benchmark,
-            fp16=backend.fp16
+            fp16=backend.fp16,
+            path_is_serialization=path_is_serialization
         )
     elif isinstance(backend, Backend.OV_CPU):
         config = lambda: dict(
@@ -859,9 +870,13 @@ def inference(
             overlap=overlap, tilesize=tilesize,
             device="CPU", builtin=False,
             fp16=backend.fp16,
-            config=config
+            config=config,
+            path_is_serialization=path_is_serialization
         )
     elif isinstance(backend, Backend.TRT):
+        if path_is_serialization:
+            raise ValueError('"path_is_serialization" must be False for trt backend')
+
         engine_path = trtexec(
             network_path,
             channels=backend._channels,
