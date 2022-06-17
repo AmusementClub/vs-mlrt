@@ -15,8 +15,10 @@ add_library(vsov SHARED
     ../common/convert_float_to_float16.cpp
 )
 
+target_compile_definitions(vsov PRIVATE HAVE_ONNX_FP16_RESIZE)
+
 if (ENABLE_VISUALIZATION)
-    add_compile_definitions(ENABLE_VISUALIZATION)
+    target_compile_definitions(vsov PRIVATE ENABLE_VISUALIZATION)
 endif()
 
 target_include_directories(vsov PRIVATE
