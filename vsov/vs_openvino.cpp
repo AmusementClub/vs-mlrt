@@ -59,7 +59,7 @@ static std::array<int, 4> getShape(
     }
 
     std::array<int, 4> ret;
-    for (int i = 0; i < std::size(ret); ++i) {
+    for (unsigned i = 0; i < std::size(ret); ++i) {
         ret[i] = static_cast<int>(dims[i]);
     }
 
@@ -189,8 +189,8 @@ static std::optional<std::string> checkNodesAndNetwork(
         return "expects " + std::to_string(network_in_channels) + " input planes";
     }
 
-    auto network_in_height = network_in_dims[2];
-    auto network_in_width = network_in_dims[3];
+    auto network_in_height = static_cast<int>(network_in_dims[2]);
+    auto network_in_width = static_cast<int>(network_in_dims[3]);
     auto clip_in_height = vis.front()->height;
     auto clip_in_width = vis.front()->width;
     if (network_in_height > clip_in_height || network_in_width > clip_in_width) {
@@ -346,7 +346,7 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
 
         std::vector<const uint8_t *> src_ptrs;
         src_ptrs.reserve(src_tile_shape[1]);
-        for (int i = 0; i < std::size(d->nodes); ++i) {
+        for (unsigned i = 0; i < std::size(d->nodes); ++i) {
             for (int j = 0; j < in_vis[i]->format->numPlanes; ++j) {
                 src_ptrs.emplace_back(vsapi->getReadPtr(src_frames[i], j));
             }
