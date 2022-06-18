@@ -274,6 +274,7 @@ def DPIR(
         strength = 5.0
 
     if isinstance(strength, vs.VideoNode):
+        strength = typing.cast(vs.VideoNode, strength)
         if strength.format.color_family != vs.GRAY:
             raise ValueError(f'{func_name}: "strength" must be of GRAY color family')
         if strength.width != clip.width or strength.height != clip.height:
@@ -832,11 +833,18 @@ def inference(
     path_is_serialization: bool = False
 ) -> vs.VideoNode:
 
-    if not path_is_serialization and not os.path.exists(network_path):
-        raise RuntimeError(
-            f'"{network_path}" not found, '
-            f'built-in models can be found at https://github.com/AmusementClub/vs-mlrt/releases'
-        )
+    if path_is_serialization and not isinstance(network_path, str):
+        raise TypeError('"network_path" must be of type str')
+    elif not path_is_serialization and not isinstance(network_path, bytes):
+        raise TypeError('"network_path" must be of type bytes')
+
+    if not path_is_serialization:
+        network_path = typing.cast(str, network_path)
+        if not os.path.exists(network_path):
+            raise RuntimeError(
+                f'"{network_path}" not found, '
+                f'built-in models can be found at https://github.com/AmusementClub/vs-mlrt/releases'
+            )
 
     if isinstance(backend, Backend.ORT_CPU):
         clip = core.ort.Model(
@@ -876,6 +884,8 @@ def inference(
     elif isinstance(backend, Backend.TRT):
         if path_is_serialization:
             raise ValueError('"path_is_serialization" must be False for trt backend')
+
+        network_path = typing.cast(str, network_path)
 
         engine_path = trtexec(
             network_path,
