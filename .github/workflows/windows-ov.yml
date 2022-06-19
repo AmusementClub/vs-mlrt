@@ -34,7 +34,7 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-2019
+    runs-on: windows-2022
     outputs:
       runID: ${{ steps.output.outputs.runID }}
 
@@ -55,6 +55,75 @@ jobs:
     - name: Setup Ninja
       run: pip install ninja
 
+    - name: Cache protobuf
+      id: cache-protobuf
+      uses: actions/cache@v2
+      with:
+        path: vsov/protobuf/install
+        key: ${{ runner.os }}-vsov-protobuf-v1
+
+    - name: Checkout protobuf
+      uses: actions/checkout@v2
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      with:
+        repository: protocolbuffers/protobuf
+        # follows protobuf in https://github.com/AmusementClub/openvino/tree/master/thirdparty/protobuf
+        # if you change this, remember to bump the version of the cache key.
+        ref: 6c6b0778b70f35f93c2f0dee30e5d12ad2a83eea
+        fetch-depth: 1
+        path: vsov/protobuf
+
+    - name: Configure protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake -S protobuf\cmake -B protobuf\build_rel -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D protobuf_BUILD_SHARED_LIBS=OFF  -D protobuf_BUILD_TESTS=OFF
+
+    - name: Build protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake --build protobuf\build_rel --verbose
+
+    - name: Install protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake --install protobuf\build_rel --prefix protobuf\install
+
+    - name: Cache onnx
+      id: cache-onnx
+      uses: actions/cache@v2
+      with:
+        path: vsov/onnx/install
+        key: ${{ runner.os }}-vsov-onnx-v1
+
+    - name: Checkout onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      uses: actions/checkout@v2
+      with:
+        repository: onnx/onnx
+        # follows onnx in https://github.com/AmusementClub/openvino/tree/master/thirdparty/onnx
+        # if you change this, remember to bump the version of the cache key.
+        ref: 96046b8ccfb8e6fa82f6b2b34b3d56add2e8849c
+        fetch-depth: 1
+        path: vsov/onnx
+
+    - name: Configure onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake -S onnx -B onnx\build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D Protobuf_PROTOC_EXECUTABLE=protobuf\install\bin\protoc
+        -D Protobuf_LITE_LIBRARY=protobuf\install\lib
+        -D Protobuf_LIBRARIES=protobuf\install\lib
+        -D ONNX_USE_LITE_PROTO=ON -D ONNX_USE_PROTOBUF_SHARED_LIBS=OFF
+        -D ONNX_GEN_PB_TYPE_STUBS=OFF -D ONNX_ML=0
+        -D ONNX_USE_MSVC_STATIC_RUNTIME=1
+
+    - name: Build onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --build onnx\build --verbose
+
+    - name: Install onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --install onnx\build --prefix onnx\install
+
     - name: Download VapourSynth headers
       run: |
         curl -s -o vs.zip -L https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R54.zip
@@ -66,9 +135,9 @@ jobs:
       run: |
         rev="${{github.event.inputs.ov_tag || inputs.ov_tag || 'latest'}}"
         if [ "$rev" == "latest" ]; then
-          url="https://github.com/AmusementClub/openvino/releases/latest/download/openvino-cpu-win64.zip"
+          url="https://github.com/AmusementClub/openvino/releases/latest/download/openvino-gpu-win64.zip"
         else
-          url="https://github.com/AmusementClub/openvino/releases/download/$rev/openvino-cpu-win64.zip"
+          url="https://github.com/AmusementClub/openvino/releases/download/$rev/openvino-gpu-win64.zip"
         fi
         curl -s -o openvino.zip -LJO "$url"
         unzip -q openvino.zip
@@ -81,6 +150,9 @@ jobs:
         -D OpenVINO_DIR=openvino/runtime/cmake
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
         -D ENABLE_VISUALIZATION=ON
+        -D WIN32_SHARED_OPENVINO=ON
+        -D protobuf_DIR=protobuf\install\cmake
+        -D ONNX_DIR=onnx\install\lib\cmake\ONNX
 
     - name: Build
       run: cmake --build build --verbose
@@ -92,6 +164,7 @@ jobs:
         mkdir artifact\vsov
         copy openvino\runtime\3rdparty\tbb\bin\tbb.dll artifact\vsov\
         copy install\bin\vsov.dll artifact\
+        copy openvino\runtime\bin\intel64\Release\* artifact\vsov\ /s
 
     - name: Upload
       uses: actions/upload-artifact@v2
@@ -113,7 +186,7 @@ jobs:
       run: |
         copy artifact\*.dll vs_portable\vapoursynth64\plugins
         mkdir vs_portable\vapoursynth64\plugins\vsov\
-        copy artifact\vsov\*.dll vs_portable\vapoursynth64\plugins\vsov\
+        copy artifact\vsov\* vs_portable\vapoursynth64\plugins\vsov\
 
     - name: Install waifu2x model
       run: |
