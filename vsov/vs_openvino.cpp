@@ -377,24 +377,6 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
         auto h_scale = dst_tile_h / src_tile_h;
         auto w_scale = dst_tile_w / src_tile_w;
 
-        auto thread_id = std::this_thread::get_id();
-        bool initialized = true;
-        InferenceEngine::InferRequest * infer_request;
-
-        d->infer_requests_lock.lock_shared();
-        try {
-            infer_request = &d->infer_requests.at(thread_id);
-        } catch (const std::out_of_range &) {
-            initialized = false;
-        }
-        d->infer_requests_lock.unlock_shared();
-
-        if (!initialized) {
-            std::lock_guard _ { d->infer_requests_lock };
-            d->infer_requests.emplace(thread_id, d->executable_network.CreateInferRequest());
-            infer_request = &d->infer_requests[thread_id];
-        }
-
         const auto set_error = [&](const std::string & error_message) {
             vsapi->setFilterError(
                 (__func__ + ": "s + error_message).c_str(),
@@ -409,6 +391,30 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
 
             return nullptr;
         };
+
+        auto thread_id = std::this_thread::get_id();
+        bool initialized = true;
+        InferenceEngine::InferRequest * infer_request;
+
+        d->infer_requests_lock.lock_shared();
+        try {
+            infer_request = &d->infer_requests.at(thread_id);
+        } catch (const std::out_of_range &) {
+            initialized = false;
+        }
+        d->infer_requests_lock.unlock_shared();
+
+        if (!initialized) {
+            std::lock_guard _ { d->infer_requests_lock };
+            try {
+                d->infer_requests.emplace(thread_id, d->executable_network.CreateInferRequest());
+            } catch (const InferenceEngine::Exception& e) {
+                return set_error("[IE exception] Create inference request: "s + e.what());
+            } catch (const std::exception& e) {
+                return set_error("[Standard exception] Create inference request: "s + e.what());
+            }
+            infer_request = &d->infer_requests[thread_id];
+        }
 
         int y = 0;
         while (true) {
@@ -445,7 +451,9 @@ static const VSFrameRef *VS_CC vsOvGetFrame(
                 try {
                     infer_request->Infer();
                 } catch (const InferenceEngine::Exception & e) {
-                    return set_error(e.what());
+                    return set_error("[IE exception] Create inference request: "s + e.what());
+                } catch (const std::exception& e) {
+                    return set_error("[Standard exception] Create inference request: "s + e.what());
                 }
 
                 {
@@ -522,7 +530,17 @@ static void VS_CC vsOvCreate(
     const VSAPI *vsapi
 ) {
 
-    auto d { std::make_unique<OVData>() };
+    std::unique_ptr<OVData> d = nullptr;
+    
+    try {
+        d = std::make_unique<OVData>();
+    } catch (const InferenceEngine::Exception& e) {
+        vsapi->setError(out, ("[IE exception] Initialize inference engine: "s + e.what()).c_str());
+        return ;
+    } catch (const std::exception& e) {
+        vsapi->setError(out, ("[Standard exception] Initialize inference engine: "s + e.what()).c_str());
+        return ;
+    }
 
     int num_nodes = vsapi->propNumElements(in, "clips");
     d->nodes.reserve(num_nodes);
@@ -644,9 +662,9 @@ static void VS_CC vsOvCreate(
             auto empty = InferenceEngine::Blob::CPtr();
             network = d->core.ReadNetwork(onnx_data, empty);
         } catch (const InferenceEngine::Exception& e) {
-            return set_error("ReadNetwork(): "s + e.what());
+            return set_error("[IE exception] ReadNetwork(): "s + e.what());
         } catch (const std::exception& e) {
-            return set_error("Standard exception from compilation library: "s + e.what());
+            return set_error("[Standard exception] ReadNetwork(): "s + e.what());
         }
 
         if (auto err = checkNetwork(network); err.has_value()) {
@@ -760,10 +778,16 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     registerFunc("Version", "", getVersion, nullptr, plugin);
 
     auto availableDevices = [](const VSMap *, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
-        auto core = InferenceEngine::Core();
-        auto devices = core.GetAvailableDevices();
-        for (const auto & device : devices) {
-            vsapi->propSetData(out, "devices", device.c_str(), -1, paAppend);
+        try {
+            auto core = InferenceEngine::Core();
+            auto devices = core.GetAvailableDevices();
+            for (const auto & device : devices) {
+                vsapi->propSetData(out, "devices", device.c_str(), -1, paAppend);
+            }
+        } catch (const InferenceEngine::Exception& e) {
+            vsapi->setError(out, ("[IE exception] Initialize inference engine: "s + e.what()).c_str());
+        } catch (const std::exception& e) {
+            vsapi->setError(out, ("[Standard exception] Initialize inference engine: "s + e.what()).c_str());
         }
     };
     registerFunc("AvailableDevices", "", availableDevices, nullptr, plugin);
