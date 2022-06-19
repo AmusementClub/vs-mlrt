@@ -1,4 +1,4 @@
-__version__ = "3.9.1"
+__version__ = "3.10.0"
 
 __all__ = [
     "Backend",
@@ -54,7 +54,10 @@ class Backend:
 
     @dataclass(frozen=False)
     class ORT_CUDA:
-        """ `num_streams` for ORT CUDA may not be useful in improving utilization """
+        """ backend for nvidia gpu
+
+        `num_streams` for ORT CUDA may not be useful in improving utilization
+        """
         device_id: int = 0
         cudnn_benchmark: bool = True
         num_streams: int = 1
@@ -69,6 +72,7 @@ class Backend:
 
     @dataclass(frozen=False)
     class TRT:
+        """ backend for nvidia gpu """
         max_shapes: typing.Optional[typing.Tuple[int, int]] = None
         opt_shapes: typing.Optional[typing.Tuple[int, int]] = None
         fp16: bool = False
@@ -85,11 +89,19 @@ class Backend:
 
         _channels: int = field(init=False, repr=False, compare=False)
 
+    @dataclass(frozen=False)
+    class OV_GPU:
+        """ backend for intel gpu """
+        fp16: bool = False
+        num_streams: typing.Union[int, str] = 1
+        device_id: int = 0
+
 backendT = typing.Union[
     Backend.OV_CPU,
     Backend.ORT_CPU,
     Backend.ORT_CUDA,
-    Backend.TRT
+    Backend.TRT,
+    Backend.OV_GPU
 ]
 
 
@@ -274,7 +286,6 @@ def DPIR(
         strength = 5.0
 
     if isinstance(strength, vs.VideoNode):
-        strength = typing.cast(vs.VideoNode, strength)
         if strength.format.color_family != vs.GRAY:
             raise ValueError(f'{func_name}: "strength" must be of GRAY color family')
         if strength.width != clip.width or strength.height != clip.height:
@@ -833,18 +844,11 @@ def inference(
     path_is_serialization: bool = False
 ) -> vs.VideoNode:
 
-    if path_is_serialization and not isinstance(network_path, str):
-        raise TypeError('"network_path" must be of type str')
-    elif not path_is_serialization and not isinstance(network_path, bytes):
-        raise TypeError('"network_path" must be of type bytes')
-
-    if not path_is_serialization:
-        network_path = typing.cast(str, network_path)
-        if not os.path.exists(network_path):
-            raise RuntimeError(
-                f'"{network_path}" not found, '
-                f'built-in models can be found at https://github.com/AmusementClub/vs-mlrt/releases'
-            )
+    if not path_is_serialization and not os.path.exists(network_path):
+        raise RuntimeError(
+            f'"{network_path}" not found, '
+            f'built-in models can be found at https://github.com/AmusementClub/vs-mlrt/releases'
+        )
 
     if isinstance(backend, Backend.ORT_CPU):
         clip = core.ort.Model(
@@ -881,11 +885,21 @@ def inference(
             config=config,
             path_is_serialization=path_is_serialization
         )
+    elif isinstance(backend, Backend.OV_GPU):
+        config = lambda: dict(
+            GPU_THROUGHPUT_STREAMS=backend.num_streams
+        )
+        clip = core.ov.Model(
+            clips, network_path,
+            overlap=overlap, tilesize=tilesize,
+            device=f"GPU.{backend.device_id}", builtin=False,
+            fp16=backend.fp16,
+            config=config,
+            path_is_serialization=path_is_serialization
+        )
     elif isinstance(backend, Backend.TRT):
         if path_is_serialization:
             raise ValueError('"path_is_serialization" must be False for trt backend')
-
-        network_path = typing.cast(str, network_path)
 
         engine_path = trtexec(
             network_path,
