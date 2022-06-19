@@ -105,6 +105,9 @@ backendT = typing.Union[
 ]
 
 
+fallback_backend: typing.Optional[backendT] = None
+
+
 @enum.unique
 class Waifu2xModel(enum.IntEnum):
     anime_style_art = 0
@@ -230,7 +233,7 @@ def Waifu2x(
 
     network_path = os.path.join(folder_path, model_name)
 
-    clip = inference(
+    clip = inference_with_fallback(
         clips=[clip], network_path=network_path,
         overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
         backend=backend
@@ -340,7 +343,7 @@ def DPIR(
         f"{tuple(DPIRModel.__members__)[model]}.onnx"
     )
 
-    clip = inference(
+    clip = inference_with_fallback(
         clips=[clip, strength], network_path=network_path,
         overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
         backend=backend
@@ -421,7 +424,7 @@ def RealESRGAN(
         )
 
     clip_org = clip
-    clip = inference(
+    clip = inference_with_fallback(
         clips=[clip], network_path=network_path,
         overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
         backend=backend
@@ -577,7 +580,7 @@ def CUGAN(
         model.graph.node.insert(idx+1, mul_node)
 
         if isinstance(backend, (Backend.ORT_CPU, Backend.ORT_CUDA, Backend.OV_CPU)):
-            clip = inference(
+            clip = inference_with_fallback(
                 clips=[clip], network_path=model.SerializeToString(),
                 overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
                 backend=backend, path_is_serialization=True
@@ -587,7 +590,7 @@ def CUGAN(
         network_path = f"{network_path}_alpha{alpha!r}.onnx"
         onnx.save(model, network_path)
 
-    clip = inference(
+    clip = inference_with_fallback(
         clips=[clip], network_path=network_path,
         overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
         backend=backend
@@ -820,6 +823,8 @@ def init_backend(
         backend = Backend.OV_CPU()
     elif backend is Backend.TRT: # type: ignore
         backend = Backend.TRT()
+    elif backend is Backend.OV_GPU: # type: ignore
+        backend = Backend.OV_GPU()
 
     backend = copy.deepcopy(backend)
 
@@ -933,3 +938,35 @@ def inference(
         raise TypeError(f'unknown backend {backend}')
 
     return clip
+
+
+def inference_with_fallback(
+    clips: typing.List[vs.VideoNode],
+    network_path: typing.Union[bytes, str],
+    overlap: typing.Tuple[int, int],
+    tilesize: typing.Tuple[int, int],
+    backend: backendT,
+    path_is_serialization: bool = False
+) -> vs.VideoNode:
+
+    try:
+        return inference(
+            clips=clips, network_path=network_path,
+            overlap=overlap, tilesize=tilesize,
+            backend=backend,
+            path_is_serialization=path_is_serialization
+        )
+    except Exception as e:
+        if fallback_backend is not None:
+            import logging
+            logger = logging.getLogger("vsmlrt")
+            logger.warn(f'vsmlrt: {backend} fails, trying fallback backend "{fallback_backend}"')
+
+            return inference(
+                clips=clips, network_path=network_path,
+                overlap=overlap, tilesize=tilesize,
+                backend=fallback_backend,
+                path_is_serialization=path_is_serialization
+            )
+        else:
+            raise e
