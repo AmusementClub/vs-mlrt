@@ -844,11 +844,13 @@ def inference(
     path_is_serialization: bool = False
 ) -> vs.VideoNode:
 
-    if not path_is_serialization and not os.path.exists(network_path):
-        raise RuntimeError(
-            f'"{network_path}" not found, '
-            f'built-in models can be found at https://github.com/AmusementClub/vs-mlrt/releases'
-        )
+    if not path_is_serialization:
+        network_path = typing.cast(str, network_path)
+        if not os.path.exists(network_path):
+            raise RuntimeError(
+                f'"{network_path}" not found, '
+                f'built-in models can be found at https://github.com/AmusementClub/vs-mlrt/releases'
+            )
 
     if isinstance(backend, Backend.ORT_CPU):
         clip = core.ort.Model(
@@ -900,6 +902,8 @@ def inference(
     elif isinstance(backend, Backend.TRT):
         if path_is_serialization:
             raise ValueError('"path_is_serialization" must be False for trt backend')
+
+        network_path = typing.cast(str, network_path)
 
         engine_path = trtexec(
             network_path,
