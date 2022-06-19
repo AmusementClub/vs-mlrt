@@ -164,7 +164,7 @@ jobs:
         mkdir artifact\vsov
         copy openvino\runtime\3rdparty\tbb\bin\tbb.dll artifact\vsov\
         copy install\bin\vsov.dll artifact\
-        copy openvino\runtime\bin\intel64\Release\* artifact\vsov\ /s
+        xcopy openvino\runtime\bin\intel64\Release\* artifact\vsov\ /s
 
     - name: Upload
       uses: actions/upload-artifact@v2
