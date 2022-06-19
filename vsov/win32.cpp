@@ -13,7 +13,12 @@
 namespace {
 std::vector<std::wstring> dlls = {
     // This list must be sorted by dependency.
+#ifdef WIN32_SHARED_OPENVINO
+    L"tbb.dll",
+    L"openvino.dll", // must be the last
+#else // WIN32_SHARED_OPENVINO
     L"tbb.dll", // must be the last
+#endif // WIN32_SHARED_OPENVINO
 };
 
 namespace fs = std::filesystem;
@@ -59,8 +64,13 @@ extern "C" FARPROC WINAPI delayload_hook(unsigned reason, DelayLoadInfo* info) {
         break;
     case dliNotePreLoadLibrary:
         //std::cerr << "loading " << info->szDll << std::endl;
+#ifdef WIN32_SHARED_OPENVINO
+        if (std::string(info->szDll).find("openvino.dll") != std::string::npos)
+            return loadDLLs();
+#else // WIN32_SHARED_OPENVINO
         if (std::string(info->szDll).find("tbb.dll") != std::string::npos)
             return loadDLLs();
+#endif // WIN32_SHARED_OPENVINO
         break;
     case dliNotePreGetProcAddress:
         // Nothing to do here.
