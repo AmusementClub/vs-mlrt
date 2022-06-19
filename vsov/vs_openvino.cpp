@@ -758,4 +758,13 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         vsapi->propSetData(out, "path", vsapi->getPluginPath(myself), -1, paReplace);
     };
     registerFunc("Version", "", getVersion, nullptr, plugin);
+
+    auto availableDevices = [](const VSMap *, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
+        auto core = InferenceEngine::Core();
+        auto devices = core.GetAvailableDevices();
+        for (const auto & device : devices) {
+            vsapi->propSetData(out, "devices", device.c_str(), -1, paAppend);
+        }
+    };
+    registerFunc("AvailableDevices", "", availableDevices, nullptr, plugin);
 }
