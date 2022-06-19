@@ -4,6 +4,7 @@ project(vs-ov VERSION 3.0 LANGUAGES CXX)
 
 set(VAPOURSYNTH_INCLUDE_DIRECTORY "" CACHE PATH "Path to VapourSynth headers")
 set(ENABLE_VISUALIZATION OFF CACHE BOOL "Enable support for network visualization")
+set(WIN32_SHARED_OPENVINO OFF CACHE BOOL "Build for win32 with shared openvino library")
 
 find_package(OpenVINO REQUIRED CONFIG)
 find_package(InferenceEngine REQUIRED CONFIG)
@@ -17,8 +18,12 @@ add_library(vsov SHARED
 
 target_compile_definitions(vsov PRIVATE HAVE_ONNX_FP16_RESIZE)
 
-if (ENABLE_VISUALIZATION)
+if(ENABLE_VISUALIZATION)
     target_compile_definitions(vsov PRIVATE ENABLE_VISUALIZATION)
+endif()
+
+if(WIN32_SHARED_OPENVINO)
+    target_compile_definitions(vsov PRIVATE WIN32_SHARED_OPENVINO)
 endif()
 
 target_include_directories(vsov PRIVATE
@@ -27,7 +32,13 @@ target_include_directories(vsov PRIVATE
     ${InferenceEngine_INCLUDE_DIRS}
 )
 
-target_link_libraries(vsov PRIVATE ${InferenceEngine_LIBRARIES} openvino::onnx)
+if(WIN32_SHARED_OPENVINO)
+    find_package(protobuf REQUIRED CONFIG)
+    find_package(ONNX REQUIRED CONFIG)
+    target_link_libraries(vsov PRIVATE ${InferenceEngine_LIBRARIES} onnx)
+else()
+    target_link_libraries(vsov PRIVATE ${InferenceEngine_LIBRARIES} openvino::onnx)
+endif()
 
 set_target_properties(vsov PROPERTIES
     CXX_EXTENSIONS OFF
@@ -36,7 +47,11 @@ set_target_properties(vsov PROPERTIES
 )
 
 if (WIN32)
-    target_link_options(vsov PRIVATE "/DELAYLOAD:tbb.dll" "delayimp.lib")
+    if(WIN32_SHARED_OPENVINO)
+        target_link_options(vsov PRIVATE "/DELAYLOAD:openvino.dll" "delayimp.lib")
+    else()
+        target_link_options(vsov PRIVATE "/DELAYLOAD:tbb.dll" "delayimp.lib")
+    endif()
 endif()
 
 target_include_directories(vsov PUBLIC
