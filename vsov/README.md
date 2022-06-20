@@ -29,17 +29,19 @@ directory for `vsov.dll` to find.
 
 ## Usage
 
-Prototype: `core.ov.Model(clip[] clips, string network_path[, int[] overlap = None, int[] tilesize = None, string device = "CPU", bint builtin = 0, string builtindir="models", bint fp16 = False])`
+Prototype: `core.ov.Model(clip[] clips, string network_path[, int[] overlap = None, int[] tilesize = None, string device = "CPU", bint builtin = 0, string builtindir="models", bint fp16 = False, function config = None, bint path_is_serialization = False])`
 
 Arguments:
  - `clip[] clips`: the input clips, only 32-bit floating point RGB or GRAY clips are supported. For model specific input requirements, please consult our [wiki](https://github.com/AmusementClub/vs-mlrt/wiki).
  - `string network_path`: the path to the network in ONNX format.
  - `int[] overlap`: some networks (e.g. [CNN](https://en.wikipedia.org/wiki/Convolutional_neural_network)) support arbitrary input shape where other networks might only support fixed input shape and the input clip must be processed in tiles. The `overlap` argument specifies the overlapping (horizontal and vertical, or both, in pixels) between adjacent tiles to minimize boundary issues. Please refer to network specific docs on the recommended overlapping size.
  - `int[] tilesize`: Even for CNN where arbitrary input sizes could be supported, sometimes the network does not work well for the entire range of input dimensions, and you have to limit the size of each tile. This parameter specify the tile size (horizontal and vertical, or both, including the overlapping). Please refer to network specific docs on the recommended tile size.
- - `string device`: Specifies the device to run the inference on. Currently only `"CPU"` is supported, which is also the default.
+ - `string device`: Specifies the device to run the inference on. Currently `"CPU"` and `"GPU"` are supported. `"GPU"` requires Intel graphics (Broadwell+ processors with Gen8+ integrated GPUs or Xe discrete GPUs) with compatible graphics driver and compute runtime.
  - `bint builtin`: whether to load the model from the VS plugins directory, see also `builtindir`.
  - `string builtindir`: the model directory under VS plugins directory for builtin models, default "models".
  - `bint fp16`: whether to quantize model to fp16 for faster and memory efficient computation.
+ - `function config`: plugin configuration parameters. It must be a callable object (e.g. a function) with no positional arguments, and returns the configuration parameter in a dictionary `dict`. The dictionary must use string `str` for its key and `int`, `float` or `str` for its values. Supported parameters: [CPU](https://docs.openvino.ai/2021.4/openvino_docs_IE_DG_supported_plugins_CPU.html#supported-configuration-parameters), [GPU](https://docs.openvino.ai/2021.4/openvino_docs_IE_DG_supported_plugins_GPU.html#supported-configuration-parameters) (the prefix `KEY_` has to be removed). Example: `config = lambda: dict(CPU_THROUGHPUT_STREAMS=2)`
+ - `bint path_is_serialization`: whether the `network_path` argument specifies an onnx serialization of type `bytes`.
 
 When `overlap` and `tilesize` are not specified, the filter will internally try to resize the network to fit the input clips. This might not always work (for example, the network might require the width to be divisible by 8), and the filter will error out in this case.
 
