@@ -17,7 +17,7 @@ However, if you also use the CUDA backend, you will need to download some CUDA l
 
 ## Usage
 
-Prototype: `core.ort.Model(clip[] clips, string network_path[, int[] overlap = None, int[] tilesize = None, string provider = "", int device_id = 0, int verbosity = 2, bint cudnn_benchmark = True, bint builtin = False, string builtindir="models", bint fp16 = False])`
+Prototype: `core.ort.Model(clip[] clips, string network_path[, int[] overlap = None, int[] tilesize = None, string provider = "", int device_id = 0, int verbosity = 2, bint cudnn_benchmark = True, bint builtin = False, string builtindir="models", bint fp16 = False, bint path_is_serialization = False])`
 
 Arguments:
  - `clip[] clips`: the input clips, only 32-bit floating point RGB or GRAY clips are supported. For model specific input requirements, please consult our [wiki](https://github.com/AmusementClub/vs-mlrt/wiki).
@@ -26,7 +26,7 @@ Arguments:
  - `int[] tilesize`: Even for CNN where arbitrary input sizes could be supported, sometimes the network does not work well for the entire range of input dimensions, and you have to limit the size of each tile. This parameter specify the tile size (horizontal and vertical, or both, including the overlapping). Please refer to network specific docs on the recommended tile size.
  - `string provider`: Specifies the device to run the inference on.
    - `"CPU"` or `""`: pure CPU backend
-   - `"CUDA"`: CUDA GPU backend
+   - `"CUDA"`: CUDA GPU backend, requires Nvidia Maxwell+ GPUs.
  - `int device_id`: select the GPU device for the CUDA backend.
  - `int verbosity`: specify the verbosity of logging, the default is warning.
    - 0: fatal error only, `ORT_LOGGING_LEVEL_FATAL`
@@ -38,6 +38,7 @@ Arguments:
  - `bint builtin`: whether to load the model from the VS plugins directory, see also `builtindir`.
  - `string builtindir`: the model directory under VS plugins directory for builtin models, default "models".
  - `bint fp16`: whether to quantize model to fp16 for faster and memory efficient computation.
+ - `bint path_is_serialization`: whether the `network_path` argument specifies an onnx serialization of type `bytes`.
 
 When `overlap` and `tilesize` are not specified, the filter will internally try to resize the network to fit the input clips. This might not always work (for example, the network might require the width to be divisible by 8), and the filter will error out in this case.
 
