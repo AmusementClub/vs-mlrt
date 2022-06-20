@@ -11,7 +11,7 @@ Arguments:
 - `string engine_path`: the path to the prebuilt engine (see below)
 - `int[] overlap`: some networks (e.g. [CNN](https://en.wikipedia.org/wiki/Convolutional_neural_network)) support arbitrary input shape where other networks might only support fixed input shape and the input clip must be processed in tiles. The `overlap` argument specifies the overlapping (horizontal and vertical, or both, in pixels) between adjacent tiles to minimize boundary issues. Please refer to network specific docs on the recommended overlapping size.
 - `int[] tilesize`: Even for CNN where arbitrary input sizes could be supported, sometimes the network does not work well for the entire range of input dimensions, and you have to limit the size of each tile. This parameter specify the tile size (horizontal and vertical, or both, including the overlapping). Please refer to network specific docs on the recommended tile size.
-- `int device_id`: Specifies the GPU device id to use, default 0.
+- `int device_id`: Specifies the GPU device id to use, default 0. Requires Nvidia GPUs with second-generation Kepler architecture onwards.
 - `int num_streams`: number of concurrent CUDA streams to use. Default 1. Increase if GPU not saturated.
 - `verbosity`: The verbosity level of TensorRT runtime. The message writes to `stderr`.
   `0`: Internal error. `1`: Application error. `2`: Warning. `3`: Informational messages with instructional information. `4`: Verbose messages with debugging information.
