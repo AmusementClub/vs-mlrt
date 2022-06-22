@@ -1,4 +1,4 @@
-__version__ = "3.10.0"
+__version__ = "3.11.0"
 
 __all__ = [
     "Backend",
@@ -60,6 +60,7 @@ class Backend:
         num_streams: int = 1
         verbosity: int = 2
         fp16: bool = False
+        use_cuda_graph: bool = False # preview, not supported by all models
 
     @dataclass(frozen=False)
     class OV_CPU:
@@ -73,7 +74,6 @@ class Backend:
         max_shapes: typing.Optional[typing.Tuple[int, int]] = None
         opt_shapes: typing.Optional[typing.Tuple[int, int]] = None
         fp16: bool = False
-
         device_id: int = 0
         workspace: int = 128
         verbose: bool = False
@@ -84,6 +84,11 @@ class Backend:
         tf32: bool = True
         log: bool = True
 
+        # as of TensorRT 8.4, it can be turned off without performance penalty in most cases
+        use_cudnn: bool = True
+
+        use_edge_mask_convolutions: bool = True
+
         _channels: int = field(init=False, repr=False, compare=False)
 
     @dataclass(frozen=False)
@@ -92,6 +97,7 @@ class Backend:
         fp16: bool = False
         num_streams: typing.Union[int, str] = 1
         device_id: int = 0
+
 
 backendT = typing.Union[
     Backend.OV_CPU,
@@ -651,7 +657,9 @@ def trtexec(
     use_cublas: bool = False,
     static_shape: bool = True,
     tf32: bool = True,
-    log: bool = False
+    log: bool = False,
+    use_cudnn: bool = True,
+    use_edge_mask_convolutions: bool = True
 ) -> str:
 
     if isinstance(opt_shapes, int):
@@ -699,7 +707,7 @@ def trtexec(
     args = [
         trtexec_path,
         f"--onnx={network_path}",
-        f"--workspace={workspace}",
+        f"--memPoolSize=workspace:{workspace}",
         f"--timingCacheFile={engine_path}.cache",
         f"--device={device_id}",
         f"--saveEngine={engine_path}"
@@ -720,8 +728,15 @@ def trtexec(
     if verbose:
         args.append("--verbose")
 
+    disabled_tactic_sources = []
     if not use_cublas:
-        args.append("--tacticSources=-CUBLAS,-CUBLAS_LT")
+        disabled_tactic_sources.extend(["-CUBLAS", "-CUBLAS_LT"])
+    if not use_cudnn:
+        disabled_tactic_sources.append("-CUDNN")
+    if not use_edge_mask_convolutions:
+        disabled_tactic_sources.append("-EDGE_MASK_CONVOLUTIONS")
+    if disabled_tactic_sources:
+        args.append(f"--tacticSources={','.join(disabled_tactic_sources)}")
 
     if use_cuda_graph:
         args.extend((
@@ -766,7 +781,7 @@ def trtexec(
                 else:
                     raise RuntimeError(f"trtexec execution fails but no log is found")
     else:
-        subprocess.run(args, check=True, stdout=sys.stderr)
+        subprocess.run(args, env={}, check=True, stdout=sys.stderr)
 
     return engine_path
 
@@ -874,7 +889,8 @@ def inference(
             verbosity=backend.verbosity,
             cudnn_benchmark=backend.cudnn_benchmark,
             fp16=backend.fp16,
-            path_is_serialization=path_is_serialization
+            path_is_serialization=path_is_serialization,
+            use_cuda_graph=backend.use_cuda_graph
         )
     elif isinstance(backend, Backend.OV_CPU):
         config = lambda: dict(
@@ -920,7 +936,9 @@ def inference(
             use_cublas=backend.use_cublas,
             static_shape=backend.static_shape,
             tf32=backend.tf32,
-            log=backend.log
+            log=backend.log,
+            use_cudnn=backend.use_cudnn,
+            use_edge_mask_convolutions=backend.use_edge_mask_convolutions
         )
         clip = core.trt.Model(
             clips, engine_path,
