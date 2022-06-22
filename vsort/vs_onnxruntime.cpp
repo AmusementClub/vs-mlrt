@@ -71,6 +71,7 @@ using namespace std::string_literals;
 
 static const VSPlugin * myself = nullptr;
 static const OrtApi * ortapi = nullptr;
+static std::atomic<int64_t> logger_id = 0;
 
 
 [[nodiscard]]
@@ -363,6 +364,7 @@ struct CUDA_Resource_t {
 };
 #endif // ENABLE_CUDA
 
+// per-stream context
 struct Resource {
     OrtSession * session;
     OrtValue * input_tensor;
@@ -385,9 +387,7 @@ struct vsOrtData {
     OrtEnv * environment;
     Backend backend;
 
-#ifdef ENABLE_CUDA
     int device_id;
-#endif // ENABLE_CUDA
 
     std::vector<Resource> resources;
     std::vector<int> tickets;
@@ -520,6 +520,12 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
             return nullptr;
         };
 
+#ifdef ENABLE_CUDA
+        if (d->backend == Backend::CUDA) {
+            checkCUDAError(cudaSetDevice(d->device_id));
+        }
+#endif // ENABLE_CUDA
+
         int y = 0;
         while (true) {
             int y_crop_start = (y == 0) ? 0 : d->overlap_h;
@@ -568,7 +574,6 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
 
 #ifdef ENABLE_CUDA
                 if (d->backend == Backend::CUDA) {
-                    checkCUDAError(cudaSetDevice(d->device_id));
                     checkCUDAError(cudaMemcpyAsync(
                         resource.input.d_data,
                         resource.input.h_data,
@@ -576,6 +581,10 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
                         cudaMemcpyHostToDevice,
                         resource.stream
                     ));
+
+                    // OrtCUDAProviderOptionsV2 disallows using custom user stream
+                    // and the inference is executed on a private non-blocking stream
+                    checkCUDAError(cudaStreamSynchronize(resource.stream));
                 }
 #endif // ENABLE_CUDA
 
@@ -652,11 +661,11 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
             y = std::min(y + step_h, src_height - src_tile_h);
         }
 
+        d->release(ticket);
+
         for (const auto & frame : src_frames) {
             vsapi->freeFrame(frame);
         }
-
-        d->release(ticket);
 
         return dst_frame;
     }
@@ -685,7 +694,7 @@ static void VS_CC vsOrtFree(
 
 #ifdef ENABLE_CUDA
         if (d->backend == Backend::CUDA) {
-            // cudaStreamDestroy(resource.stream);
+            cudaStreamDestroy(resource.stream);
             cudaFreeHost(resource.input.h_data);
             cudaFree(resource.input.d_data);
             cudaFreeHost(resource.output.h_data);
@@ -738,9 +747,9 @@ static void VS_CC vsOrtCreate(
 
     int error;
 
-    int device_id = int64ToIntS(vsapi->propGetInt(in, "device_id", 0, &error));
+    d->device_id = int64ToIntS(vsapi->propGetInt(in, "device_id", 0, &error));
     if (error) {
-        device_id = 0;
+        d->device_id = 0;
     }
 
     auto verbosity = static_cast<OrtLoggingLevel>(
@@ -788,11 +797,16 @@ static void VS_CC vsOrtCreate(
         return set_error("\"overlap\" too large");
     }
 
-    const char * _provider = vsapi->propGetData(in, "provider", 0, &error);
+    const char * provider = vsapi->propGetData(in, "provider", 0, &error);
     if (error) {
-        _provider = "";
+        provider = "";
     }
-    const std::string provider { _provider };
+
+#ifdef ENABLE_CUDA
+    if (strcmp(provider, "CUDA") == 0) {
+        checkCUDAError(cudaSetDevice(d->device_id));
+    }
+#endif // ENABLE_CUDA
 
     int num_streams = int64ToIntS(vsapi->propGetInt(in, "num_streams", 0, &error));
     if (error) {
@@ -802,12 +816,12 @@ static void VS_CC vsOrtCreate(
         return set_error("\"num_streams\" must be positive");
     }
 
-#if ENABLE_CUDA
+#ifdef ENABLE_CUDA
     bool cudnn_benchmark = !!(vsapi->propGetInt(in, "cudnn_benchmark", 0, &error));
     if (error) {
         cudnn_benchmark = true;
     }
-#endif
+#endif // ENABLE_CUDA
 
     if (auto err = ortInit(); err.has_value()) {
         return set_error(err.value());
@@ -817,8 +831,6 @@ static void VS_CC vsOrtCreate(
     if (error) {
         fp16 = false;
     }
-
-    checkError(ortapi->CreateEnv(verbosity, "vs-ort", &d->environment));
 
     bool path_is_serialization = !!vsapi->propGetInt(in, "path_is_serialization", 0, &error);
     if (error) {
@@ -862,7 +874,32 @@ static void VS_CC vsOrtCreate(
         return set_error("proto serialization failed");
     }
 
+    // onnxruntime related code
 
+    // environment per filter instance
+    auto logger_id_str = "vs-ort" + std::to_string(logger_id.fetch_add(1, std::memory_order::relaxed));
+    checkError(ortapi->CreateEnv(verbosity, logger_id_str.c_str(), &d->environment));
+
+    OrtMemoryInfo * memory_info;
+#ifdef ENABLE_CUDA
+    if (strcmp(provider, "CUDA") == 0) {
+        checkError(ortapi->CreateMemoryInfo(
+            "Cuda", OrtDeviceAllocator, d->device_id,
+            OrtMemTypeDefault, &memory_info
+        ));
+    } else
+#endif // ENABLE_CUDA
+    {
+        checkError(ortapi->CreateMemoryInfo(
+            "Cpu", OrtDeviceAllocator, /* device_id */ 0,
+            OrtMemTypeDefault, &memory_info
+        ));
+    }
+
+    OrtAllocator * cpu_allocator;
+    checkError(ortapi->GetAllocatorWithDefaultOptions(&cpu_allocator));
+
+    // per-stream context
     d->semaphore.current.store(num_streams - 1, std::memory_order_relaxed);
     d->tickets.reserve(num_streams);
     for (int i = 0; i < num_streams; ++i) {
@@ -878,14 +915,14 @@ static void VS_CC vsOrtCreate(
             session_options,
             ExecutionMode::ORT_SEQUENTIAL
         ));
-        checkError(ortapi->EnableMemPattern(session_options));
+        // checkError(ortapi->EnableMemPattern(session_options));
 
         // TODO: other providers
-        if (provider == "CPU") {
+        if (std::strcmp(provider, "CPU") == 0) {
             ; // nothing to do
         }
 #ifdef ENABLE_CUDA
-        else if (provider == "CUDA") {
+        else if (std::strcmp(provider, "CUDA") == 0) {
             OrtCUDAProviderOptionsV2 * cuda_options;
             checkError(ortapi->CreateCUDAProviderOptions(&cuda_options));
             d->backend = Backend::CUDA;
@@ -897,18 +934,10 @@ static void VS_CC vsOrtCreate(
                     preloadCudaDlls();
             });
 #endif // _MSC_VER
-            checkCUDAError(cudaSetDevice(device_id));
-            d->device_id = device_id;
-
-            // ort cuda provider options v1 allows to use user compute stream
-            // this is not available in the v2 implementation
-            // here we conservatively use the default stream
-            resource.stream = cudaStreamDefault;
-
             // should not set 'do_copy_in_default_stream' to false
-            const char * keys [] { "device_id", "cudnn_conv_algo_search", "cudnn_conv_use_max_workspace" };
-            auto device_id_str = std::to_string(device_id);
-            const char * values [] { device_id_str.c_str(), "EXHAUSTIVE", "1" };
+            const char * keys [] { "device_id", "cudnn_conv_algo_search", "cudnn_conv_use_max_workspace", "arena_extend_strategy" };
+            auto device_id_str = std::to_string(d->device_id);
+            const char * values [] { device_id_str.c_str(), "EXHAUSTIVE", "1", "kSameAsRequested" };
             if (!cudnn_benchmark) {
                 values[1] = "HEURISTIC";
             }
@@ -918,15 +947,15 @@ static void VS_CC vsOrtCreate(
         }
 #endif // ENABLE_CUDA
 #ifdef ENABLE_COREML
-        else if (provider == "COREML") {
+        else if (std::strcmp(provider, "COREML") == 0) {
             checkError(OrtSessionOptionsAppendExecutionProvider_CoreML(
                 session_options,
                 0
             ));
         }
 #endif // ENABLE_COREML
-        else if (provider != "") {
-            return set_error("unknwon provider " + provider);
+        else if (std::strlen(provider) != 0) {
+            return set_error("unknwon provider "s + provider);
         }
 
         checkError(ortapi->CreateSessionFromArray(
@@ -942,15 +971,14 @@ static void VS_CC vsOrtCreate(
             return set_error(err.value());
         }
 
-        OrtAllocator * allocator;
-        checkError(ortapi->GetAllocatorWithDefaultOptions(&allocator));
-
         auto input_shape = std::get<std::array<int64_t, 4>>(
             getShape(resource.session, true)
         );
 
 #ifdef ENABLE_CUDA
         if (d->backend == Backend::CUDA) {
+            checkCUDAError(cudaStreamCreate(&resource.stream));
+
             resource.input.size = (
                 input_shape[0] *
                 input_shape[1] *
@@ -964,31 +992,22 @@ static void VS_CC vsOrtCreate(
             );
             checkCUDAError(cudaMalloc(&resource.input.d_data, resource.input.size));
 
-            OrtMemoryInfo * memory_info;
-            checkError(ortapi->CreateMemoryInfo(
-                "Cuda", OrtDeviceAllocator, device_id,
-                OrtMemTypeDefault, &memory_info
-            ));
-
             checkError(ortapi->CreateTensorWithDataAsOrtValue(
                 memory_info,
                 resource.input.d_data, resource.input.size,
                 std::data(input_shape), std::size(input_shape),
                 ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &resource.input_tensor
             ));
-
-            ortapi->ReleaseMemoryInfo(memory_info);
         } else
 #endif // ENALBE_CUDA
         {
             checkError(ortapi->CreateTensorAsOrtValue(
-                allocator,
+                cpu_allocator,
                 std::data(input_shape), std::size(input_shape),
                 ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
                 &resource.input_tensor
             ));
         }
-
 
         auto output_shape = std::get<std::array<int64_t, 4>>(
             getShape(resource.session, false)
@@ -1006,25 +1025,17 @@ static void VS_CC vsOrtCreate(
             checkCUDAError(cudaMallocHost(&resource.output.h_data, resource.output.size));
             checkCUDAError(cudaMalloc(&resource.output.d_data, resource.output.size));
 
-            OrtMemoryInfo * memory_info;
-            checkError(ortapi->CreateMemoryInfo(
-                "Cuda", OrtDeviceAllocator, device_id,
-                OrtMemTypeDefault, &memory_info
-            ));
-
             checkError(ortapi->CreateTensorWithDataAsOrtValue(
                 memory_info,
                 resource.output.d_data, resource.output.size,
                 std::data(output_shape), std::size(output_shape),
                 ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &resource.output_tensor
             ));
-
-            ortapi->ReleaseMemoryInfo(memory_info);
         } else
 #endif // ENABLE_CUDA
         {
             checkError(ortapi->CreateTensorAsOrtValue(
-                allocator,
+                cpu_allocator,
                 std::data(output_shape), std::size(output_shape),
                 ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
                 &resource.output_tensor
@@ -1035,12 +1046,12 @@ static void VS_CC vsOrtCreate(
 
         char * input_name;
         checkError(ortapi->SessionGetInputName(
-            resource.session, 0, allocator, &input_name
+            resource.session, 0, cpu_allocator, &input_name
         ));
 
         char * output_name;
         checkError(ortapi->SessionGetOutputName(
-            resource.session, 0, allocator, &output_name
+            resource.session, 0, cpu_allocator, &output_name
         ));
 
         checkError(ortapi->BindInput(resource.binding, input_name, resource.input_tensor));
@@ -1056,6 +1067,8 @@ static void VS_CC vsOrtCreate(
 
         d->resources.push_back(resource);
     }
+
+    ortapi->ReleaseMemoryInfo(memory_info);
 
     vsapi->createFilter(
         in, out, "Model",
@@ -1105,10 +1118,12 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
             std::to_string(ORT_API_VERSION).c_str(), -1, paReplace
         );
 
+#ifdef ENABLE_CUDA
         vsapi->propSetData(
             out, "cuda_runtime_version",
             std::to_string(__CUDART_API_VERSION).c_str(), -1, paReplace
         );
+#endif // ENABLE_CUDA
 
         vsapi->propSetData(
             out, "onnx_version",
