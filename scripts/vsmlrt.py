@@ -957,7 +957,7 @@ def inference_with_fallback(
         if fallback_backend is not None:
             import logging
             logger = logging.getLogger("vsmlrt")
-            logger.warn(f'vsmlrt: "{backend}" fails, trying fallback backend "{fallback_backend}"')
+            logger.warning(f'"{backend}" fails, trying fallback backend "{fallback_backend}"')
 
             return inference(
                 clips=clips, network_path=network_path,
