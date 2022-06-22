@@ -353,7 +353,8 @@ struct TicketSemaphore {
 
 enum class Backend {
     CPU = 0,
-    CUDA = 1
+    CUDA = 1,
+    COREML = 2
 };
 
 #ifdef ENABLE_CUDA
@@ -802,11 +803,20 @@ static void VS_CC vsOrtCreate(
         provider = "";
     }
 
+    if (strlen(provider) == 0 || strcmp(provider, "CPU") == 0) {
+        d->backend = Backend::CPU;
 #ifdef ENABLE_CUDA
-    if (strcmp(provider, "CUDA") == 0) {
+    } else if (strcmp(provider, "CUDA") == 0) {
         checkCUDAError(cudaSetDevice(d->device_id));
-    }
+        d->backend = Backend::CUDA;
 #endif // ENABLE_CUDA
+#ifdef ENABLE_COREML
+    } else if (strcmp(provider, "COREML") == 0) {
+        d->backend = Backend::COREML;
+#endif // ENABLE_COREML
+    } else {
+        return set_error("unknwon provider "s + provider);
+    }
 
     int num_streams = int64ToIntS(vsapi->propGetInt(in, "num_streams", 0, &error));
     if (error) {
@@ -882,7 +892,7 @@ static void VS_CC vsOrtCreate(
 
     OrtMemoryInfo * memory_info;
 #ifdef ENABLE_CUDA
-    if (strcmp(provider, "CUDA") == 0) {
+    if (d->backend == Backend::CUDA) {
         checkError(ortapi->CreateMemoryInfo(
             "Cuda", OrtDeviceAllocator, d->device_id,
             OrtMemTypeDefault, &memory_info
@@ -918,14 +928,10 @@ static void VS_CC vsOrtCreate(
         // checkError(ortapi->EnableMemPattern(session_options));
 
         // TODO: other providers
-        if (std::strcmp(provider, "CPU") == 0) {
-            ; // nothing to do
-        }
 #ifdef ENABLE_CUDA
-        else if (std::strcmp(provider, "CUDA") == 0) {
+        if (d->backend == Backend::CUDA) {
             OrtCUDAProviderOptionsV2 * cuda_options;
             checkError(ortapi->CreateCUDAProviderOptions(&cuda_options));
-            d->backend = Backend::CUDA;
 #ifdef _MSC_VER
             // Preload cuda dll from vsort directory.
             static std::once_flag cuda_dll_preloaded_flag;
@@ -947,16 +953,13 @@ static void VS_CC vsOrtCreate(
         }
 #endif // ENABLE_CUDA
 #ifdef ENABLE_COREML
-        else if (std::strcmp(provider, "COREML") == 0) {
+        else if (d->backend == Backend::COREML) {
             checkError(OrtSessionOptionsAppendExecutionProvider_CoreML(
                 session_options,
                 0
             ));
         }
 #endif // ENABLE_COREML
-        else if (std::strlen(provider) != 0) {
-            return set_error("unknwon provider "s + provider);
-        }
 
         checkError(ortapi->CreateSessionFromArray(
             d->environment,
