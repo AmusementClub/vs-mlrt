@@ -54,10 +54,7 @@ class Backend:
 
     @dataclass(frozen=False)
     class ORT_CUDA:
-        """ backend for nvidia gpu
-
-        `num_streams` for ORT CUDA may not be useful in improving utilization
-        """
+        """ backend for nvidia gpu """
         device_id: int = 0
         cudnn_benchmark: bool = True
         num_streams: int = 1
