@@ -376,6 +376,7 @@ struct Resource {
     cudaStream_t stream;
     CUDA_Resource_t input;
     CUDA_Resource_t output;
+    bool require_replay;
 #endif // ENABLE_CUDA
 };
 
@@ -590,6 +591,11 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
 #endif // ENABLE_CUDA
 
                 checkError(ortapi->RunWithBinding(resource.session, nullptr, resource.binding));
+
+                if (resource.require_replay) [[unlikely]] {
+                    resource.require_replay = false;
+                    checkError(ortapi->RunWithBinding(resource.session, nullptr, resource.binding));
+                }
 
 #ifdef ENABLE_CUDA
                 if (d->backend == Backend::CUDA) {
@@ -847,6 +853,11 @@ static void VS_CC vsOrtCreate(
         path_is_serialization = false;
     }
 
+    bool use_cuda_graph = !!vsapi->propGetInt(in, "use_cuda_graph", 0, &error);
+    if (error) {
+        use_cuda_graph = false;
+    }
+
     std::string_view path_view;
     std::string path;
     if (path_is_serialization) {
@@ -941,11 +952,29 @@ static void VS_CC vsOrtCreate(
             });
 #endif // _MSC_VER
             // should not set 'do_copy_in_default_stream' to false
-            const char * keys [] { "device_id", "cudnn_conv_algo_search", "cudnn_conv_use_max_workspace", "arena_extend_strategy" };
+            const char * keys [] {
+                "device_id",
+                "cudnn_conv_algo_search",
+                "cudnn_conv_use_max_workspace",
+                "arena_extend_strategy",
+                "enable_cuda_graph"
+            };
             auto device_id_str = std::to_string(d->device_id);
-            const char * values [] { device_id_str.c_str(), "EXHAUSTIVE", "1", "kSameAsRequested" };
+            const char * values [] {
+                device_id_str.c_str(),
+                "EXHAUSTIVE",
+                "1",
+                "kSameAsRequested",
+                "0"
+            };
             if (!cudnn_benchmark) {
                 values[1] = "HEURISTIC";
+            }
+            if (use_cuda_graph) {
+                values[4] = "1";
+                resource.require_replay = true;
+            } else {
+                resource.require_replay = false;
             }
             checkError(ortapi->UpdateCUDAProviderOptions(cuda_options, keys, values, std::size(keys)));
 
@@ -1108,6 +1137,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "builtindir:data:opt;"
         "fp16:int:opt;"
         "path_is_serialization:int:opt;"
+        "use_cuda_graph:int:opt;"
         , vsOrtCreate,
         nullptr,
         plugin
