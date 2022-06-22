@@ -72,6 +72,7 @@ using namespace std::string_literals;
 static const VSPlugin * myself = nullptr;
 static const OrtApi * ortapi = nullptr;
 static std::atomic<int64_t> logger_id = 0;
+std::mutex capture_lock;
 
 
 [[nodiscard]]
@@ -590,12 +591,14 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
                 }
 #endif // ENABLE_CUDA
 
-                checkError(ortapi->RunWithBinding(resource.session, nullptr, resource.binding));
-
                 if (resource.require_replay) [[unlikely]] {
                     resource.require_replay = false;
+
+                    std::lock_guard _ { capture_lock };
                     checkError(ortapi->RunWithBinding(resource.session, nullptr, resource.binding));
                 }
+
+                checkError(ortapi->RunWithBinding(resource.session, nullptr, resource.binding));
 
 #ifdef ENABLE_CUDA
                 if (d->backend == Backend::CUDA) {
