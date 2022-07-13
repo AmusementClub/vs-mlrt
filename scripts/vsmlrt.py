@@ -582,7 +582,7 @@ def CUGAN(
         )
         model.graph.node.insert(idx+1, mul_node)
 
-        if isinstance(backend, (Backend.ORT_CPU, Backend.ORT_CUDA, Backend.OV_CPU)):
+        if not isinstance(backend, Backend.TRT):
             clip = inference_with_fallback(
                 clips=[clip], network_path=model.SerializeToString(),
                 overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
