@@ -72,7 +72,7 @@ using namespace std::string_literals;
 static const VSPlugin * myself = nullptr;
 static const OrtApi * ortapi = nullptr;
 static std::atomic<int64_t> logger_id = 0;
-std::mutex capture_lock;
+static std::mutex capture_lock;
 
 
 [[nodiscard]]
