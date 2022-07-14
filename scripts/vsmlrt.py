@@ -52,6 +52,8 @@ class Backend:
         verbosity: int = 2
         fp16: bool = False
 
+        supports_onnx_serialization: bool = True
+
     @dataclass(frozen=False)
     class ORT_CUDA:
         """ backend for nvidia gpu """
@@ -62,11 +64,15 @@ class Backend:
         fp16: bool = False
         use_cuda_graph: bool = False # preview, not supported by all models
 
+        supports_onnx_serialization: bool = True
+
     @dataclass(frozen=False)
     class OV_CPU:
         fp16: bool = False
         num_streams: typing.Union[int, str] = 1
         bind_thread: bool = True
+
+        supports_onnx_serialization: bool = True
 
     @dataclass(frozen=False)
     class TRT:
@@ -90,6 +96,7 @@ class Backend:
         use_edge_mask_convolutions: bool = True
 
         _channels: int = field(init=False, repr=False, compare=False)
+        supports_onnx_serialization: bool = False
 
     @dataclass(frozen=False)
     class OV_GPU:
@@ -97,6 +104,8 @@ class Backend:
         fp16: bool = False
         num_streams: typing.Union[int, str] = 1
         device_id: int = 0
+
+        supports_onnx_serialization: bool = True
 
 
 backendT = typing.Union[
@@ -582,7 +591,7 @@ def CUGAN(
         )
         model.graph.node.insert(idx+1, mul_node)
 
-        if not isinstance(backend, Backend.TRT):
+        if backend.supports_onnx_serialization:
             clip = inference_with_fallback(
                 clips=[clip], network_path=model.SerializeToString(),
                 overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
@@ -781,7 +790,7 @@ def trtexec(
                 else:
                     raise RuntimeError(f"trtexec execution fails but no log is found")
     else:
-        subprocess.run(args, env={}, check=True, stdout=sys.stderr)
+        subprocess.run(args, check=True, stdout=sys.stderr)
 
     return engine_path
 
