@@ -52,7 +52,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-cuda-11.7.0
+        key: ${{ runner.os }}-vstrt-cuda-11.7.0
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
