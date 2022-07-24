@@ -10,6 +10,7 @@
 #include <string_view>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -38,7 +39,8 @@ extern std::variant<std::string, ONNX_NAMESPACE::ModelProto> loadONNX(
 
 extern void convert_float_to_float16(
     ONNX_NAMESPACE::ModelProto & model,
-    bool force_fp16_initializers
+    bool force_fp16_initializers,
+    const std::unordered_set<std::string> & op_block_list
 ) noexcept;
 
 
@@ -648,7 +650,23 @@ static void VS_CC vsOvCreate(
     auto onnx_model = std::move(std::get<ONNX_NAMESPACE::ModelProto>(result));
 
     if (fp16) {
-        convert_float_to_float16(onnx_model, false);
+        std::unordered_set<std::string> fp16_blacklist_ops;
+        int num = vsapi->propNumElements(in, "fp16_blacklist_ops");
+        if (num == 0) {
+            fp16_blacklist_ops = {
+                "ArrayFeatureExtractor", "Binarizer", "CastMap", "CategoryMapper",
+                "DictVectorizer", "FeatureVectorizer", "Imputer", "LabelEncoder",
+                "LinearClassifier", "LinearRegressor", "Normalizer", "OneHotEncoder",
+                "SVMClassifier", "SVMRegressor", "Scaler", "TreeEnsembleClassifier",
+                "TreeEnsembleRegressor", "ZipMap", "NonMaxSuppression", "TopK",
+                "RoiAlign", "Range", "CumSum", "Min", "Max"
+            };
+        } else {
+            for (int i = 0; i < num; i++) {
+                fp16_blacklist_ops.emplace(vsapi->propGetData(in, "fp16_blacklist_ops", i, nullptr));
+            }
+        }
+        convert_float_to_float16(onnx_model, false, fp16_blacklist_ops);
     }
 
     std::string onnx_data = onnx_model.SerializeAsString();
@@ -749,6 +767,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "fp16:int:opt;"
         "config:func:opt;"
         "path_is_serialization:int:opt;"
+        "fp16_blacklist_ops:data[]:opt;"
 #ifdef ENABLE_VISUALIZATION
         "dot_path:data:opt;"
 #endif

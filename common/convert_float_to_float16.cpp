@@ -303,19 +303,8 @@ void convert_float_to_float16(
     // , bool disable_shape_infer = True
     // , const std::optional<std::unordered_set<std::string>> op_block_list = DEFAULT_OP_BLOCK_LIST
     // , const std::optional<std::unordered_set<std::string>> op_block_list = {}
+    , const std::unordered_set<std::string> & op_block_list
 ) noexcept {
-
-    const std::unordered_set<std::string> op_block_list {
-        "ArrayFeatureExtractor", "Binarizer", "CastMap", "CategoryMapper",
-        "DictVectorizer", "FeatureVectorizer", "Imputer", "LabelEncoder",
-        "LinearClassifier", "LinearRegressor", "Normalizer", "OneHotEncoder",
-        "SVMClassifier", "SVMRegressor", "Scaler", "TreeEnsembleClassifier",
-        "TreeEnsembleRegressor", "ZipMap", "NonMaxSuppression", "TopK",
-        "RoiAlign", "Range", "CumSum", "Min", "Max"
-#ifndef HAVE_ONNX_FP16_RESIZE // exclude fp32 up-conversion
-        , "Resize", "Upsample"
-#endif // HAVE_ONNX_FP16_RESIZE
-    };
 
     std::vector<ONNX_NAMESPACE::ValueInfoProto> value_info_list {};
     std::unordered_set<std::string> io_casts {};
