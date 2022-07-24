@@ -1,4 +1,4 @@
-__version__ = "3.11.0"
+__version__ = "3.11.1"
 
 __all__ = [
     "Backend",
@@ -470,7 +470,8 @@ def CUGAN(
     backend: backendT = Backend.OV_CPU(),
     preprocess: bool = True,
     alpha: float = 1.0,
-    version: typing.Literal[1, 2] = 1 # 1: legacy, 2: pro
+    version: typing.Literal[1, 2] = 1, # 1: legacy, 2: pro
+    conformance: bool = True # currently specifies dynamic range compression for cugan-pro 
 ) -> vs.VideoNode:
     """
     denoising strength: 0 < -1 < 1 < 2 < 3
@@ -602,11 +603,19 @@ def CUGAN(
         network_path = f"{network_path}_alpha{alpha!r}.onnx"
         onnx.save(model, network_path)
 
+    # https://github.com/bilibili/ailab/blob/e102bef22384c629f82552dbec3d6b5bab125639/Real-CUGAN/upcunet_v3.py#L1275-L1276
+    if conformance and version == 2:
+        clip = core.std.Expr(clip, "x 0.7 * 0.15 +")
+
     clip = inference_with_fallback(
         clips=[clip], network_path=network_path,
         overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
         backend=backend
     )
+
+    # https://github.com/bilibili/ailab/blob/e102bef22384c629f82552dbec3d6b5bab125639/Real-CUGAN/upcunet_v3.py#L269
+    if conformance and version == 2:
+        clip = core.std.Expr(clip, "x 0.15 - 0.7 /")
 
     return clip
 
