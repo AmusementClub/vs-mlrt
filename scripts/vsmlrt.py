@@ -51,7 +51,9 @@ class Backend:
         num_streams: int = 1
         verbosity: int = 2
         fp16: bool = False
+        fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
 
+        # internal backend attributes
         supports_onnx_serialization: bool = True
 
     @dataclass(frozen=False)
@@ -63,7 +65,9 @@ class Backend:
         verbosity: int = 2
         fp16: bool = False
         use_cuda_graph: bool = False # preview, not supported by all models
+        fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
 
+        # internal backend attributes
         supports_onnx_serialization: bool = True
 
     @dataclass(frozen=False)
@@ -71,7 +75,9 @@ class Backend:
         fp16: bool = False
         num_streams: typing.Union[int, str] = 1
         bind_thread: bool = True
+        fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
 
+        # internal backend attributes
         supports_onnx_serialization: bool = True
 
     @dataclass(frozen=False)
@@ -92,9 +98,9 @@ class Backend:
 
         # as of TensorRT 8.4, it can be turned off without performance penalty in most cases
         use_cudnn: bool = True
-
         use_edge_mask_convolutions: bool = True
 
+        # internal backend attributes
         _channels: int = field(init=False, repr=False, compare=False)
         supports_onnx_serialization: bool = False
 
@@ -895,7 +901,8 @@ def inference(
             num_streams=backend.num_streams,
             verbosity=backend.verbosity,
             fp16=backend.fp16,
-            path_is_serialization=path_is_serialization
+            path_is_serialization=path_is_serialization,
+            fp16_blacklist_ops=backend.fp16_blacklist_ops
         )
     elif isinstance(backend, Backend.ORT_CUDA):
         clip = core.ort.Model(
@@ -908,7 +915,8 @@ def inference(
             cudnn_benchmark=backend.cudnn_benchmark,
             fp16=backend.fp16,
             path_is_serialization=path_is_serialization,
-            use_cuda_graph=backend.use_cuda_graph
+            use_cuda_graph=backend.use_cuda_graph,
+            fp16_blacklist_ops=backend.fp16_blacklist_ops
         )
     elif isinstance(backend, Backend.OV_CPU):
         config = lambda: dict(
@@ -921,7 +929,8 @@ def inference(
             device="CPU", builtin=False,
             fp16=backend.fp16,
             config=config,
-            path_is_serialization=path_is_serialization
+            path_is_serialization=path_is_serialization,
+            fp16_blacklist_ops=backend.fp16_blacklist_ops
         )
     elif isinstance(backend, Backend.OV_GPU):
         config = lambda: dict(
@@ -933,7 +942,8 @@ def inference(
             device=f"GPU.{backend.device_id}", builtin=False,
             fp16=backend.fp16,
             config=config,
-            path_is_serialization=path_is_serialization
+            path_is_serialization=path_is_serialization,
+            fp16_blacklist_ops=backend.fp16_blacklist_ops
         )
     elif isinstance(backend, Backend.TRT):
         if path_is_serialization:
