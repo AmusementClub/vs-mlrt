@@ -652,7 +652,7 @@ static void VS_CC vsOvCreate(
     if (fp16) {
         std::unordered_set<std::string> fp16_blacklist_ops;
         int num = vsapi->propNumElements(in, "fp16_blacklist_ops");
-        if (num == 0) {
+        if (num == -1) {
             fp16_blacklist_ops = {
                 "ArrayFeatureExtractor", "Binarizer", "CastMap", "CategoryMapper",
                 "DictVectorizer", "FeatureVectorizer", "Imputer", "LabelEncoder",
