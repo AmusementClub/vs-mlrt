@@ -958,7 +958,16 @@ static void VS_CC vsOrtCreate(
             session_options,
             ExecutionMode::ORT_SEQUENTIAL
         ));
-        // checkError(ortapi->EnableMemPattern(session_options));
+
+        // it is important to disable the memory pattern optimization
+        // for use in vapoursynth
+        //
+        // this optimization merges memory allocation calls, but it is useless
+        // during inference in vs since the memory usage is fixed
+        //
+        // it also prevents the use of cuda graphs which requires a static
+        // memory configuration
+        checkError(ortapi->DisableMemPattern(session_options));
 
         // TODO: other providers
 #ifdef ENABLE_CUDA
