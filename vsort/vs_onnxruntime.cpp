@@ -596,11 +596,19 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
                 if (resource.require_replay) [[unlikely]] {
                     resource.require_replay = false;
 
+                    // runs it under a global lock
+                    // onnxruntime uses global-mode stream capture on a private stream
+                    // this lock prevents concurrent capture sequences in other threads
+                    //
+                    // note that this applies only to stream capture from the ort library
+                    // this fails when another plugin also uses global-mode stream capture
                     std::lock_guard _ { capture_lock };
                     checkError(ortapi->RunWithBinding(resource.session, nullptr, resource.binding));
-                }
 
-                checkError(ortapi->RunWithBinding(resource.session, nullptr, resource.binding));
+                    // onnxruntime replays the graph itself in CUDAExecutionProvider::OnRunEnd
+                } else {
+                    checkError(ortapi->RunWithBinding(resource.session, nullptr, resource.binding));
+                }
 
 #ifdef ENABLE_CUDA
                 if (d->backend == Backend::CUDA) {
