@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
@@ -443,6 +444,15 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     VSRegisterFunction registerFunc,
     VSPlugin *plugin
 ) noexcept {
+    if (&getInferLibVersion == nullptr) {
+        std::fprintf(stderr, "vstrt: TensorRT failed to load.\n");
+        return;
+    }
+    int ver = getInferLibVersion();
+    if (ver != NV_TENSORRT_VERSION) {
+        std::fprintf(stderr, "vstrt: TensorRT version mismatch, built with %x but loaded with %x; continue but fingers crossed...\n", NV_TENSORRT_VERSION, ver);
+    }
+
     myself = plugin;
 
     configFunc(
