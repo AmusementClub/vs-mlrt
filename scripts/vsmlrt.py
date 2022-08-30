@@ -1,4 +1,4 @@
-__version__ = "3.11.1"
+__version__ = "3.11.2"
 
 __all__ = [
     "Backend",
@@ -76,6 +76,7 @@ class Backend:
         num_streams: typing.Union[int, str] = 1
         bind_thread: bool = True
         fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
+        bf16: bool = False
 
         # internal backend attributes
         supports_onnx_serialization: bool = True
@@ -921,8 +922,10 @@ def inference(
     elif isinstance(backend, Backend.OV_CPU):
         config = lambda: dict(
             CPU_THROUGHPUT_STREAMS=backend.num_streams,
-            CPU_BIND_THREAD="YES" if backend.bind_thread else "NO"
+            CPU_BIND_THREAD="YES" if backend.bind_thread else "NO",
+            ENFORCE_BF16="YES" if backend.bf16 else "NO"
         )
+
         clip = core.ov.Model(
             clips, network_path,
             overlap=overlap, tilesize=tilesize,
