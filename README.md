@@ -4,13 +4,13 @@ VapourSynth ML filter runtimes.
 
 Please see [the wiki](https://github.com/AmusementClub/vs-mlrt/wiki) for supported models.
 
-## vsov: OpenVINO-based Pure CPU Runtime
+## vsov: OpenVINO-based Pure CPU & Intel GPU Runtime
 
 [OpenVINO](https://docs.openvino.ai/latest/index.html) is an AI inference runtime developed
 by Intel, mainly targeting x86 CPUs and Intel GPUs.
 
-The vs-openvino plugin provides optimized *pure* CPU runtime for some popular AI filters,
-with Intel GPU support planned in the future.
+The vs-openvino plugin provides optimized *pure* CPU & Intel GPU runtime for some popular AI filters.
+Intel GPU supports Gen 8+ on Broadwell+ and the Arc series GPUs.
 
 To install, download the latest release and extract them into your VS `plugins` directory.
 
