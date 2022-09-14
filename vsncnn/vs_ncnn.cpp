@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <fstream>
@@ -546,8 +547,8 @@ static void VS_CC vsNcnnCreate(
     if (auto device = ncnn::get_gpu_device(device_id); device != nullptr) {
         d->device = device;
     } else {
-        std::free(ncnn_param);
-        std::free(ncnn_model_bin);
+        vs_aligned_free(ncnn_param);
+        vs_aligned_free(ncnn_model_bin);
         return set_error("get_gpu_device failed");
     }
 
@@ -561,14 +562,14 @@ static void VS_CC vsNcnnCreate(
     d->net.opt.use_int8_arithmetic = false;
     d->net.set_vulkan_device(d->device);
     if (d->net.load_param_mem(ncnn_param) != 0) {
-        std::free(ncnn_param);
-        std::free(ncnn_model_bin);
+        vs_aligned_free(ncnn_param);
+        vs_aligned_free(ncnn_model_bin);
         return set_error("load param failed");
     }
-    std::free(ncnn_param);
+    vs_aligned_free(ncnn_param);
     // TODO: here returns the number of bytes read successfully
     d->net.load_model(ncnn_model_bin);
-    std::free(ncnn_model_bin);
+    vs_aligned_free(ncnn_model_bin);
 
     d->input_index = d->net.input_indexes().front();
     d->output_index = d->net.output_indexes().front();

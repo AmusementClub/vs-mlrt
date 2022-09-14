@@ -15,6 +15,8 @@
 #include <tuple>
 #include <vector>
 
+#include <VSHelper.h> // for vs_aligned_malloc
+
 static std::vector<int> get_node_attr_ai(const onnx::NodeProto& node, const char* key) {
     std::vector<int> v;
 
@@ -5135,7 +5137,9 @@ std::optional<std::tuple<char*, unsigned char*>> onnx2ncnn(onnx::ModelProto& mod
     }
 
     auto param_size = static_cast<size_t>(std::ftell(pp));
-    auto param = reinterpret_cast<char*>(std::aligned_alloc(4, param_size));
+    // ncnn requires only 32-bit alignment,
+    // while posix_memalign() requires a multiple of sizeof(void *)
+    auto param = vs_aligned_malloc<char>(param_size, sizeof(void *));
     std::rewind(pp);
     if (std::fread(param, 1, param_size, pp) != param_size) {
         std::free(param);
@@ -5146,7 +5150,7 @@ std::optional<std::tuple<char*, unsigned char*>> onnx2ncnn(onnx::ModelProto& mod
     std::fclose(pp);
 
     auto model_size = static_cast<size_t>(std::ftell(bp));
-    auto model_bin = reinterpret_cast<unsigned char*>(std::aligned_alloc(4, model_size));
+    auto model_bin = vs_aligned_malloc<unsigned char>(model_size, sizeof(void *));
     std::rewind(bp);
     if (std::fread(model_bin, 1, model_size, bp) != model_size) {
         std::free(model_bin);
