@@ -322,7 +322,7 @@ static void fuse_weight_reshape(
             }
 
             weights[node->output(0)].clear_dims();
-            for (int j = 0; j < shape.size(); j++) {
+            for (int j = 0; j < static_cast<int>(shape.size()); j++) {
                 weights[node->output(0)].add_dims(shape[j]);
             }
 
@@ -5134,7 +5134,7 @@ std::optional<std::tuple<char*, unsigned char*>> onnx2ncnn(onnx::ModelProto& mod
         }
     }
 
-    auto param_size = std::ftell(pp);
+    auto param_size = static_cast<size_t>(std::ftell(pp));
     auto param = reinterpret_cast<char*>(std::aligned_alloc(4, param_size));
     std::rewind(pp);
     if (std::fread(param, 1, param_size, pp) != param_size) {
@@ -5145,7 +5145,7 @@ std::optional<std::tuple<char*, unsigned char*>> onnx2ncnn(onnx::ModelProto& mod
     }
     std::fclose(pp);
 
-    auto model_size = std::ftell(bp);
+    auto model_size = static_cast<size_t>(std::ftell(bp));
     auto model_bin = reinterpret_cast<unsigned char*>(std::aligned_alloc(4, model_size));
     std::rewind(bp);
     if (std::fread(model_bin, 1, model_size, bp) != model_size) {
