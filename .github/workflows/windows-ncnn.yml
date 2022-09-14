@@ -1,0 +1,183 @@
+name: Build (Windows-NCNN)
+
+on:
+  push:
+    paths:
+      - 'common/**'
+      - 'vsncnn/**'
+      - '.github/workflows/windows-ncnn.yml'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'which tag to upload to'
+        required: true
+        type: string
+    outputs:
+      runID:
+        description: 'run id'
+        value: ${{ jobs.build-windows.outputs.runID }}
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'which tag to upload to'
+        default: ''
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    outputs:
+      runID: ${{ steps.output.outputs.runID }}
+
+    defaults:
+      run:
+        shell: cmd
+        working-directory: vsncnn
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Setup Ninja
+      run: pip install ninja
+
+    - name: Cache protobuf
+      id: cache-protobuf
+      uses: actions/cache@v2
+      with:
+        path: vsncnn/protobuf/install
+        key: ${{ runner.os }}-vsncnn-protobuf
+
+    - name: Checkout protobuf
+      uses: actions/checkout@v2
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      with:
+        repository: protocolbuffers/protobuf
+        # follows protobuf in https://github.com/AmusementClub/ncnn/blob/github-actions/.github/workflows/windows-x64-gpu.yml
+        # if you change this, remember to bump the version of the cache key.
+        ref: v3.11.2
+        path: vsncnn/protobuf
+
+    - name: Configure protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake -S protobuf\cmake -B protobuf\build_rel -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D protobuf_BUILD_SHARED_LIBS=OFF 
+        -D protobuf_BUILD_TESTS=OFF
+        -D protobuf_MSVC_STATIC_RUNTIME=ON
+
+    - name: Build protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake --build protobuf\build_rel --verbose
+
+    - name: Install protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake --install protobuf\build_rel --prefix protobuf\install
+
+    - name: Cache onnx
+      id: cache-onnx
+      uses: actions/cache@v2
+      with:
+        path: vsncnn/onnx/install
+        key: ${{ runner.os }}-vsncnn-onnx
+
+    - name: Checkout onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      uses: actions/checkout@v2
+      with:
+        repository: onnx/onnx
+        ref: v1.12.0
+        path: vsncnn/onnx
+
+    - name: Configure onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake -S onnx -B onnx\build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D Protobuf_PROTOC_EXECUTABLE=protobuf\install\bin\protoc
+        -D Protobuf_LITE_LIBRARY=protobuf\install\lib
+        -D Protobuf_LIBRARIES=protobuf\install\lib
+        -D ONNX_USE_LITE_PROTO=ON -D ONNX_USE_PROTOBUF_SHARED_LIBS=OFF
+        -D ONNX_GEN_PB_TYPE_STUBS=OFF -D ONNX_ML=0
+        -D ONNX_USE_MSVC_STATIC_RUNTIME=1
+
+    - name: Build onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --build onnx\build --verbose
+
+    - name: Install onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --install onnx\build --prefix onnx\install
+
+    - name: Download VapourSynth headers
+      run: |
+        curl -s -o vs.zip -L https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R54.zip
+        unzip -q vs.zip
+        mv vapoursynth-*/ vapoursynth/
+
+    - name: Download NCNN Precompilation
+      run: |
+        curl -s -o ncnn.zip -LJO https://github.com/AmusementClub/ncnn/releases/latest/download/ncnn-gpu-x64-windows.zip
+        unzip -q ncnn.zip
+
+    # follows vulkan sdk in https://github.com/AmusementClub/ncnn/blob/github-actions/.github/workflows/windows-x64-gpu.yml
+    - name: Setup Vulkan SDK
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri https://sdk.lunarg.com/sdk/download/1.2.189.0/windows/VulkanSDK-1.2.189.0-Installer.exe?Human=true -OutFile VulkanSDK.exe
+        $installer = Start-Process -FilePath VulkanSDK.exe -Wait -PassThru -ArgumentList @("/S");
+        $installer.WaitForExit();
+
+    - name: Configure
+      run: cmake -S . -B build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+        -D VAPOURSYNTH_INCLUDE_DIRECTORY=vapoursynth\include
+        -D protobuf_DIR=protobuf\install\cmake
+        -D ONNX_DIR=onnx\install\lib\cmake\ONNX
+        -D ncnn_DIR=ncnn\lib\cmake\ncnn
+        -D CMAKE_CXX_STANDARD=20
+      env:
+        VULKAN_SDK: C:\VulkanSDK\1.2.189.0
+
+    - name: Build
+      run: cmake --build build --verbose
+
+    - name: Install
+      run: |
+        cmake --install build --prefix install
+        mkdir artifact
+        copy install\bin\vsncnn.dll artifact\
+
+    - name: Upload
+      uses: actions/upload-artifact@v2
+      with:
+        name: VSNCNN-GPU-Windows-x64
+        path: vsncnn/artifact
+
+    - name: Describe
+      run: git describe --tags --long
+
+    - name: Compress artifact for release
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
+      run: |
+        cd artifact
+        7z a -t7z -mx=7 ../../VSNCNN-Windows-x64.${{ github.event.inputs.tag }}.7z .
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
+      with:
+        tag_name: ${{ inputs.tag }}
+        files: VSNCNN-Windows-x64.${{ github.event.inputs.tag }}.7z
+        fail_on_unmatched_files: true
+        generate_release_notes: false
+        prerelease: true
+
+    - name: Output run-id
+      id: output
+      shell: bash
+      run: echo "::set-output name=runID::$GITHUB_RUN_ID"
