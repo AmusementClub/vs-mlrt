@@ -38,3 +38,19 @@ harder than the other runtimes. However, the resulting performance is also typic
 To install, download the latest release and extract them into your VS `plugins` directory.
 
 Please visit the [vstrt](vstrt) directory for details.
+
+## vsncnn: NCNN-based GPU (Vulkan) Runtime
+
+[ncnn](https://github.com/Tencent/ncnn) is a popular AI inference runtime. [vsncnn](vsncnn)
+provides a vulkan based runtime for some AI filters. It includes support for on-the-fly
+ONNX to ncnn native format conversion so as to provide a unified interface across all
+runtimes provided by this project. As it uses the device-independent
+[Vulkan](https://en.wikipedia.org/wiki/Vulkan) interface for GPU accelerated inference,
+this plugin supports all GPUs that provides Vulkan interface (NVidia, AMD, Intel integrated &
+discrete GPUs all provide this interface.) Another benefit is that it has a significant
+smaller footprint than other GPU runtimes (both vsort and vstrt CUDA backends require >1GB
+CUDA libraries.) The main drawback is that it's slower.
+
+To install, download the latest release and extract them into your VS `plugins` directory.
+
+Please visit the [vsncnn](vsncnn) directory for details.
