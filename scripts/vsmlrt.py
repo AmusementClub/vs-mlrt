@@ -1,4 +1,4 @@
-__version__ = "3.11.2"
+__version__ = "3.12.0"
 
 __all__ = [
     "Backend",
@@ -114,13 +114,21 @@ class Backend:
 
         supports_onnx_serialization: bool = True
 
+    @dataclass(frozen=False)
+    class NCNN_VK:
+        """ backend for ncnn vulkan """
+        fp16: bool = False
+        device_id: int = 0
+        num_streams: int = 1
+
 
 backendT = typing.Union[
     Backend.OV_CPU,
     Backend.ORT_CPU,
     Backend.ORT_CUDA,
     Backend.TRT,
-    Backend.OV_GPU
+    Backend.OV_GPU,
+    Backend.NCNN_VK
 ]
 
 
@@ -862,6 +870,8 @@ def init_backend(
         backend = Backend.TRT()
     elif backend is Backend.OV_GPU: # type: ignore
         backend = Backend.OV_GPU()
+    elif backend is Backend.NCNN_VK(): # type: ignore
+        backend = Backend.NCNN_VK()
 
     backend = copy.deepcopy(backend)
 
@@ -979,6 +989,16 @@ def inference(
             use_cuda_graph=backend.use_cuda_graph,
             num_streams=backend.num_streams,
             verbosity=4 if backend.verbose else 2
+        )
+    elif isinstance(backend, Backend.NCNN_VK):
+        clip = core.ncnn.Model(
+            clips, network_path,
+            overlap=overlap, tilesize=tilesize,
+            device_id=backend.device_id,
+            num_streams=backend.num_streams,
+            builtin=False,
+            fp16=backend.fp16,
+            path_is_serialization=path_is_serialization,
         )
     else:
         raise TypeError(f'unknown backend {backend}')
