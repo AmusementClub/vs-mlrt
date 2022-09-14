@@ -1,8 +1,15 @@
 # vs-mlrt
 
-VapourSynth ML filter runtimes.
+This project provides VapourSynth ML filter runtimes for a variety of platforms:
+ - x86 CPUs: [vsov-cpu](#vsov-openvino-based-pure-cpu--intel-gpu-runtime), [vsort-cpu](#vsort-onnx-runtime-based-cpugpu-runtime)
+ - Intel GPU (both integrated & discrete): [vsov-gpu](#vsov-openvino-based-pure-cpu--intel-gpu-runtime), [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime)
+ - NVidia GPU: [vsort-cuda](#vsort-onnx-runtime-based-cpugpu-runtime), [vstrt](#vstrt-tensorrt-based-gpu-runtime), [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime)
+ - AMD GPU: [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime)
 
-Please see [the wiki](https://github.com/AmusementClub/vs-mlrt/wiki) for supported models.
+To simplify usage, we also provide a Python wrapper [vsmlrt.py](https://github.com/AmusementClub/vs-mlrt/blob/master/scripts/vsmlrt.py)
+for all bundled models and a unified interface to select different backends.
+
+Please refer to [the wiki](https://github.com/AmusementClub/vs-mlrt/wiki) for supported models & usage information.
 
 ## vsov: OpenVINO-based Pure CPU & Intel GPU Runtime
 
