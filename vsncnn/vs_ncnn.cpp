@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <fstream>
@@ -200,7 +201,6 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
         auto src_tile_h = src_tile_shape[2];
         auto src_tile_w = src_tile_shape[3];
         auto src_tile_w_bytes = src_tile_w * src_bytes;
-        auto src_tile_bytes = src_tile_h * src_tile_w_bytes;
 
         std::vector<const uint8_t *> src_ptrs;
         src_ptrs.reserve(src_tile_shape[1]);
@@ -217,7 +217,6 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
         auto dst_tile_h = dst_tile_shape[2];
         auto dst_tile_w = dst_tile_shape[3];
         auto dst_tile_w_bytes = dst_tile_w * dst_bytes;
-        auto dst_tile_bytes = dst_tile_h * dst_tile_w_bytes;
         auto dst_planes = dst_tile_shape[1];
         uint8_t * dst_ptrs[3] {};
         for (int i = 0; i < dst_planes; ++i) {
@@ -579,10 +578,9 @@ static void VS_CC vsNcnnCreate(
         resource.cmd = std::make_unique<ncnn::VkCompute>(d->device);
         resource.blob_vkallocator = d->device->acquire_blob_allocator();
         resource.staging_vkallocator = d->device->acquire_staging_allocator();
-
         resource.h_src.create(d->in_tile_w, d->in_tile_h, d->in_tile_c);
-        resource.d_src.create(d->in_tile_w, d->in_tile_h, d->in_tile_c, 4u, resource.blob_vkallocator);
-        resource.d_dst.create(d->out_tile_w, d->out_tile_h, d->out_tile_c, 4u, resource.blob_vkallocator);
+        resource.d_src.create(d->in_tile_w, d->in_tile_h, d->in_tile_c, sizeof(float), resource.blob_vkallocator);
+        resource.d_dst.create(d->out_tile_w, d->out_tile_h, d->out_tile_c, sizeof(float), resource.blob_vkallocator);
         resource.h_dst.create(d->out_tile_w, d->out_tile_h, d->out_tile_c);
     }
 
