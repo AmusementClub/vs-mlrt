@@ -12,6 +12,11 @@ on:
         description: 'which tag to upload to'
         required: true
         type: string
+      ncnn_tag:
+        description: 'which tag of ncnn to use'
+        required: true
+        default: 'latest'
+        type: string
     outputs:
       runID:
         description: 'run id'
@@ -21,6 +26,11 @@ on:
       tag:
         description: 'which tag to upload to'
         default: ''
+      ncnn_tag:
+        description: 'which tag of ncnn to use'
+        required: true
+        default: 'latest'
+        type: string
 
 jobs:
   build-windows:
@@ -119,8 +129,15 @@ jobs:
         mv vapoursynth-*/ vapoursynth/
 
     - name: Download NCNN Precompilation
+      shell: bash
       run: |
-        curl -s -o ncnn.zip -LJO https://github.com/AmusementClub/ncnn/releases/latest/download/ncnn-gpu-x64-windows.zip
+        rev="${{github.event.inputs.ncnn_tag || inputs.ncnn_tag || 'latest'}}"
+        if [ "$rev" == "latest" ]; then
+          url="https://github.com/AmusementClub/ncnn/releases/latest/download/ncnn-gpu-x64-windows.zip"
+        else
+          url="https://github.com/AmusementClub/ncnn/releases/download/$rev/ncnn-gpu-x64-windows.zip"
+        fi
+        curl -s -o ncnn.zip -LJO "$url"
         unzip -q ncnn.zip
 
     # follows vulkan sdk in https://github.com/AmusementClub/ncnn/blob/github-actions/.github/workflows/windows-x64-gpu.yml
