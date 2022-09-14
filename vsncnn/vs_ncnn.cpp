@@ -101,6 +101,8 @@ struct Resource {
     ncnn::Mat h_dst;
 };
 
+static std::atomic<int> num_plugin_instances {};
+
 struct vsNcnnData {
     std::vector<VSNodeRef *> nodes;
     std::unique_ptr<VSVideoInfo> out_vi;
@@ -384,6 +386,10 @@ static void VS_CC vsNcnnFree(
     }
 
     delete d;
+
+    if (--num_plugin_instances == 0) {
+        ncnn::destroy_gpu_instance();
+    }
 }
 
 
@@ -396,6 +402,7 @@ static void VS_CC vsNcnnCreate(
 ) noexcept {
 
     auto d { std::make_unique<vsNcnnData>() };
+    num_plugin_instances++;
 
     int num_nodes = vsapi->propNumElements(in, "clips");
     d->nodes.reserve(num_nodes);
