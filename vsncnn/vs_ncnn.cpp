@@ -629,6 +629,11 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
             ONNX_NAMESPACE::LAST_RELEASE_VERSION, -1, paReplace
         );
 
+        vsapi->propSetData(
+            out, "ncnn_version",
+            NCNN_VERSION_STRING, -1, paReplace
+        );
+
         vsapi->propSetData(out, "path", vsapi->getPluginPath(myself), -1, paReplace);
     };
     registerFunc("Version", "", getVersion, nullptr, plugin);
