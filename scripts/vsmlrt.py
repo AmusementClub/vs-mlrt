@@ -34,7 +34,10 @@ def get_plugins_path() -> str:
         try:
             path = core.ort.Version()["path"]
         except AttributeError:
-            path = core.ov.Version()["path"]
+            try:
+                path = core.ov.Version()["path"]
+            except AttributeError:
+                path = core.ncnn.Version()["path"]
 
     assert path != b""
 
@@ -870,7 +873,7 @@ def init_backend(
         backend = Backend.TRT()
     elif backend is Backend.OV_GPU: # type: ignore
         backend = Backend.OV_GPU()
-    elif backend is Backend.NCNN_VK(): # type: ignore
+    elif backend is Backend.NCNN_VK: # type: ignore
         backend = Backend.NCNN_VK()
 
     backend = copy.deepcopy(backend)
