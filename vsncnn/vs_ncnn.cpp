@@ -287,13 +287,6 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
                 }
 
                 resource.cmd->record_clone(resource.h_src, resource.d_src, opt);
-                if (resource.cmd->submit_and_wait() != 0) {
-                    resource.cmd->reset();
-                    return set_error("H2D failed");
-                }
-                if (resource.cmd->reset() != 0) {
-                    return set_error("cmd reset failed");
-                }
 
                 {
                     auto extractor = d->net.create_extractor();
@@ -303,18 +296,11 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
                     extractor.input(d->input_index, resource.d_src);
                     extractor.extract(d->output_index, resource.d_dst, *resource.cmd);
                 }
-                if (resource.cmd->submit_and_wait() != 0) {
-                    resource.cmd->reset();
-                    return set_error("inference failed");
-                }
-                if (resource.cmd->reset() != 0) {
-                    return set_error("cmd reset failed");
-                }
 
                 resource.cmd->record_clone(resource.d_dst, resource.h_dst, opt);
                 if (resource.cmd->submit_and_wait() != 0) {
                     resource.cmd->reset();
-                    return set_error("D2H failed");
+                    return set_error("inference failed");
                 }
                 if (resource.cmd->reset() != 0) {
                     return set_error("cmd reset failed");
