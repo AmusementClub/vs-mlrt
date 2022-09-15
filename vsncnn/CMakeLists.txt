@@ -28,6 +28,19 @@ if (CMAKE_CXX_STANDARD GREATER 17)
     set_target_properties(vsncnn PROPERTIES CXX_STANDARD ${CMAKE_CXX_STANDARD})
 endif()
 
+target_include_directories(vsncnn PUBLIC
+    "${PROJECT_BINARY_DIR}"
+)
+
+find_package(Git REQUIRED)
+execute_process(
+    COMMAND ${GIT_EXECUTABLE} describe --tags --long --always
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE VCS_TAG
+)
+string(STRIP ${VCS_TAG} VCS_TAG)
+configure_file(config.h.in config.h)
+
 install(TARGETS vsncnn
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
