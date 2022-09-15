@@ -52,24 +52,21 @@ jobs:
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Setup Ninja
-      run: pip install ninja
-
     - name: Cache protobuf
       id: cache-protobuf
       uses: actions/cache@v2
       with:
         path: vsncnn/protobuf/install
-        key: ${{ runner.os }}-vsncnn-protobuf
+        key: ${{ runner.os }}-vsncnn-protobuf-v3.16.0
 
     - name: Checkout protobuf
       uses: actions/checkout@v2
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
       with:
         repository: protocolbuffers/protobuf
-        # follows protobuf in https://github.com/AmusementClub/ncnn/blob/github-actions/.github/workflows/windows-x64-gpu.yml
-        # if you change this, remember to bump the version of the cache key.
-        ref: v3.11.2
+        # follows protobuf in https://github.com/onnx/onnx/tree/v1.12.0#windows
+        # if you change this, remember to bump the version of the cache key of protobuf and onnx.
+        ref: v3.16.0
         path: vsncnn/protobuf
 
     - name: Configure protobuf
@@ -93,7 +90,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: vsncnn/onnx/install
-        key: ${{ runner.os }}-vsncnn-onnx
+        key: ${{ runner.os }}-vsncnn-onnx-v1.12.0-protobuf-v3.16.0
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
