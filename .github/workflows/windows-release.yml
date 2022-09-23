@@ -10,7 +10,7 @@ on:
       model-tags:
         description: 'which tag(s) of model release to use? (comma-separated list of tags)'
         required: true
-        default: 'model-20211209'
+        default: 'model-20211209, model-20220923'
       ov_tag:
         description: 'which tag of openvino to use'
         required: true
