@@ -114,7 +114,9 @@ class Backend:
         fp16: bool = False
         num_streams: typing.Union[int, str] = 1
         device_id: int = 0
+        fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
 
+        # internal backend attributes
         supports_onnx_serialization: bool = True
 
     @dataclass(frozen=False)
