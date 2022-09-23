@@ -7,8 +7,8 @@ on:
         description: 'which tag to create and release?'
         required: true
         default: 'v100'
-      model-tag:
-        description: 'which tag of model release to use?'
+      model-tags:
+        description: 'which tag(s) of model release to use? (comma-separated list of tags)'
         required: true
         default: 'model-20211209'
       ov_tag:
@@ -90,14 +90,18 @@ jobs:
         mkdir -p release/models
         cd release
         pushd models
-        curl -s https://api.github.com/repos/AmusementClub/vs-mlrt/releases/tags/'${{ github.event.inputs.model-tag }}' > release.json
-        for url in $(cat release.json | jq '.assets | .[] | .url ' | tr -d '"'); do
-          echo "Downloading $url"
-          curl -o dl.7z -LJO -H 'Accept: application/octet-stream' "$url"
-          7za x dl.7z
+        for tag in $(echo "${{ github.event.inputs.model-tags }}" | tr ',' ' '); do
+          echo "Handling tag $tag"
+          curl -s https://api.github.com/repos/AmusementClub/vs-mlrt/releases/tags/"$tag" > release.json
+          for url in $(cat release.json | jq '.assets | .[] | .url ' | tr -d '"'); do
+            echo "Downloading $url"
+            curl -o dl.7z -LJO -H 'Accept: application/octet-stream' "$url"
+            # later release should overwrite earlier ones
+            7za x -y dl.7z
+          done
+          test -f "dl.7z"
+          rm -f dl.7z release.json
         done
-        test -f "dl.7z"
-        rm -f dl.7z release.json
         popd
         ls -lR
         du -sh
