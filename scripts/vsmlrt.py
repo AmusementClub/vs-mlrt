@@ -1,4 +1,4 @@
-__version__ = "3.12.0"
+__version__ = "3.13.0"
 
 __all__ = [
     "Backend",
@@ -6,7 +6,8 @@ __all__ = [
     "DPIR", "DPIRModel",
     "RealESRGAN", "RealESRGANModel",
     "RealESRGANv2", "RealESRGANv2Model",
-    "CUGAN"
+    "CUGAN",
+    "RIFE"
 ]
 
 import copy
@@ -290,7 +291,6 @@ class DPIRModel(enum.IntEnum):
     drunet_deblocking_grayscale = 2
     drunet_deblocking_color = 3
 
-
 def DPIR(
     clip: vs.VideoNode,
     strength: typing.Optional[typing.Union[typing.SupportsFloat, vs.VideoNode]],
@@ -394,6 +394,7 @@ class RealESRGANModel(enum.IntEnum):
 
 RealESRGANv2Model = RealESRGANModel
 
+
 def RealESRGAN(
     clip: vs.VideoNode,
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
@@ -479,6 +480,7 @@ def RealESRGAN(
     return clip
 
 RealESRGANv2 = RealESRGAN
+
 
 def CUGAN(
     clip: vs.VideoNode,
@@ -638,6 +640,144 @@ def CUGAN(
         clip = core.std.Expr(clip, "x 0.15 - 0.7 /")
 
     return clip
+
+
+def get_rife_input(clip, multi: int) -> typing.List[vs.VideoNode]:
+    from functools import partial
+
+    def meshgrid_core(n, f, horizontal):
+        fout = f.copy()
+        mem_view = fout[0]
+        height, width = mem_view.shape
+
+        if horizontal:
+            for i in range(height):
+                for j in range(width):
+                    mem_view[i, j] = 2 * j / (width - 1) - 1
+        else:
+            for i in range(height):
+                for j in range(width):
+                    mem_view[i, j] = 2 * i / (height - 1) - 1
+
+        return fout
+
+    initial = core.std.Interleave([clip] * (multi - 1))
+
+    terminal = clip.std.DuplicateFrames(frames=clip.num_frames - 1).std.Trim(first=1)
+    terminal = core.std.Interleave([terminal] * (multi - 1))
+
+    timepoint = core.std.Interleave([
+        clip.std.BlankClip(format=vs.GRAYS, color=i/multi, length=1)
+        for i in range(1, multi)
+    ]).std.Loop(clip.num_frames)
+
+    empty = clip.std.BlankClip(format=vs.GRAYS, length=1)
+
+    horizontal = core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=True))
+    horizontal = horizontal.std.Loop(initial.num_frames)
+
+    vertical = core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=False))
+    vertical = vertical.std.Loop(initial.num_frames)
+
+    multiplier_h = initial.std.BlankClip(format=vs.GRAYS, color=2/(clip.width-1), keep=True)
+
+    multiplier_w = initial.std.BlankClip(format=vs.GRAYS, color=2/(clip.height-1), keep=True)
+    
+    return [initial, terminal, timepoint, horizontal, vertical, multiplier_h, multiplier_w]
+
+
+def RIFE(
+    clip: vs.VideoNode,
+    multi: int = 2,
+    scale: float = 1.0,
+    tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    backend: backendT = Backend.OV_CPU()
+) -> vs.VideoNode:
+    """ RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation
+
+    ** The interface is not stable and may be modified without notice. **
+
+    multi, scale is based on vs-dpir.
+
+    Scene change avoidance is not implemented (yet).
+
+    Args:
+        multi: Multiple of the frame counts.
+            Default: 2.
+
+        scale: Controls the process resolution for optical flow model. 
+            Must be 1.0 for now.
+    """
+
+    func_name = "vsmlrt.RIFE"
+
+    if not isinstance(clip, vs.VideoNode):
+        raise TypeError(f'{func_name}: "clip" must be a clip!')
+
+    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
+        raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
+
+    if clip.format.id != vs.RGBS:
+        raise ValueError(f'{func_name}: "clip" must be of RGBS format')
+
+    if multi < 2:
+        raise ValueError(f'{func_name}: RIFE: multi must be at least 2')
+
+    if scale != 1.0:
+        raise ValueError(f'{func_name}: scale must be 1.0')
+
+    if overlap is None:
+        overlap_w = overlap_h = 0
+    elif isinstance(overlap, int):
+        overlap_w = overlap_h = overlap
+    else:
+        overlap_w, overlap_h = overlap
+
+    multiple = 32
+
+    (tile_w, tile_h), (overlap_w, overlap_h) = calc_tilesize(
+        tiles=tiles, tilesize=tilesize,
+        width=clip.width, height=clip.height,
+        multiple=multiple,
+        overlap_w=overlap_w, overlap_h=overlap_h
+    )
+
+    if tile_w % multiple != 0 or tile_h % multiple != 0:
+        raise ValueError(
+            f'{func_name}: tile size must be divisible by {multiple} ({tile_w}, {tile_h})'
+        )
+
+    channels = 3 + 3 + 1 + 2 + 2
+
+    backend = init_backend(
+        backend=backend,
+        channels=channels,
+        trt_max_shapes=(tile_w, tile_h)
+    )
+
+    network_path = os.path.join(
+        models_path,
+        "rife",
+        "rife_v4.0.onnx"
+    )
+
+    clips = get_rife_input(clip, multi=multi)
+
+    rife_output = inference_with_fallback(
+        clips=clips, network_path=network_path,
+        overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
+        backend=backend
+    )
+
+    if multi == 2:
+        return core.std.Interleave([clip, rife_output])
+    else:
+        return core.std.Interleave([
+            clip, 
+            *(rife_output.std.SelectEvery(cycle=multi-1, offsets=i) for i in range(multi - 1))
+        ])
 
 
 def get_engine_path(
