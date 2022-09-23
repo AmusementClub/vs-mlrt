@@ -7,7 +7,7 @@ __all__ = [
     "RealESRGAN", "RealESRGANModel",
     "RealESRGANv2", "RealESRGANv2Model",
     "CUGAN",
-    "RIFE"
+    "RIFE", "RIFEModel"
 ]
 
 import copy
@@ -291,6 +291,7 @@ class DPIRModel(enum.IntEnum):
     drunet_deblocking_grayscale = 2
     drunet_deblocking_color = 3
 
+
 def DPIR(
     clip: vs.VideoNode,
     strength: typing.Optional[typing.Union[typing.SupportsFloat, vs.VideoNode]],
@@ -493,7 +494,7 @@ def CUGAN(
     preprocess: bool = True,
     alpha: float = 1.0,
     version: typing.Literal[1, 2] = 1, # 1: legacy, 2: pro
-    conformance: bool = True # currently specifies dynamic range compression for cugan-pro 
+    conformance: bool = True # currently specifies dynamic range compression for cugan-pro
 ) -> vs.VideoNode:
     """
     denoising strength: 0 < -1 < 1 < 2 < 3
@@ -642,10 +643,10 @@ def CUGAN(
     return clip
 
 
-def get_rife_input(clip, multi: int) -> typing.List[vs.VideoNode]:
+def get_rife_input(clip: vs.VideoNode, multi: int) -> typing.List[vs.VideoNode]:
     from functools import partial
 
-    def meshgrid_core(n, f, horizontal):
+    def meshgrid_core(n: int, f: vs.VideoFrame, horizontal: bool) -> vs.VideoFrame:
         fout = f.copy()
         mem_view = fout[0]
         height, width = mem_view.shape
@@ -682,8 +683,17 @@ def get_rife_input(clip, multi: int) -> typing.List[vs.VideoNode]:
     multiplier_h = initial.std.BlankClip(format=vs.GRAYS, color=2/(clip.width-1), keep=True)
 
     multiplier_w = initial.std.BlankClip(format=vs.GRAYS, color=2/(clip.height-1), keep=True)
-    
+
     return [initial, terminal, timepoint, horizontal, vertical, multiplier_h, multiplier_w]
+
+
+@enum.unique
+class RIFEModel(enum.IntEnum):
+    v4_0 = 40
+    v4_2 = 42
+    v4_3 = 43
+    v4_4 = 44
+    v4_5 = 45
 
 
 def RIFE(
@@ -693,6 +703,7 @@ def RIFE(
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    model: typing.Literal[40, 42, 43, 44, 45] = 45,
     backend: backendT = Backend.OV_CPU()
 ) -> vs.VideoNode:
     """ RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation
@@ -707,7 +718,7 @@ def RIFE(
         multi: Multiple of the frame counts.
             Default: 2.
 
-        scale: Controls the process resolution for optical flow model. 
+        scale: Controls the process resolution for optical flow model.
             Must be 1.0 for now.
     """
 
@@ -760,7 +771,7 @@ def RIFE(
     network_path = os.path.join(
         models_path,
         "rife",
-        "rife_v4.0.onnx"
+        f"rife_v{model // 10}.{model % 10}.onnx"
     )
 
     clips = get_rife_input(clip, multi=multi)
@@ -775,7 +786,7 @@ def RIFE(
         return core.std.Interleave([clip, rife_output])
     else:
         return core.std.Interleave([
-            clip, 
+            clip,
             *(rife_output.std.SelectEvery(cycle=multi-1, offsets=i) for i in range(multi - 1))
         ])
 
