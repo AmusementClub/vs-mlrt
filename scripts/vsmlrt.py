@@ -648,7 +648,13 @@ def get_rife_input(clip: vs.VideoNode, multi: int) -> typing.List[vs.VideoNode]:
 
     def meshgrid_core(n: int, f: vs.VideoFrame, horizontal: bool) -> vs.VideoFrame:
         fout = f.copy()
-        mem_view = fout[0]
+
+        is_api4 = hasattr(vs, "__api_version__") and vs.__api_version__.api_major == 4
+        if is_api4:
+            mem_view = fout[0]
+        else:
+            mem_view = fout.get_write_array(0)
+
         height, width = mem_view.shape
 
         if horizontal:
