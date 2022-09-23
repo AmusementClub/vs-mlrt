@@ -77,6 +77,34 @@ static std::atomic<int64_t> logger_id = 0;
 static std::mutex capture_lock;
 
 
+// rename GridSample to com.microsoft::GridSample
+// onnxruntime has support for CUDA-accelerated GridSample only in its own opset domain
+static void rename(ONNX_NAMESPACE::ModelProto & model) {
+    constexpr auto ms_domain = "com.microsoft";
+
+    bool has_ms_opset = false;
+    for (const auto & opset : model.opset_import()) {
+        if (opset.has_domain() && opset.domain() == ms_domain) {
+            has_ms_opset = true;
+            break;
+        }
+    }
+
+    if (!has_ms_opset) {
+        ONNX_NAMESPACE::OperatorSetIdProto opset_id;
+        *opset_id.mutable_domain() = ms_domain;
+        opset_id.set_version(1);
+        *model.add_opset_import() = std::move(opset_id);
+    }
+
+    for (auto & node : *model.mutable_graph()->mutable_node()) {
+        if (node.has_op_type() && node.op_type() == "GridSample") {
+            *node.mutable_domain() = ms_domain;
+        }
+    }
+}
+
+
 [[nodiscard]]
 static std::optional<std::string> ortInit() noexcept {
     static std::once_flag ort_init_flag;
@@ -909,8 +937,9 @@ static void VS_CC vsOrtCreate(
                 "LinearClassifier", "LinearRegressor", "Normalizer", "OneHotEncoder",
                 "SVMClassifier", "SVMRegressor", "Scaler", "TreeEnsembleClassifier",
                 "TreeEnsembleRegressor", "ZipMap", "NonMaxSuppression", "TopK",
-                "RoiAlign", "Range", "CumSum", "Min", "Max", "Resize", "Upsample", 
-                "ReduceMean" // for CUGAN-pro
+                "RoiAlign", "Range", "CumSum", "Min", "Max", "Resize", "Upsample",
+                "ReduceMean", // for CUGAN-pro
+                "GridSample", // for RIFE, etc
             };
         } else {
             for (int i = 0; i < num; i++) {
@@ -919,6 +948,8 @@ static void VS_CC vsOrtCreate(
         }
         convert_float_to_float16(onnx_model, false, fp16_blacklist_ops);
     }
+
+    rename(onnx_model);
 
     std::string onnx_data = onnx_model.SerializeAsString();
     if (std::size(onnx_data) == 0) {
