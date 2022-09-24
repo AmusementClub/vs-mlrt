@@ -619,11 +619,18 @@ def CUGAN(
         model.graph.node.insert(idx+1, mul_node)
 
         if backend.supports_onnx_serialization:
+            if conformance and version == 2:
+                clip = core.std.Expr(clip, "x 0.7 * 0.15 +")
+
             clip = inference_with_fallback(
                 clips=[clip], network_path=model.SerializeToString(),
                 overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
                 backend=backend, path_is_serialization=True
             )
+
+            if conformance and version == 2:
+                clip = core.std.Expr(clip, "x 0.15 - 0.7 /")
+
             return clip
 
         network_path = f"{network_path}_alpha{alpha!r}.onnx"
