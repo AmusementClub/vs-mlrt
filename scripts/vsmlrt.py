@@ -718,6 +718,8 @@ def RIFEMerge(
     Its semantics is similar to core.std.MaskedMerge(clipa, clipb, mask, first_plane=True)
     """
 
+    from fractions import Fraction
+
     func_name = "vsmlrt.RIFEMerge"
 
     for clip in (clipa, clipb, mask):
@@ -740,9 +742,6 @@ def RIFEMerge(
     if mask.format.id != vs.GRAYS:
         raise ValueError(f'{func_name}: "mask" must be of RGBS format')
 
-    if scale != 1.0:
-        raise ValueError(f'{func_name}: scale must be 1.0')
-
     if overlap is None:
         overlap_w = overlap_h = 0
     elif isinstance(overlap, int):
@@ -750,7 +749,11 @@ def RIFEMerge(
     else:
         overlap_w, overlap_h = overlap
 
-    multiple = 32
+    multiple_frac = 32 / Fraction(scale)
+    if multiple_frac.denominator != 1:
+        raise ValueError(f'{func_name}: (32 / Fraction(scale)) must be an integer')
+    multiple = int(multiple_frac.numerator)
+    scale = float(Fraction(scale))
 
     (tile_w, tile_h), (overlap_w, overlap_h) = calc_tilesize(
         tiles=tiles, tilesize=tilesize,
@@ -780,11 +783,65 @@ def RIFEMerge(
 
     clips = [clipa, clipb, mask, *get_rife_input(clipa)]
 
-    return inference_with_fallback(
-        clips=clips, network_path=network_path,
-        overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
-        backend=backend
-    )
+    if scale == 1.0:
+        return inference_with_fallback(
+            clips=clips, network_path=network_path,
+            overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
+            backend=backend
+        )
+    else:
+        import onnx
+        from onnx.numpy_helper import from_array, to_array
+
+        model = onnx.load(network_path)
+
+        resize_counter = 0
+        for i in range(len(model.graph.node)):
+            node = model.graph.node[i]
+            if len(node.output) == 1 and node.output[0].startswith("onnx::Resize") and node.op_type == "Constant":
+                resize_counter += 1
+
+                array = to_array(node.attribute[0].t).copy()
+                if resize_counter % 3 == 2:
+                    array[2:4] /= scale
+                else:
+                    array[2:4] *= scale
+                model.graph.node[i].attribute[0].t.raw_data = from_array(array).raw_data
+
+        if resize_counter != 11:
+            raise ValueError("invalid onnx model")
+
+        multiplier_counter = 0
+        for i in range(len(model.graph.node)):
+            node = model.graph.node[i]
+            if len(node.output) == 1 and node.output[0].startswith("onnx::Mul") and node.op_type == "Constant":
+                multiplier_counter += 1
+
+                array = to_array(node.attribute[0].t).copy()
+                if multiplier_counter % 2 == 1:
+                    array /= scale
+                else:
+                    array *= scale
+                model.graph.node[i].attribute[0].t.raw_data = from_array(array).raw_data
+
+        if multiplier_counter != 7:
+            raise ValueError(f"invalid onnx model {multiplier_counter}")
+
+        if backend.supports_onnx_serialization:
+            return inference_with_fallback(
+                clips=clips, network_path=model.SerializeToString(),
+                overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
+                backend=backend, path_is_serialization=True
+            )
+        else:
+            network_path = f"{network_path}_scale{scale!r}.onnx"
+            onnx.save(model, network_path)
+
+            return inference_with_fallback(
+                clips=clips, network_path=network_path,
+                overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
+                backend=backend
+            )
 
 
 def RIFE(
@@ -810,7 +867,7 @@ def RIFE(
             Default: 2.
 
         scale: Controls the process resolution for optical flow model.
-            Must be 1.0 for now.
+            32 / fractions.Fraction(scale) must be an integer.
     """
 
     func_name = "vsmlrt.RIFE"
