@@ -798,7 +798,7 @@ def RIFEMerge(
         resize_counter = 0
         for i in range(len(model.graph.node)):
             node = model.graph.node[i]
-            if len(node.output) == 1 and node.output[0].startswith("onnx::Resize") and node.op_type == "Constant":
+            if len(node.output) == 1 and node.op_type == "Constant" and node.output[0].startswith("onnx::Resize"):
                 resize_counter += 1
 
                 array = to_array(node.attribute[0].t).copy()
@@ -809,12 +809,12 @@ def RIFEMerge(
                 model.graph.node[i].attribute[0].t.raw_data = from_array(array).raw_data
 
         if resize_counter != 11:
-            raise ValueError("invalid onnx model")
+            raise ValueError("invalid rife model")
 
         multiplier_counter = 0
         for i in range(len(model.graph.node)):
             node = model.graph.node[i]
-            if len(node.output) == 1 and node.output[0].startswith("onnx::Mul") and node.op_type == "Constant":
+            if len(node.output) == 1 and node.op_type == "Constant" and node.output[0].startswith("onnx::Mul"):
                 multiplier_counter += 1
 
                 array = to_array(node.attribute[0].t).copy()
@@ -825,7 +825,7 @@ def RIFEMerge(
                 model.graph.node[i].attribute[0].t.raw_data = from_array(array).raw_data
 
         if multiplier_counter != 7:
-            raise ValueError(f"invalid onnx model {multiplier_counter}")
+            raise ValueError("invalid rife model")
 
         if backend.supports_onnx_serialization:
             return inference_with_fallback(
@@ -868,6 +868,7 @@ def RIFE(
 
         scale: Controls the process resolution for optical flow model.
             32 / fractions.Fraction(scale) must be an integer.
+            scale=0.5 is recommended for 4K video.
     """
 
     func_name = "vsmlrt.RIFE"
