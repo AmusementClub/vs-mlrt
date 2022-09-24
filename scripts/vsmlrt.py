@@ -7,7 +7,7 @@ __all__ = [
     "RealESRGAN", "RealESRGANModel",
     "RealESRGANv2", "RealESRGANv2Model",
     "CUGAN",
-    "RIFE", "RIFEModel"
+    "RIFE", "RIFEModel", "RIFEMerge"
 ]
 
 import copy
@@ -126,6 +126,9 @@ class Backend:
         fp16: bool = False
         device_id: int = 0
         num_streams: int = 1
+
+        # internal backend attributes
+        supports_onnx_serialization: bool = True
 
 
 backendT = typing.Union[
@@ -643,7 +646,7 @@ def CUGAN(
     return clip
 
 
-def get_rife_input(clip: vs.VideoNode, multi: int) -> typing.List[vs.VideoNode]:
+def get_rife_input(clip: vs.VideoNode) -> typing.List[vs.VideoNode]:
     from functools import partial
 
     def meshgrid_core(n: int, f: vs.VideoFrame, horizontal: bool) -> vs.VideoFrame:
@@ -668,29 +671,19 @@ def get_rife_input(clip: vs.VideoNode, multi: int) -> typing.List[vs.VideoNode]:
 
         return fout
 
-    initial = core.std.Interleave([clip] * (multi - 1))
-
-    terminal = clip.std.DuplicateFrames(frames=clip.num_frames - 1).std.Trim(first=1)
-    terminal = core.std.Interleave([terminal] * (multi - 1))
-
-    timepoint = core.std.Interleave([
-        clip.std.BlankClip(format=vs.GRAYS, color=i/multi, length=1)
-        for i in range(1, multi)
-    ]).std.Loop(clip.num_frames)
-
     empty = clip.std.BlankClip(format=vs.GRAYS, length=1)
 
     horizontal = core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=True))
-    horizontal = horizontal.std.Loop(initial.num_frames)
+    horizontal = horizontal.std.Loop(clip.num_frames)
 
     vertical = core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=False))
-    vertical = vertical.std.Loop(initial.num_frames)
+    vertical = vertical.std.Loop(clip.num_frames)
 
-    multiplier_h = initial.std.BlankClip(format=vs.GRAYS, color=2/(clip.width-1), keep=True)
+    multiplier_h = clip.std.BlankClip(format=vs.GRAYS, color=2/(clip.width-1), keep=True)
 
-    multiplier_w = initial.std.BlankClip(format=vs.GRAYS, color=2/(clip.height-1), keep=True)
+    multiplier_w = clip.std.BlankClip(format=vs.GRAYS, color=2/(clip.height-1), keep=True)
 
-    return [initial, terminal, timepoint, horizontal, vertical, multiplier_h, multiplier_w]
+    return [horizontal, vertical, multiplier_h, multiplier_w]
 
 
 @enum.unique
@@ -702,9 +695,10 @@ class RIFEModel(enum.IntEnum):
     v4_5 = 45
 
 
-def RIFE(
-    clip: vs.VideoNode,
-    multi: int = 2,
+def RIFEMerge(
+    clipa: vs.VideoNode,
+    clipb: vs.VideoNode,
+    mask: vs.VideoNode,
     scale: float = 1.0,
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
@@ -712,35 +706,32 @@ def RIFE(
     model: typing.Literal[40, 42, 43, 44, 45] = 45,
     backend: backendT = Backend.OV_CPU()
 ) -> vs.VideoNode:
-    """ RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation
+    """ temporal MaskedMerge-like interface for the RIFE model
 
-    ** The interface is not stable and may be modified without notice. **
-
-    multi, scale is based on vs-dpir.
-
-    Scene change avoidance is not implemented (yet).
-
-    Args:
-        multi: Multiple of the frame counts.
-            Default: 2.
-
-        scale: Controls the process resolution for optical flow model.
-            Must be 1.0 for now.
+    Its semantics is similar to core.std.MaskedMerge(clipa, clipb, mask, first_plane=True)
     """
 
-    func_name = "vsmlrt.RIFE"
+    func_name = "vsmlrt.RIFEMerge"
 
-    if not isinstance(clip, vs.VideoNode):
-        raise TypeError(f'{func_name}: "clip" must be a clip!')
+    for clip in (clipa, clipb, mask):
+        if not isinstance(clip, vs.VideoNode):
+            raise TypeError(f'{func_name}: clip must be a clip!')
 
-    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
-        raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
+        if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
+            raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
 
-    if clip.format.id != vs.RGBS:
-        raise ValueError(f'{func_name}: "clip" must be of RGBS format')
+    for clip in (clipa, clipb):
+        if clip.format.id != vs.RGBS:
+            raise ValueError(f'{func_name}: "clipa" / "clipb" must be of RGBS format')
 
-    if multi < 2:
-        raise ValueError(f'{func_name}: RIFE: multi must be at least 2')
+        if clip.width != mask.width or clip.height != mask.height:
+            raise ValueError(f'{func_name}: video dimensions mismatch')
+
+        if clip.num_frames != mask.num_frames:
+            raise ValueError(f'{func_name}: number of frames mismatch')
+
+    if mask.format.id != vs.GRAYS:
+        raise ValueError(f'{func_name}: "mask" must be of RGBS format')
 
     if scale != 1.0:
         raise ValueError(f'{func_name}: scale must be 1.0')
@@ -780,20 +771,77 @@ def RIFE(
         f"rife_v{model // 10}.{model % 10}.onnx"
     )
 
-    clips = get_rife_input(clip, multi=multi)
+    clips = [clipa, clipb, mask, *get_rife_input(clipa)]
 
-    rife_output = inference_with_fallback(
+    return inference_with_fallback(
         clips=clips, network_path=network_path,
         overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
         backend=backend
     )
 
+
+def RIFE(
+    clip: vs.VideoNode,
+    multi: int = 2,
+    scale: float = 1.0,
+    tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    model: typing.Literal[40, 42, 43, 44, 45] = 45,
+    backend: backendT = Backend.OV_CPU()
+) -> vs.VideoNode:
+    """ RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation
+
+    ** The interface is not stable and may be modified without notice. **
+
+    multi, scale is based on vs-rife.
+
+    Scene change avoidance is not implemented (yet).
+
+    Args:
+        multi: Multiple of the frame counts.
+            Default: 2.
+
+        scale: Controls the process resolution for optical flow model.
+            Must be 1.0 for now.
+    """
+
+    func_name = "vsmlrt.RIFE"
+
+    if not isinstance(clip, vs.VideoNode):
+        raise TypeError(f'{func_name}: "clip" must be a clip!')
+
+    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
+        raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
+
+    if clip.format.id != vs.RGBS:
+        raise ValueError(f'{func_name}: "clip" must be of RGBS format')
+
+    if multi < 2:
+        raise ValueError(f'{func_name}: RIFE: multi must be at least 2')
+
+    initial = core.std.Interleave([clip] * (multi - 1))
+
+    terminal = clip.std.DuplicateFrames(frames=clip.num_frames - 1).std.Trim(first=1)
+    terminal = core.std.Interleave([terminal] * (multi - 1))
+
+    timepoint = core.std.Interleave([
+        clip.std.BlankClip(format=vs.GRAYS, color=i/multi, length=1)
+        for i in range(1, multi)
+    ]).std.Loop(clip.num_frames)
+
+    output = RIFEMerge(
+        clipa=initial, clipb=terminal, mask=timepoint,
+        scale=scale, tiles=tiles, tilesize=tilesize, overlap=overlap,
+        model=model, backend=backend
+    )
+
     if multi == 2:
-        return core.std.Interleave([clip, rife_output])
+        return core.std.Interleave([clip, output])
     else:
         return core.std.Interleave([
             clip,
-            *(rife_output.std.SelectEvery(cycle=multi-1, offsets=i) for i in range(multi - 1))
+            *(output.std.SelectEvery(cycle=multi-1, offsets=i) for i in range(multi - 1))
         ])
 
 
