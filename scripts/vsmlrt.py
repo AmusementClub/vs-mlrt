@@ -710,7 +710,7 @@ def RIFEMerge(
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
-    model: typing.Literal[40, 42, 43, 44, 45] = 45,
+    model: typing.Literal[40, 42, 43, 44, 45] = 44,
     backend: backendT = Backend.OV_CPU()
 ) -> vs.VideoNode:
     """ temporal MaskedMerge-like interface for the RIFE model
