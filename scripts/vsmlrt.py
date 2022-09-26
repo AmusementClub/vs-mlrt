@@ -710,7 +710,7 @@ def RIFEMerge(
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
-    model: typing.Literal[40, 42, 43, 44, 45] = 44,
+    model: typing.Literal[40, 42, 43, 44, 45, 46] = 44,
     backend: backendT = Backend.OV_CPU()
 ) -> vs.VideoNode:
     """ temporal MaskedMerge-like interface for the RIFE model
@@ -851,7 +851,7 @@ def RIFE(
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
-    model: typing.Literal[40, 42, 43, 44, 45] = 45,
+    model: typing.Literal[40, 42, 43, 44, 45, 46] = 44,
     backend: backendT = Backend.OV_CPU()
 ) -> vs.VideoNode:
     """ RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation
