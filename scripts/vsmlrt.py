@@ -700,6 +700,7 @@ class RIFEModel(enum.IntEnum):
     v4_3 = 43
     v4_4 = 44
     v4_5 = 45
+    v4_6 = 46
 
 
 def RIFEMerge(
