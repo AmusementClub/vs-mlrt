@@ -621,6 +621,7 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
                 }
 #endif // ENABLE_CUDA
 
+#ifdef ENABLE_CUDA
                 if (resource.require_replay) [[unlikely]] {
                     resource.require_replay = false;
 
@@ -635,6 +636,9 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
 
                     // onnxruntime replays the graph itself in CUDAExecutionProvider::OnRunEnd
                 } else {
+#else // ENABLE_CUDA
+                {
+#endif // ENABLE_CUDA
                     checkError(ortapi->RunWithBinding(resource.session, nullptr, resource.binding));
                 }
 
