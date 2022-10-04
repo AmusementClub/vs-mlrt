@@ -1,4 +1,4 @@
-__version__ = "3.13.0"
+__version__ = "3.13.1"
 
 __all__ = [
     "Backend",
@@ -104,6 +104,9 @@ class Backend:
         # as of TensorRT 8.4, it can be turned off without performance penalty in most cases
         use_cudnn: bool = True
         use_edge_mask_convolutions: bool = True
+        use_jit_convolutions: bool = True
+
+        heuristic: bool = False # only supported on Ampere+ with TensorRT 8.5+
 
         # internal backend attributes
         _channels: int = field(init=False, repr=False, compare=False)
@@ -968,8 +971,13 @@ def trtexec(
     tf32: bool = True,
     log: bool = False,
     use_cudnn: bool = True,
-    use_edge_mask_convolutions: bool = True
+    use_edge_mask_convolutions: bool = True,
+    use_jit_convolutions: bool = True,
+    heuristic: bool = False
 ) -> str:
+
+    # tensort runtime version, e.g. 840 => 8.4.0
+    trt_version = int(core.trt.Version()["tensorrt_version"]) // 10
 
     if isinstance(opt_shapes, int):
         opt_shapes = (opt_shapes, opt_shapes)
@@ -1013,10 +1021,15 @@ def trtexec(
             os.makedirs(dirname)
         print(f"change engine path to {engine_path}", file=sys.stderr)
 
+    if trt_version >= 840:
+        workspace_arg = f"--memPoolSize=workspace:{workspace}"
+    else:
+        workspace_arg = f"--workspace{workspace}"
+    
     args = [
         trtexec_path,
         f"--onnx={network_path}",
-        f"--memPoolSize=workspace:{workspace}",
+        workspace_arg,
         f"--timingCacheFile={engine_path}.cache",
         f"--device={device_id}",
         f"--saveEngine={engine_path}"
@@ -1042,8 +1055,10 @@ def trtexec(
         disabled_tactic_sources.extend(["-CUBLAS", "-CUBLAS_LT"])
     if not use_cudnn:
         disabled_tactic_sources.append("-CUDNN")
-    if not use_edge_mask_convolutions:
+    if not use_edge_mask_convolutions and trt_version >= 841:
         disabled_tactic_sources.append("-EDGE_MASK_CONVOLUTIONS")
+    if not use_jit_convolutions and trt_version >= 850:
+        disabled_tactic_sources.append("-JIT_CONVOLUTIONS")
     if disabled_tactic_sources:
         args.append(f"--tacticSources={','.join(disabled_tactic_sources)}")
 
@@ -1057,6 +1072,9 @@ def trtexec(
 
     if not tf32:
         args.append("--noTF32")
+
+    if heuristic and trt_version >= 850 and core.trt.DeviceProperties(device_id)["major"] >= 8:
+        args.append("--heuristic")
 
     if log:
         env_key = "TRTEXEC_LOG_FILE"
@@ -1255,7 +1273,9 @@ def inference(
             tf32=backend.tf32,
             log=backend.log,
             use_cudnn=backend.use_cudnn,
-            use_edge_mask_convolutions=backend.use_edge_mask_convolutions
+            use_edge_mask_convolutions=backend.use_edge_mask_convolutions,
+            use_jit_convolutions=backend.use_jit_convolutions,
+            heuristic=backend.heuristic
         )
         clip = core.trt.Model(
             clips, engine_path,
