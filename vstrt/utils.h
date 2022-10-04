@@ -20,11 +20,19 @@ void setDimensions(
     const VSAPI * vsapi
 ) noexcept {
 
+#if NV_TENSORRT_MAJOR == 8 && NV_TENSORRT_MINOR >= 5
+    auto input_name = exec_context->getEngine().getIOTensorName(0);
+    auto output_name = exec_context->getEngine().getIOTensorName(1);
+    const nvinfer1::Dims & in_dims = exec_context->getTensorShape(input_name);
+    const nvinfer1::Dims & out_dims = exec_context->getTensorShape(output_name);
+#else // NV_TENSORRT_MAJOR == 8 && NV_TENSORRT_MINOR >= 5
     const nvinfer1::Dims & in_dims = exec_context->getBindingDimensions(0);
+    const nvinfer1::Dims & out_dims = exec_context->getBindingDimensions(1);
+#endif // NV_TENSORRT_MAJOR == 8 && NV_TENSORRT_MINOR >= 5
+
     int in_height = in_dims.d[2];
     int in_width = in_dims.d[3];
-
-    const nvinfer1::Dims & out_dims = exec_context->getBindingDimensions(1);
+    
     int out_height = out_dims.d[2];
     int out_width = out_dims.d[3];
 
@@ -118,7 +126,12 @@ std::optional<std::string> checkNodesAndContext(
     const std::vector<const VSVideoInfo *> & vis
 ) noexcept {
 
+#if NV_TENSORRT_MAJOR == 8 && NV_TENSORRT_MINOR >= 5
+    auto input_name = execution_context->getEngine().getIOTensorName(0);
+    const nvinfer1::Dims & network_in_dims = execution_context->getTensorShape(input_name);
+#else // NV_TENSORRT_MAJOR == 8 && NV_TENSORRT_MINOR >= 5
     const nvinfer1::Dims & network_in_dims = execution_context->getBindingDimensions(0);
+#endif // NV_TENSORRT_MAJOR == 8 && NV_TENSORRT_MINOR >= 5
 
     int network_in_channels = network_in_dims.d[1];
     int num_planes = numPlanes(vis);
