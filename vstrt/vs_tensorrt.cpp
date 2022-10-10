@@ -142,11 +142,14 @@ static const VSFrameRef *VS_CC vsTrtGetFrame(
             getFrames(n, vsapi, frameCtx, d->nodes)
         };
 
+        const int ticket { d->acquire() };
+        InferenceInstance & instance { d->instances[ticket] };
+
 #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
         auto input_name = d->engines[0]->getIOTensorName(0);
-        const nvinfer1::Dims src_dim { d->engines[0]->getTensorShape(input_name) };
+        const nvinfer1::Dims src_dim { instance.exec_context->getTensorShape(input_name) };
 #else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
-        const nvinfer1::Dims src_dim { d->engines[0]->getBindingDimensions(0) };
+        const nvinfer1::Dims src_dim { instance.exec_context->getBindingDimensions(0) };
 #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
 
         const int src_planes { src_dim.d[1] };
@@ -168,9 +171,9 @@ static const VSFrameRef *VS_CC vsTrtGetFrame(
 
 #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
         auto output_name = d->engines[0]->getIOTensorName(1);
-        const nvinfer1::Dims dst_dim { d->engines[0]->getTensorShape(output_name) };
+        const nvinfer1::Dims dst_dim { instance.exec_context->getTensorShape(output_name) };
 #else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
-        const nvinfer1::Dims dst_dim { d->engines[0]->getBindingDimensions(1) };
+        const nvinfer1::Dims dst_dim { instance.exec_context->getBindingDimensions(1) };
 #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
 
         const int dst_planes { dst_dim.d[1] };
@@ -182,9 +185,6 @@ static const VSFrameRef *VS_CC vsTrtGetFrame(
         for (int i = 0; i < dst_planes; ++i) {
             dst_ptrs.emplace_back(vsapi->getWritePtr(dst_frame, i));
         }
-
-        const int ticket { d->acquire() };
-        InferenceInstance & instance { d->instances[ticket] };
 
         const int h_scale = dst_tile_h / src_tile_h;
         const int w_scale = dst_tile_w / src_tile_w;
