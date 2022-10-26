@@ -51,7 +51,7 @@ jobs:
 
     - name: Cache protobuf
       id: cache-protobuf
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: vsov/protobuf/install
         key: ${{ runner.os }}-vsov-protobuf-v1
@@ -83,7 +83,7 @@ jobs:
 
     - name: Cache onnx
       id: cache-onnx
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: vsov/onnx/install
         key: ${{ runner.os }}-vsov-onnx-v1

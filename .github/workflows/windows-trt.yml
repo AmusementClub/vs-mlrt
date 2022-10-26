@@ -43,7 +43,7 @@ jobs:
 
     - name: Cache CUDA
       id: cache-cuda
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
         key: ${{ runner.os }}-vstrt-cuda-11.7.0

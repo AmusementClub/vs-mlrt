@@ -115,7 +115,7 @@ jobs:
 
     - name: Cache zlib
       id: cache-zlib
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: ${{ github.workspace }}/zlib-release
         key: ${{ runner.os }}-zlib-1.2.12
