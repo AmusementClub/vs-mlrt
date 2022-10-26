@@ -132,7 +132,7 @@ jobs:
       if: steps.cache-zlib.outputs.cache-hit != 'true'
       shell: cmd
       run: |
-        curl -s -o zlib.tar.gz -LJO https://www.zlib.net/zlib-1.2.12.tar.gz
+        curl -s -o zlib.tar.gz -LJO https://github.com/madler/zlib/archive/refs/tags/v1.2.12.tar.gz
         tar -xf zlib.tar.gz
         cd zlib-1.2.12\contrib\vstudio\vc14
         python -c "f=open('zlibvc.vcxproj','r+b');s=f.read();s=s.replace(b'MultiThreadedDLL',b'MultiThreaded');start=s.index(b'<ClCompile Include=\"..\\..\\masmx64\\inffas8664.c\">');end_str=b'</ClCompile>\n';end=s.index(end_str,start);s=s[:start]+s[end+len(end_str):];f.seek(0);f.write(s);f.truncate();f.close()"
