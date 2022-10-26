@@ -12,10 +12,6 @@ on:
         description: 'which tag to upload to'
         required: true
         type: string
-    outputs:
-      runID:
-        description: 'run id'
-        value: ${{ jobs.build-windows.outputs.runID }}
   workflow_dispatch:
     inputs:
       tag:
@@ -25,8 +21,6 @@ on:
 jobs:
   build-windows:
     runs-on: windows-2022
-    outputs:
-      runID: ${{ steps.output.outputs.runID }}
 
     defaults:
       run:
@@ -245,8 +239,3 @@ jobs:
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true
-
-    - name: Output run-id
-      id: output
-      shell: bash
-      run: echo "::set-output name=runID::$GITHUB_RUN_ID"
