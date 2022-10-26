@@ -866,7 +866,8 @@ def RIFE(
 
     multi, scale is based on vs-rife.
 
-    Scene change avoidance is not implemented (yet).
+    For the best results, You need to perform scene detection on the input clip
+    (e.g. misc.SCDetect).
 
     Args:
         multi: Multiple of the frame counts.
@@ -901,11 +902,17 @@ def RIFE(
         for i in range(1, multi)
     ]).std.Loop(clip.num_frames)
 
-    output = RIFEMerge(
+    output0 = RIFEMerge(
         clipa=initial, clipb=terminal, mask=timepoint,
         scale=scale, tiles=tiles, tilesize=tilesize, overlap=overlap,
         model=model, backend=backend
     )
+
+    def handler(n, f):
+        if f.props.get('_SceneChangeNext'):
+            return initial
+        return output0
+    output = core.std.FrameEval(output0, handler, initial)
 
     if multi == 2:
         return core.std.Interleave([clip, output])
