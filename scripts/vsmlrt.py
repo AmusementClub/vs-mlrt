@@ -719,7 +719,9 @@ def RIFEMerge(
 ) -> vs.VideoNode:
     """ temporal MaskedMerge-like interface for the RIFE model
 
-    Its semantics is similar to core.std.MaskedMerge(clipa, clipb, mask, first_plane=True)
+    Its semantics is similar to core.std.MaskedMerge(clipa, clipb, mask, first_plane=True),
+    except that it merges the two clips in the time domain and you specify the "mask" based
+    on the time point of the resulting clip (range (0,1)) between the two clips.
     """
 
     from fractions import Fraction
