@@ -35,7 +35,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         fetch-depth: 0
 
@@ -53,7 +53,7 @@ jobs:
         key: ${{ runner.os }}-vsort-protobuf-v2
 
     - name: Checkout protobuf
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
       with:
         repository: protocolbuffers/protobuf
@@ -86,7 +86,7 @@ jobs:
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: onnx/onnx
         # follows onnx in https://github.com/AmusementClub/onnxruntime/tree/master/cmake/external
