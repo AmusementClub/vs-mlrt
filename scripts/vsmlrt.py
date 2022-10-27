@@ -862,12 +862,13 @@ def RIFE(
 ) -> vs.VideoNode:
     """ RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation
 
-    ** The interface is not stable and may be modified without notice. **
-
     multi, scale is based on vs-rife.
 
-    For the best results, You need to perform scene detection on the input clip
-    (e.g. misc.SCDetect).
+    For the best results, you need to perform scene detection on the input clip
+    (e.g. misc.SCDetect, mv.SCDetection) before passing it to RIFE.
+    Also note that the quality of result is strongly dependent on high quality
+    scene detection and you might need to tweak the scene detection parameters
+    and/or filter to achieve the best quality.
 
     Args:
         multi: Multiple of the frame counts.
