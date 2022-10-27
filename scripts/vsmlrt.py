@@ -909,11 +909,14 @@ def RIFE(
         model=model, backend=backend
     )
 
-    def handler(n, f):
-        if f.props.get('_SceneChangeNext'):
-            return initial
-        return output0
-    output = core.std.FrameEval(output0, handler, initial)
+    if hasattr(core, 'akarin'):
+        output = core.akarin.Expr([output0, initial], 'y._SceneChangeNext y x ?')
+    else:
+        def handler(n, f):
+            if f.props.get('_SceneChangeNext'):
+                return initial
+            return output0
+        output = core.std.FrameEval(output0, handler, initial)
 
     if multi == 2:
         return core.std.Interleave([clip, output])
