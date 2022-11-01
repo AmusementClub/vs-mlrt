@@ -44,7 +44,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: vsort/protobuf/install
-        key: ${{ runner.os }}-vsort-protobuf-v2
+        key: ${{ runner.os }}-vsort-protobuf-v3
 
     - name: Checkout protobuf
       uses: actions/checkout@v3
@@ -53,7 +53,7 @@ jobs:
         repository: protocolbuffers/protobuf
         # follows protobuf in https://github.com/AmusementClub/onnxruntime/tree/master/cmake/external
         # if you change this, remember to bump the version of the cache key.
-        ref: 0dab03ba7bc438d7ba3eac2b2c1eb39ed520f928
+        ref: a902b39270841beafc307dfa709610aa1cac2f06
         fetch-depth: 1
         path: vsort/protobuf
 
@@ -76,7 +76,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: vsort/onnx/install
-        key: ${{ runner.os }}-vsort-onnx-v2
+        key: ${{ runner.os }}-vsort-onnx-v3
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
@@ -85,7 +85,7 @@ jobs:
         repository: onnx/onnx
         # follows onnx in https://github.com/AmusementClub/onnxruntime/tree/master/cmake/external
         # if you change this, remember to bump the version of the cache key.
-        ref: 850a81b0b77786bf99ea90580242b084f86a6235
+        ref: 5a5f8a5935762397aa68429b5493084ff970f774
         fetch-depth: 1
         path: vsort/onnx
 
@@ -124,13 +124,13 @@ jobs:
       uses: actions/cache@v3
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-cuda-11.7.0
+        key: ${{ runner.os }}-cuda-11.8.0
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.7.0/network_installers/cuda_11.7.0_windows_network.exe
-        cuda_installer.exe -s nvcc_11.7 cudart_11.7
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.8.0/network_installers/cuda_11.8.0_windows_network.exe
+        cuda_installer.exe -s nvcc_11.8 cudart_11.8
 
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
@@ -142,7 +142,7 @@ jobs:
         -D ONNX_RUNTIME_API_DIRECTORY=onnxruntime-gpu\include\onnxruntime\core\session
         -D ONNX_RUNTIME_LIB_DIRECTORY=onnxruntime-gpu\lib
         -D ENABLE_CUDA=1
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.7"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8"
         -D CMAKE_CXX_STANDARD=20
 
     - name: Build
@@ -158,7 +158,7 @@ jobs:
         copy onnxruntime-gpu\lib\*.dll artifact\vsort\
 
     - name: Upload
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: VSORT-Windows-x64
         path: vsort/artifact
