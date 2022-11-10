@@ -1,4 +1,4 @@
-__version__ = "3.13.1"
+__version__ = "3.13.2"
 
 __all__ = [
     "Backend",
@@ -52,6 +52,8 @@ models_path: str = os.path.join(plugins_path, "models")
 class Backend:
     @dataclass(frozen=False)
     class ORT_CPU:
+        """ backend for cpus """
+
         num_streams: int = 1
         verbosity: int = 2
         fp16: bool = False
@@ -62,7 +64,12 @@ class Backend:
 
     @dataclass(frozen=False)
     class ORT_CUDA:
-        """ backend for nvidia gpu """
+        """ backend for nvidia gpus
+
+        basic performance tuning:
+        set fp16 = True (on RTX GPUs)
+        """
+
         device_id: int = 0
         cudnn_benchmark: bool = True
         num_streams: int = 1
@@ -76,6 +83,13 @@ class Backend:
 
     @dataclass(frozen=False)
     class OV_CPU:
+        """ backend for x86 cpus
+
+        basic performance tuning:
+        set bf16 = True (on Zen4)
+        increase num_streams
+        """
+
         fp16: bool = False
         num_streams: typing.Union[int, str] = 1
         bind_thread: bool = True
@@ -87,7 +101,15 @@ class Backend:
 
     @dataclass(frozen=False)
     class TRT:
-        """ backend for nvidia gpu """
+        """ backend for nvidia gpus
+
+        basic performance tuning:
+        set fp16 = True (on RTX GPUs)
+        increase num_streams
+        increase workspace
+        set use_cuda_graph = True
+        """
+
         max_shapes: typing.Optional[typing.Tuple[int, int]] = None
         opt_shapes: typing.Optional[typing.Tuple[int, int]] = None
         fp16: bool = False
@@ -114,7 +136,13 @@ class Backend:
 
     @dataclass(frozen=False)
     class OV_GPU:
-        """ backend for intel gpu """
+        """ backend for nvidia gpus
+
+        basic performance tuning:
+        set fp16 = True
+        increase num_streams
+        """
+
         fp16: bool = False
         num_streams: typing.Union[int, str] = 1
         device_id: int = 0
@@ -125,7 +153,13 @@ class Backend:
 
     @dataclass(frozen=False)
     class NCNN_VK:
-        """ backend for ncnn vulkan """
+        """ backend for vulkan devices
+
+        basic performance tuning:
+        set fp16 = True (on modern GPUs)
+        increase num_streams
+        """
+
         fp16: bool = False
         device_id: int = 0
         num_streams: int = 1
