@@ -110,7 +110,9 @@ static std::optional<std::string> ortInit() noexcept {
     static std::once_flag ort_init_flag;
 
     std::call_once(ort_init_flag, []() {
-        ortapi = OrtGetApiBase()->GetApi(ORT_API_VERSION);
+        auto p = OrtGetApiBase();
+        if (p)
+            ortapi = p->GetApi(ORT_API_VERSION);
     });
 
     if (ortapi) {
@@ -1020,10 +1022,14 @@ static void VS_CC vsOrtCreate(
 #ifdef _MSC_VER
             // Preload cuda dll from vsort directory.
             static std::once_flag cuda_dll_preloaded_flag;
+            static bool cuda_dll_preload_ok;
             std::call_once(cuda_dll_preloaded_flag, []() {
-                    extern void preloadCudaDlls();
-                    preloadCudaDlls();
+                    extern bool preloadCudaDlls();
+                    cuda_dll_preload_ok = preloadCudaDlls();
             });
+            if (!cuda_dll_preload_ok)
+                return set_error("cuda DLL preloading failed");
+
 #endif // _MSC_VER
             // should not set 'do_copy_in_default_stream' to false
             const char * keys [] {

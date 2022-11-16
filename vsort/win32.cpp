@@ -63,6 +63,10 @@ FARPROC loadDLLs() {
     return (FARPROC)h;
 }
 
+static void *dummy() { // mimic OrtGetApiBase
+    return nullptr;
+}
+
 extern "C" FARPROC WINAPI delayload_hook(unsigned reason, DelayLoadInfo* info) {
     switch (reason) {
     case dliNoteStartProcessing:
@@ -82,7 +86,8 @@ extern "C" FARPROC WINAPI delayload_hook(unsigned reason, DelayLoadInfo* info) {
         // Returning NULL from error notifications will cause the delay load
         // runtime to raise a VcppException structured exception, that some code
         // might want to handle.
-        return NULL;
+        // The SE will crash the process, so instead we return a dummy function.
+        return (FARPROC)dummy;
         break;
     default:
         abort(); // unreachable.
@@ -99,7 +104,7 @@ extern "C" {
     const PfnDliHook __pfnDliFailureHook2 = delayload_hook;
 };
 
-void preloadCudaDlls() {
+bool preloadCudaDlls() {
     std::map<std::wstring, std::filesystem::path> dllmap;
 
     auto findDllIn = [&](const std::filesystem::path &dir) {
@@ -136,13 +141,15 @@ void preloadCudaDlls() {
         if (dllmap.count(dll) == 0) {
             if (verbose()) {
                 std::wcerr << DLL_DIR << L": unable to preload " << dll << L": not found" << std::endl;
-                break;
+                return false;
             }
         }
         std::wstring p = dllmap[dll];
         HMODULE h = LoadLibraryW(p.c_str());
         if (verbose())
             std::wcerr << DLL_DIR << L": preloading " << p << L": " << h << std::endl;
+        if (!h) return false;
     }
+    return true;
 }
 #endif
