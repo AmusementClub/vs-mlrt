@@ -64,6 +64,10 @@ FARPROC loadDLLs() {
 	return (FARPROC)h;
 }
 
+static int dummy() { // mimic getInferLibVersion
+	return 0;
+}
+
 extern "C" FARPROC WINAPI delayload_hook(unsigned reason, DelayLoadInfo* info) {
 	switch (reason) {
 	case dliNoteStartProcessing:
@@ -82,7 +86,9 @@ extern "C" FARPROC WINAPI delayload_hook(unsigned reason, DelayLoadInfo* info) {
 		// Returning NULL from error notifications will cause the delay load
 		// runtime to raise a VcppException structured exception, that some code
 		// might want to handle.
-		return NULL;
+		//return NULL;
+		// The SE will crash the process, so instead we return a dummy function.
+		return (FARPROC)dummy;
 		break;
 	default:
 		abort(); // unreachable.

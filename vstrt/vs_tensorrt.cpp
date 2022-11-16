@@ -455,11 +455,13 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     VSRegisterFunction registerFunc,
     VSPlugin *plugin
 ) noexcept {
-    if (&getInferLibVersion == nullptr) {
+    int ver = getInferLibVersion(); // must ensure this is the first nvinfer function called
+#ifdef _WIN32
+    if (ver == 0) { // a sentinel value, see dummy function in win32.cpp.
         std::fprintf(stderr, "vstrt: TensorRT failed to load.\n");
         return;
     }
-    int ver = getInferLibVersion();
+#endif
     if (ver != NV_TENSORRT_VERSION) {
         std::fprintf(stderr, "vstrt: TensorRT version mismatch, built with %x but loaded with %x; continue but fingers crossed...\n", NV_TENSORRT_VERSION, ver);
     }
