@@ -55,10 +55,11 @@ FARPROC loadDLLs() {
 		fs::path p = dir / dll;
 		std::wstring s = p;
 		h = LoadLibraryW(s.c_str());
+		DWORD err = GetLastError();
 		if (getenv("VSTRT_VERBOSE"))
 			std::wcerr << L"vstrt: preloading " << p << L": " << h << std::endl;
 		if (!h)
-			std::wcerr << L"vstrt: failed to preload " << s << std::endl;
+			std::wcerr << L"vstrt: failed to preload " << s << L", errno " << err << std::endl;
 	}
 	return (FARPROC)h;
 }
