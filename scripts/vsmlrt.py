@@ -944,7 +944,10 @@ def RIFE(
     )
 
     if hasattr(core, 'akarin'):
-        output = core.akarin.Expr([output0, initial], 'y._SceneChangeNext y x ?')
+        if hasattr(core.akarin, 'Select'):
+            output = core.akarin.Select([output0, initial], initial, 'x._SceneChangeNext 1 0 ?')
+        else:
+            output = core.akarin.Expr([output0, initial], 'y._SceneChangeNext y x ?')
     else:
         def handler(n, f):
             if f.props.get('_SceneChangeNext'):
