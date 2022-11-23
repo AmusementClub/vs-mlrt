@@ -691,36 +691,40 @@ def CUGAN(
 
 
 def get_rife_input(clip: vs.VideoNode) -> typing.List[vs.VideoNode]:
-    from functools import partial
-
-    def meshgrid_core(n: int, f: vs.VideoFrame, horizontal: bool) -> vs.VideoFrame:
-        fout = f.copy()
-
-        is_api4 = hasattr(vs, "__api_version__") and vs.__api_version__.api_major == 4
-        if is_api4:
-            mem_view = fout[0]
-        else:
-            mem_view = fout.get_write_array(0)
-
-        height, width = mem_view.shape
-
-        if horizontal:
-            for i in range(height):
-                for j in range(width):
-                    mem_view[i, j] = 2 * j / (width - 1) - 1
-        else:
-            for i in range(height):
-                for j in range(width):
-                    mem_view[i, j] = 2 * i / (height - 1) - 1
-
-        return fout
-
     empty = clip.std.BlankClip(format=vs.GRAYS, length=1)
 
-    horizontal = core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=True))
-    horizontal = horizontal.std.Loop(clip.num_frames)
+    if hasattr(core, 'akarin'):
+        horizontal = core.akarin.Expr(empty, 'X 2 * width 1 - / 1 -')
+        vertical = core.akarin.Expr(empty, 'Y 2 * height 1 - / 1 -')
+    else:
+        from functools import partial
 
-    vertical = core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=False))
+        def meshgrid_core(n: int, f: vs.VideoFrame, horizontal: bool) -> vs.VideoFrame:
+            fout = f.copy()
+
+            is_api4 = hasattr(vs, "__api_version__") and vs.__api_version__.api_major == 4
+            if is_api4:
+                mem_view = fout[0]
+            else:
+                mem_view = fout.get_write_array(0)
+
+            height, width = mem_view.shape
+
+            if horizontal:
+                for i in range(height):
+                    for j in range(width):
+                        mem_view[i, j] = 2 * j / (width - 1) - 1
+            else:
+                for i in range(height):
+                    for j in range(width):
+                        mem_view[i, j] = 2 * i / (height - 1) - 1
+
+            return fout
+
+        horizontal = core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=True))
+        vertical = core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=False))
+
+    horizontal = horizontal.std.Loop(clip.num_frames)
     vertical = vertical.std.Loop(clip.num_frames)
 
     multiplier_h = clip.std.BlankClip(format=vs.GRAYS, color=2/(clip.width-1), keep=True)
