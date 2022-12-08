@@ -11,6 +11,10 @@ on:
         description: 'which tag(s) of model release to use? (comma-separated list of tags)'
         required: true
         default: 'model-20211209, model-20220923'
+      ext-model-tags:
+        description: 'which tag(s) of external model release to use?'
+        required: true
+        default: 'external-models'
       ov_tag:
         description: 'which tag of openvino to use'
         required: true
@@ -95,7 +99,7 @@ jobs:
           curl -s https://api.github.com/repos/AmusementClub/vs-mlrt/releases/tags/"$tag" > release.json
           for url in $(cat release.json | jq '.assets | .[] | .url ' | tr -d '"'); do
             echo "Downloading $url"
-            curl -o dl.7z -LJO -H 'Accept: application/octet-stream' "$url"
+            curl -o dl.7z -LJ -H 'Accept: application/octet-stream' "$url"
             # later release should overwrite earlier ones
             7za x -y dl.7z
           done
@@ -114,14 +118,49 @@ jobs:
         path: release
         retention-days: 1
 
+    - name: Download External Models
+      run: |
+        rm -rf release
+        set -ex
+        mkdir -p release/models
+        cd release
+        pushd models
+        for tag in $(echo "${{ github.event.inputs.ext-model-tags }}" | tr ',' ' '); do
+          echo "Handling tag $tag"
+          curl -s https://api.github.com/repos/AmusementClub/vs-mlrt/releases/tags/"$tag" > release.json
+          for url in $(cat release.json | jq '.assets | .[] | .url ' | tr -d '"'); do
+            echo "Downloading $url"
+            curl -o dl.7z -LJ -H 'Accept: application/octet-stream' "$url"
+            # later release should overwrite earlier ones
+            7za x -y dl.7z
+          done
+          test -f "dl.7z"
+          rm -f dl.7z release.json
+        done
+        popd
+        ls -lR
+        du -sh
+        7za a -t7z -bb3 -mx=3 ../ext-models.7z .
+
+    - name: Upload external model release
+      uses: actions/upload-artifact@v2
+      with:
+        name: External-Models
+        path: release
+        retention-days: 1
+
     - name: Rename release asset
-      run: mv models.7z models.${{ github.event.inputs.tag }}.7z
+      run: |
+        mv models.7z models.${{ github.event.inputs.tag }}.7z
+        mv ext-models.7z ext-models.${{ github.event.inputs.tag }}.7z
 
     - name: Release models
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.event.inputs.tag }}
-        files: models.${{ github.event.inputs.tag }}.7z
+        files: |
+          models.${{ github.event.inputs.tag }}.7z
+          ext-models.${{ github.event.inputs.tag }}.7z
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true
