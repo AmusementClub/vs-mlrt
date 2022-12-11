@@ -1004,7 +1004,8 @@ def trtexec(
     use_cudnn: bool = True,
     use_edge_mask_convolutions: bool = True,
     use_jit_convolutions: bool = True,
-    heuristic: bool = False
+    heuristic: bool = False,
+    input_name: str = "input"
 ) -> str:
 
     # tensort runtime version, e.g. 840 => 8.4.0
@@ -1067,7 +1068,7 @@ def trtexec(
     ]
 
     if static_shape:
-        args.append(f"--shapes=input:1x{channels}x{max_shapes[1]}x{max_shapes[0]}")
+        args.append(f"--shapes={input_name}:1x{channels}x{max_shapes[1]}x{max_shapes[0]}")
     else:
         args.extend([
             f"--minShapes=input:1x{channels}x0x0",
@@ -1215,7 +1216,8 @@ def _inference(
     overlap: typing.Tuple[int, int],
     tilesize: typing.Tuple[int, int],
     backend: backendT,
-    path_is_serialization: bool = False
+    path_is_serialization: bool = False,
+    trt_input_name: str = "input"
 ) -> vs.VideoNode:
 
     if not path_is_serialization:
@@ -1308,7 +1310,8 @@ def _inference(
             use_cudnn=backend.use_cudnn,
             use_edge_mask_convolutions=backend.use_edge_mask_convolutions,
             use_jit_convolutions=backend.use_jit_convolutions,
-            heuristic=backend.heuristic
+            heuristic=backend.heuristic,
+            input_name=trt_input_name
         )
         clip = core.trt.Model(
             clips, engine_path,
@@ -1341,7 +1344,8 @@ def inference_with_fallback(
     overlap: typing.Tuple[int, int],
     tilesize: typing.Tuple[int, int],
     backend: backendT,
-    path_is_serialization: bool = False
+    path_is_serialization: bool = False,
+    trt_input_name: str = "input"
 ) -> vs.VideoNode:
 
     try:
@@ -1349,7 +1353,8 @@ def inference_with_fallback(
             clips=clips, network_path=network_path,
             overlap=overlap, tilesize=tilesize,
             backend=backend,
-            path_is_serialization=path_is_serialization
+            path_is_serialization=path_is_serialization,
+            trt_input_name=trt_input_name
         )
     except Exception as e:
         if fallback_backend is not None:
@@ -1361,7 +1366,8 @@ def inference_with_fallback(
                 clips=clips, network_path=network_path,
                 overlap=overlap, tilesize=tilesize,
                 backend=fallback_backend,
-                path_is_serialization=path_is_serialization
+                path_is_serialization=path_is_serialization,
+                trt_input_name=trt_input_name
             )
         else:
             raise e
@@ -1372,7 +1378,8 @@ def inference(
     network_path: str,
     overlap: typing.Tuple[int, int] = (0, 0),
     tilesize: typing.Optional[typing.Tuple[int, int]] = None,
-    backend: backendT = Backend.OV_CPU()
+    backend: backendT = Backend.OV_CPU(),
+    trt_input_name: str = "input"
 ) -> vs.VideoNode:
 
     if isinstance(clips, vs.VideoNode):
@@ -1382,11 +1389,14 @@ def inference(
     if tilesize is None:
         tilesize = (clips[0].width, clips[0].height)
 
+    backend = init_backend(backend=backend, trt_max_shapes=tilesize)
+
     return inference_with_fallback(
         clips=clips,
         network_path=network_path,
         overlap=overlap,
         tilesize=tilesize,
         backend=backend,
-        path_is_serialization=False
+        path_is_serialization=False,
+        trt_input_name=trt_input_name
     )
