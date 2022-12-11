@@ -132,7 +132,6 @@ class Backend:
         heuristic: bool = False # only supported on Ampere+ with TensorRT 8.5+
 
         # internal backend attributes
-        _channels: int = field(init=False, repr=False, compare=False)
         supports_onnx_serialization: bool = False
 
     @dataclass(frozen=False)
@@ -267,14 +266,8 @@ def Waifu2x(
             f'{func_name}: tile size must be divisible by {multiple} ({tile_w}, {tile_h})'
         )
 
-    if model == 0:
-        channels = 1
-    else:
-        channels = 3
-
     backend = init_backend(
         backend=backend,
-        channels=channels,
         trt_max_shapes=(tile_w, tile_h)
     )
 
@@ -401,14 +394,8 @@ def DPIR(
             f'{func_name}: tile size must be divisible by {multiple} ({tile_w}, {tile_h})'
         )
 
-    if model in [0, 2]:
-        channels = 2
-    elif model in [1, 3]:
-        channels = 4
-
     backend = init_backend(
         backend=backend,
-        channels=channels,
         trt_max_shapes=(tile_w, tile_h)
     )
 
@@ -478,11 +465,8 @@ def RealESRGAN(
         overlap_w=overlap_w, overlap_h=overlap_h
     )
 
-    channels = 3
-
     backend = init_backend(
         backend=backend,
-        channels=channels,
         trt_max_shapes=(tile_w, tile_h)
     )
 
@@ -592,11 +576,8 @@ def CUGAN(
             f'{func_name}: tile size must be divisible by {multiple} ({tile_w}, {tile_h})'
         )
 
-    channels = 3
-
     backend = init_backend(
         backend=backend,
-        channels=channels,
         trt_max_shapes=(tile_w, tile_h)
     )
 
@@ -813,11 +794,8 @@ def RIFEMerge(
             f'{func_name}: tile size must be divisible by {multiple} ({tile_w}, {tile_h})'
         )
 
-    channels = 3 + 3 + 1 + 2 + 2
-
     backend = init_backend(
         backend=backend,
-        channels=channels,
         trt_max_shapes=(tile_w, tile_h)
     )
 
@@ -1203,7 +1181,6 @@ def calc_tilesize(
 
 def init_backend(
     backend: backendT,
-    channels: int,
     trt_max_shapes: typing.Tuple[int, int]
 ) -> backendT:
 
@@ -1223,8 +1200,6 @@ def init_backend(
     backend = copy.deepcopy(backend)
 
     if isinstance(backend, Backend.TRT):
-        backend._channels = channels
-
         if backend.max_shapes is None:
             backend.max_shapes = trt_max_shapes
 
@@ -1232,12 +1207,6 @@ def init_backend(
             backend.opt_shapes = backend.max_shapes
 
     return backend
-
-
-def _trt_get_input_channels(network_path: str) -> int:
-    import onnx
-    model = onnx.load(network_path)
-    return int(model.graph.input[0].type.tensor_type.shape.dim[1].dim_value)
 
 
 def _inference(
@@ -1317,10 +1286,7 @@ def _inference(
 
         network_path = typing.cast(str, network_path)
 
-        if hasattr(backend, "_channels"):
-            channels = backend._channels
-        else:
-            channels = _trt_get_input_channels(network_path)
+        channels = sum(clip.format.num_planes for clip in clips)
 
         opt_shapes = backend.opt_shapes if backend.opt_shapes is not None else tilesize
         max_shapes = backend.max_shapes if backend.max_shapes is not None else tilesize
