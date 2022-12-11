@@ -1391,7 +1391,7 @@ def inference_with_fallback(
             logger = logging.getLogger("vsmlrt")
             logger.warning(f'"{backend}" fails, trying fallback backend "{fallback_backend}"')
 
-            return inference(
+            return _inference(
                 clips=clips, network_path=network_path,
                 overlap=overlap, tilesize=tilesize,
                 backend=fallback_backend,
@@ -1403,11 +1403,10 @@ def inference_with_fallback(
 
 def inference(
     clips: typing.Union[vs.VideoNode, typing.List[vs.VideoNode]],
-    network_path: typing.Union[bytes, str],
+    network_path: str,
     overlap: typing.Tuple[int, int] = (0, 0),
     tilesize: typing.Optional[typing.Tuple[int, int]] = None,
-    backend: backendT = Backend.OV_CPU(),
-    path_is_serialization: bool = False
+    backend: backendT = Backend.OV_CPU()
 ) -> vs.VideoNode:
 
     if isinstance(clips, vs.VideoNode):
@@ -1416,12 +1415,12 @@ def inference(
 
     if tilesize is None:
         tilesize = (clips[0].width, clips[0].height)
-    
+
     return inference_with_fallback(
         clips=clips,
         network_path=network_path,
         overlap=overlap,
         tilesize=tilesize,
         backend=backend,
-        path_is_serialization=path_is_serialization
+        path_is_serialization=False
     )
