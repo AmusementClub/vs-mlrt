@@ -838,11 +838,11 @@ def RIFEMerge(
         import onnx
         from onnx.numpy_helper import from_array, to_array
 
-        model = onnx.load(network_path)
+        onnx_model = onnx.load(network_path)
 
         resize_counter = 0
-        for i in range(len(model.graph.node)):
-            node = model.graph.node[i]
+        for i in range(len(onnx_model.graph.node)):
+            node = onnx_model.graph.node[i]
             if len(node.output) == 1 and node.op_type == "Constant" and node.output[0].startswith("onnx::Resize"):
                 resize_counter += 1
 
@@ -851,14 +851,14 @@ def RIFEMerge(
                     array[2:4] /= scale
                 else:
                     array[2:4] *= scale
-                model.graph.node[i].attribute[0].t.raw_data = from_array(array).raw_data
+                onnx_model.graph.node[i].attribute[0].t.raw_data = from_array(array).raw_data
 
         if resize_counter != 11:
             raise ValueError("invalid rife model")
 
         multiplier_counter = 0
-        for i in range(len(model.graph.node)):
-            node = model.graph.node[i]
+        for i in range(len(onnx_model.graph.node)):
+            node = onnx_model.graph.node[i]
             if len(node.output) == 1 and node.op_type == "Constant" and node.output[0].startswith("onnx::Mul"):
                 multiplier_counter += 1
 
@@ -867,20 +867,20 @@ def RIFEMerge(
                     array /= scale
                 else:
                     array *= scale
-                model.graph.node[i].attribute[0].t.raw_data = from_array(array).raw_data
+                onnx_model.graph.node[i].attribute[0].t.raw_data = from_array(array).raw_data
 
         if multiplier_counter != 7:
             raise ValueError("invalid rife model")
 
         if backend.supports_onnx_serialization:
             return inference_with_fallback(
-                clips=clips, network_path=model.SerializeToString(),
+                clips=clips, network_path=onnx_model.SerializeToString(),
                 overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
                 backend=backend, path_is_serialization=True
             )
         else:
             network_path = f"{network_path}_scale{scale!r}.onnx"
-            onnx.save(model, network_path)
+            onnx.save(onnx_model, network_path)
 
             return inference_with_fallback(
                 clips=clips, network_path=network_path,
@@ -951,7 +951,7 @@ def RIFE(
     if hasattr(core, 'akarin') and hasattr(core.akarin, 'Select'):
         output = core.akarin.Select([output0, initial], initial, 'x._SceneChangeNext 1 0 ?')
     else:
-        def handler(n, f):
+        def handler(n: int, f: vs.VideoFrame) -> vs.VideoNode:
             if f.props.get('_SceneChangeNext'):
                 return initial
             return output0
@@ -1233,6 +1233,12 @@ def init_backend(
     return backend
 
 
+def _trt_get_input_channels(network_path: str) -> int:
+    import onnx
+    model = onnx.load(network_path)
+    return int(model.graph.input[0].type.tensor_type.shape.dim[1].dim_value)
+
+
 def inference(
     clips: typing.List[vs.VideoNode],
     network_path: typing.Union[bytes, str],
@@ -1310,11 +1316,19 @@ def inference(
 
         network_path = typing.cast(str, network_path)
 
+        if hasattr(backend, "_channels"):
+            channels = backend._channels
+        else:
+            channels = _trt_get_input_channels(network_path)
+
+        opt_shapes = backend.opt_shapes if backend.opt_shapes is not None else tilesize
+        max_shapes = backend.max_shapes if backend.max_shapes is not None else tilesize
+
         engine_path = trtexec(
             network_path,
-            channels=backend._channels,
-            opt_shapes=backend.opt_shapes, # type: ignore
-            max_shapes=backend.max_shapes, # type: ignore
+            channels=channels,
+            opt_shapes=opt_shapes,
+            max_shapes=max_shapes,
             fp16=backend.fp16,
             device_id=backend.device_id,
             workspace=backend.workspace,
