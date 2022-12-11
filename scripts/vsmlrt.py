@@ -1,4 +1,4 @@
-__version__ = "3.13.3"
+__version__ = "3.14.0"
 
 __all__ = [
     "Backend",
@@ -8,7 +8,7 @@ __all__ = [
     "RealESRGANv2", "RealESRGANv2Model",
     "CUGAN",
     "RIFE", "RIFEModel", "RIFEMerge",
-    "inference", "inference_with_fallback"
+    "inference"
 ]
 
 import copy
@@ -363,6 +363,7 @@ def DPIR(
         strength = 5.0
 
     if isinstance(strength, vs.VideoNode):
+        strength = typing.cast(vs.VideoNode, strength)
         if strength.format.color_family != vs.GRAY:
             raise ValueError(f'{func_name}: "strength" must be of GRAY color family')
         if strength.width != clip.width or strength.height != clip.height:
@@ -1239,7 +1240,7 @@ def _trt_get_input_channels(network_path: str) -> int:
     return int(model.graph.input[0].type.tensor_type.shape.dim[1].dim_value)
 
 
-def inference(
+def _inference(
     clips: typing.List[vs.VideoNode],
     network_path: typing.Union[bytes, str],
     overlap: typing.Tuple[int, int],
@@ -1378,7 +1379,7 @@ def inference_with_fallback(
 ) -> vs.VideoNode:
 
     try:
-        return inference(
+        return _inference(
             clips=clips, network_path=network_path,
             overlap=overlap, tilesize=tilesize,
             backend=backend,
@@ -1398,3 +1399,29 @@ def inference_with_fallback(
             )
         else:
             raise e
+
+
+def inference(
+    clips: typing.Union[vs.VideoNode, typing.List[vs.VideoNode]],
+    network_path: typing.Union[bytes, str],
+    overlap: typing.Tuple[int, int] = (0, 0),
+    tilesize: typing.Optional[typing.Tuple[int, int]] = None,
+    backend: backendT = Backend.OV_CPU(),
+    path_is_serialization: bool = False
+) -> vs.VideoNode:
+
+    if isinstance(clips, vs.VideoNode):
+        clips = typing.cast(vs.VideoNode, clips)
+        clips = [clips]
+
+    if tilesize is None:
+        tilesize = (clips[0].width, clips[0].height)
+    
+    return inference_with_fallback(
+        clips=clips,
+        network_path=network_path,
+        overlap=overlap,
+        tilesize=tilesize,
+        backend=backend,
+        path_is_serialization=path_is_serialization
+    )
