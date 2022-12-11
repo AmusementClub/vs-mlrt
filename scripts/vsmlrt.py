@@ -1217,7 +1217,7 @@ def _inference(
     tilesize: typing.Tuple[int, int],
     backend: backendT,
     path_is_serialization: bool = False,
-    trt_input_name: str = "input"
+    input_name: str = "input"
 ) -> vs.VideoNode:
 
     if not path_is_serialization:
@@ -1311,7 +1311,7 @@ def _inference(
             use_edge_mask_convolutions=backend.use_edge_mask_convolutions,
             use_jit_convolutions=backend.use_jit_convolutions,
             heuristic=backend.heuristic,
-            input_name=trt_input_name
+            input_name=input_name
         )
         clip = core.trt.Model(
             clips, engine_path,
@@ -1345,7 +1345,7 @@ def inference_with_fallback(
     tilesize: typing.Tuple[int, int],
     backend: backendT,
     path_is_serialization: bool = False,
-    trt_input_name: str = "input"
+    input_name: str = "input"
 ) -> vs.VideoNode:
 
     try:
@@ -1354,7 +1354,7 @@ def inference_with_fallback(
             overlap=overlap, tilesize=tilesize,
             backend=backend,
             path_is_serialization=path_is_serialization,
-            trt_input_name=trt_input_name
+            input_name=input_name
         )
     except Exception as e:
         if fallback_backend is not None:
@@ -1367,7 +1367,7 @@ def inference_with_fallback(
                 overlap=overlap, tilesize=tilesize,
                 backend=fallback_backend,
                 path_is_serialization=path_is_serialization,
-                trt_input_name=trt_input_name
+                input_name=input_name
             )
         else:
             raise e
@@ -1379,7 +1379,7 @@ def inference(
     overlap: typing.Tuple[int, int] = (0, 0),
     tilesize: typing.Optional[typing.Tuple[int, int]] = None,
     backend: backendT = Backend.OV_CPU(),
-    trt_input_name: str = "input"
+    input_name: str = "input"
 ) -> vs.VideoNode:
 
     if isinstance(clips, vs.VideoNode):
@@ -1398,5 +1398,5 @@ def inference(
         tilesize=tilesize,
         backend=backend,
         path_is_serialization=False,
-        trt_input_name=trt_input_name
+        input_name=input_name
     )
