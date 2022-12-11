@@ -155,11 +155,6 @@ std::optional<ErrorMessage> enqueue(
         cudaMemcpyHostToDevice, stream
     ));
 
-    void * bindings[] {
-        static_cast<void *>(src.d_data.data),
-        static_cast<void *>(dst.d_data.data)
-    };
-
 #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
     auto input_name = exec_context->getEngine().getIOTensorName(0);
     auto output_name = exec_context->getEngine().getIOTensorName(1);
@@ -174,6 +169,11 @@ std::optional<ErrorMessage> enqueue(
         return set_error("enqueue error");
     }
 #else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+    void * bindings[] {
+        static_cast<void *>(src.d_data.data),
+        static_cast<void *>(dst.d_data.data)
+    };
+
     if (!exec_context->enqueueV2(bindings, stream, nullptr)) {
         return set_error("enqueue error");
     }
