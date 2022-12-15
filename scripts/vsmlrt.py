@@ -1,4 +1,4 @@
-__version__ = "3.14.2"
+__version__ = "3.14.3"
 
 __all__ = [
     "Backend",
@@ -1379,7 +1379,7 @@ def inference(
     overlap: typing.Tuple[int, int] = (0, 0),
     tilesize: typing.Optional[typing.Tuple[int, int]] = None,
     backend: backendT = Backend.OV_CPU(),
-    input_name: str = "input"
+    input_name: typing.Optional[str] = "input"
 ) -> vs.VideoNode:
 
     if isinstance(clips, vs.VideoNode):
@@ -1390,6 +1390,9 @@ def inference(
         tilesize = (clips[0].width, clips[0].height)
 
     backend = init_backend(backend=backend, trt_max_shapes=tilesize)
+
+    if input_name is None:
+        input_name = get_input_name(network_path)
 
     return inference_with_fallback(
         clips=clips,
