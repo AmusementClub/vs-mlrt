@@ -1,4 +1,4 @@
-__version__ = "3.14.1"
+__version__ = "3.14.2"
 
 __all__ = [
     "Backend",
@@ -1008,8 +1008,8 @@ def trtexec(
     input_name: str = "input"
 ) -> str:
 
-    # tensort runtime version, e.g. 840 => 8.4.0
-    trt_version = int(core.trt.Version()["tensorrt_version"]) // 10
+    # tensort runtime version, e.g. 8401 => 8.4.1
+    trt_version = int(core.trt.Version()["tensorrt_version"])
 
     if isinstance(opt_shapes, int):
         opt_shapes = (opt_shapes, opt_shapes)
@@ -1053,7 +1053,7 @@ def trtexec(
             os.makedirs(dirname)
         print(f"change engine path to {engine_path}", file=sys.stderr)
 
-    if trt_version >= 840:
+    if trt_version >= 8400:
         workspace_arg = f"--memPoolSize=workspace:{workspace}"
     else:
         workspace_arg = f"--workspace{workspace}"
@@ -1087,9 +1087,9 @@ def trtexec(
         disabled_tactic_sources.extend(["-CUBLAS", "-CUBLAS_LT"])
     if not use_cudnn:
         disabled_tactic_sources.append("-CUDNN")
-    if not use_edge_mask_convolutions and trt_version >= 841:
+    if not use_edge_mask_convolutions and trt_version >= 8401:
         disabled_tactic_sources.append("-EDGE_MASK_CONVOLUTIONS")
-    if not use_jit_convolutions and trt_version >= 850:
+    if not use_jit_convolutions and trt_version >= 8500:
         disabled_tactic_sources.append("-JIT_CONVOLUTIONS")
     if disabled_tactic_sources:
         args.append(f"--tacticSources={','.join(disabled_tactic_sources)}")
@@ -1105,7 +1105,7 @@ def trtexec(
     if not tf32:
         args.append("--noTF32")
 
-    if heuristic and trt_version >= 850 and core.trt.DeviceProperties(device_id)["major"] >= 8:
+    if heuristic and trt_version >= 8500 and core.trt.DeviceProperties(device_id)["major"] >= 8:
         args.append("--heuristic")
 
     if log:
