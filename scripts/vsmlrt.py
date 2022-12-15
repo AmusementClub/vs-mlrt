@@ -1,4 +1,4 @@
-__version__ = "3.14.0"
+__version__ = "3.14.1"
 
 __all__ = [
     "Backend",
@@ -8,7 +8,7 @@ __all__ = [
     "RealESRGANv2", "RealESRGANv2Model",
     "CUGAN",
     "RIFE", "RIFEModel", "RIFEMerge",
-    "inference"
+    "inference", "get_input_name"
 ]
 
 import copy
@@ -1400,3 +1400,9 @@ def inference(
         path_is_serialization=False,
         input_name=input_name
     )
+
+
+def get_input_name(network_path: str) -> str:
+    import onnx
+    model = onnx.load(network_path)
+    return model.graph.input[0].name
