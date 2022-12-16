@@ -1,4 +1,4 @@
-__version__ = "3.14.3"
+__version__ = "3.14.4"
 
 __all__ = [
     "Backend",
@@ -8,7 +8,7 @@ __all__ = [
     "RealESRGANv2", "RealESRGANv2Model",
     "CUGAN",
     "RIFE", "RIFEModel", "RIFEMerge",
-    "inference", "get_input_name"
+    "inference"
 ]
 
 import copy
