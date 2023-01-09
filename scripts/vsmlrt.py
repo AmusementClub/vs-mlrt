@@ -935,6 +935,8 @@ def RIFE(
         model=model, backend=backend
     )
 
+    initial = as_bits(initial, output0)
+
     if hasattr(core, 'akarin') and hasattr(core.akarin, 'Select'):
         output = core.akarin.Select([output0, initial], initial, 'x._SceneChangeNext 1 0 ?')
     else:
@@ -945,10 +947,10 @@ def RIFE(
         output = core.std.FrameEval(output0, handler, initial)
 
     if multi == 2:
-        return core.std.Interleave([clip, output])
+        return core.std.Interleave([as_bits(clip, output), output])
     else:
         return core.std.Interleave([
-            clip,
+            as_bits(clip, output),
             *(output.std.SelectEvery(cycle=multi-1, offsets=i) for i in range(multi - 1))
         ])
 
