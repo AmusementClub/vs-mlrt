@@ -682,7 +682,7 @@ def get_rife_input(clip: vs.VideoNode) -> typing.List[vs.VideoNode]:
 
     if hasattr(core, 'akarin'):
         horizontal = as_bits(core.akarin.Expr(empty, 'X 2 * width 1 - / 1 -'), clip)
-        vertical = as_bits(core.akarin.Expr(empty, 'Y 2 * height 1 - / 1 -'))
+        vertical = as_bits(core.akarin.Expr(empty, 'Y 2 * height 1 - / 1 -'), clip)
     else:
         from functools import partial
 
@@ -1076,7 +1076,7 @@ def trtexec(
         workspace_arg = f"--memPoolSize=workspace:{workspace}"
     else:
         workspace_arg = f"--workspace{workspace}"
-    
+
     args = [
         trtexec_path,
         f"--onnx={network_path}",
@@ -1439,9 +1439,11 @@ def get_input_name(network_path: str) -> str:
 
 def as_bits(clip: vs.VideoNode, target: vs.VideoNode) -> vs.VideoNode:
     if clip.format.bits_per_sample == target.format.bits_per_sample:
-        return clipb
+        return clip
     else:
-        format = core.query_video_format(
+        is_api4 = hasattr(vs, "__api_version__") and vs.__api_version__.api_major == 4
+        query_video_format = core.query_video_format if is_api4 else core.register_format
+        format = query_video_format(
             color_family=clip.format.color_family,
             sample_type=clip.format.sample_type,
             bits_per_sample=target.format.bits_per_sample,
