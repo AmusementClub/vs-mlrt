@@ -1,4 +1,4 @@
-__version__ = "3.14.4"
+__version__ = "3.15.0"
 
 __all__ = [
     "Backend",
@@ -131,6 +131,8 @@ class Backend:
 
         heuristic: bool = False # only supported on Ampere+ with TensorRT 8.5+
 
+        output_format: int = 0 # 0: fp32, 1: fp16
+
         # internal backend attributes
         supports_onnx_serialization: bool = False
 
@@ -209,8 +211,8 @@ def Waifu2x(
     if not isinstance(clip, vs.VideoNode):
         raise TypeError(f'{func_name}: "clip" must be a clip!')
 
-    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
-        raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
+    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample not in [16, 32]:
+        raise ValueError(f"{func_name}: only constant format 16/32 bit float input supported")
 
     if not isinstance(noise, int) or noise not in range(-1, 4):
         raise ValueError(f'{func_name}: "noise" must be -1, 0, 1, 2, or 3')
@@ -228,10 +230,10 @@ def Waifu2x(
         )
 
     if model == 0:
-        if clip.format.id != vs.GRAYS:
-            raise ValueError(f'{func_name}: "clip" must be of GRAYS format')
-    elif clip.format.id != vs.RGBS:
-        raise ValueError(f'{func_name}: "clip" must be of RGBS format')
+        if clip.format.color_family != vs.GRAY:
+            raise ValueError(f'{func_name}: "clip" must be of GRAY color family')
+    elif clip.format.color_family != vs.RGB:
+        raise ValueError(f'{func_name}: "clip" must be of RGB color family')
 
     if overlap is None:
         overlap_w = overlap_h = [8, 8, 8, 8, 8, 4, 4][model]
@@ -341,19 +343,21 @@ def DPIR(
     if not isinstance(clip, vs.VideoNode):
         raise TypeError(f'{func_name}: "clip" must be a clip!')
 
-    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
-        raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
+    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample not in [16, 32]:
+        raise ValueError(f"{func_name}: only constant format 16/32 bit float input supported")
 
     if not isinstance(model, int) or model not in DPIRModel.__members__.values():
         raise ValueError(f'{func_name}: "model" must be 0, 1, 2 or 3')
 
-    if model in [0, 2] and clip.format.id != vs.GRAYS:
-        raise ValueError(f'{func_name}: "clip" must be of GRAYS format')
-    elif model in [1, 3] and clip.format.id != vs.RGBS:
-        raise ValueError(f'{func_name}: "clip" must be of RGBS format')
+    if model in [0, 2] and clip.format.color_family != vs.GRAY:
+        raise ValueError(f'{func_name}: "clip" must be of GRAY color family')
+    elif model in [1, 3] and clip.format.color_family != vs.RGB:
+        raise ValueError(f'{func_name}: "clip" must be of RGB color family')
 
     if strength is None:
         strength = 5.0
+
+    gray_format = vs.GRAYS if clip.format.bits_per_sample == 32 else vs.GRAYH
 
     if isinstance(strength, vs.VideoNode):
         strength = typing.cast(vs.VideoNode, strength)
@@ -364,14 +368,14 @@ def DPIR(
         if strength.num_frames != clip.num_frames:
             raise ValueError(f'{func_name}: "strength" must be of the same length as "clip"')
 
-        strength = core.std.Expr(strength, "x 255 /", format=vs.GRAYS)
+        strength = core.std.Expr(strength, "x 255 /", format=gray_format)
     else:
         try:
             strength = float(strength)
         except TypeError as e:
             raise TypeError(f'{func_name}: "strength" must be a float or a clip') from e
 
-        strength = core.std.BlankClip(clip, format=vs.GRAYS, color=strength / 255)
+        strength = core.std.BlankClip(clip, format=gray_format, color=strength / 255, keep=True)
 
     if overlap is None:
         overlap_w = overlap_h = 0
@@ -440,11 +444,11 @@ def RealESRGAN(
     if not isinstance(clip, vs.VideoNode):
         raise TypeError(f'{func_name}: "clip" must be a clip!')
 
-    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
-        raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
+    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample not in [16, 32]:
+        raise ValueError(f"{func_name}: only constant format 16/32 bit float input supported")
 
-    if clip.format.id != vs.RGBS:
-        raise ValueError(f'{func_name}: "clip" must be of RGBS format')
+    if clip.format.color_family != vs.RGB:
+        raise ValueError(f'{func_name}: "clip" must be of RGB color family')
 
     if not isinstance(model, int) or model not in RealESRGANv2Model.__members__.values():
         raise ValueError(f'{func_name}: "model" must be 0, 1 or 2')
@@ -535,8 +539,8 @@ def CUGAN(
     if not isinstance(clip, vs.VideoNode):
         raise TypeError(f'{func_name}: "clip" must be a clip!')
 
-    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
-        raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
+    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample not in [16, 32]:
+        raise ValueError(f"{func_name}: only constant format 16/32 bit float input supported")
 
     if not isinstance(noise, int) or noise not in range(-1, 4):
         raise ValueError(f'{func_name}: "noise" must be -1, 0, 1, 2, or 3')
@@ -550,8 +554,8 @@ def CUGAN(
             f' does not support noise reduction level {noise}'
         )
 
-    if clip.format.id != vs.RGBS:
-        raise ValueError(f'{func_name}: "clip" must be of RGBS format')
+    if clip.format.color_family != vs.RGB:
+        raise ValueError(f'{func_name}: "clip" must be of RGB color family')
 
     if overlap is None:
         overlap_w = overlap_h = 4
@@ -677,8 +681,8 @@ def get_rife_input(clip: vs.VideoNode) -> typing.List[vs.VideoNode]:
     empty = clip.std.BlankClip(format=vs.GRAYS, length=1)
 
     if hasattr(core, 'akarin'):
-        horizontal = core.akarin.Expr(empty, 'X 2 * width 1 - / 1 -')
-        vertical = core.akarin.Expr(empty, 'Y 2 * height 1 - / 1 -')
+        horizontal = as_bits(core.akarin.Expr(empty, 'X 2 * width 1 - / 1 -'), clip)
+        vertical = as_bits(core.akarin.Expr(empty, 'Y 2 * height 1 - / 1 -'))
     else:
         from functools import partial
 
@@ -704,15 +708,17 @@ def get_rife_input(clip: vs.VideoNode) -> typing.List[vs.VideoNode]:
 
             return fout
 
-        horizontal = core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=True))
-        vertical = core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=False))
+        horizontal = as_bits(core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=True)), clip)
+        vertical = as_bits(core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=False)), clip)
 
     horizontal = horizontal.std.Loop(clip.num_frames)
     vertical = vertical.std.Loop(clip.num_frames)
 
-    multiplier_h = clip.std.BlankClip(format=vs.GRAYS, color=2/(clip.width-1), keep=True)
+    gray_format = vs.GRAYS if clip.format.bits_per_sample == 32 else vs.GRAYH
 
-    multiplier_w = clip.std.BlankClip(format=vs.GRAYS, color=2/(clip.height-1), keep=True)
+    multiplier_h = clip.std.BlankClip(format=gray_format, color=2/(clip.width-1), keep=True)
+
+    multiplier_w = clip.std.BlankClip(format=gray_format, color=2/(clip.height-1), keep=True)
 
     return [horizontal, vertical, multiplier_h, multiplier_w]
 
@@ -753,12 +759,12 @@ def RIFEMerge(
         if not isinstance(clip, vs.VideoNode):
             raise TypeError(f'{func_name}: clip must be a clip!')
 
-        if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
-            raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
+        if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample not in [16, 32]:
+            raise ValueError(f"{func_name}: only constant format 16/32 bit float input supported")
 
     for clip in (clipa, clipb):
-        if clip.format.id != vs.RGBS:
-            raise ValueError(f'{func_name}: "clipa" / "clipb" must be of RGBS format')
+        if clip.format.color_family != vs.RGB:
+            raise ValueError(f'{func_name}: "clipa" / "clipb" must be of RGB color family')
 
         if clip.width != mask.width or clip.height != mask.height:
             raise ValueError(f'{func_name}: video dimensions mismatch')
@@ -766,8 +772,8 @@ def RIFEMerge(
         if clip.num_frames != mask.num_frames:
             raise ValueError(f'{func_name}: number of frames mismatch')
 
-    if mask.format.id != vs.GRAYS:
-        raise ValueError(f'{func_name}: "mask" must be of RGBS format')
+    if mask.format.color_family != vs.GRAY:
+        raise ValueError(f'{func_name}: "mask" must be of GRAY color family')
 
     if overlap is None:
         overlap_w = overlap_h = 0
@@ -902,14 +908,16 @@ def RIFE(
     if not isinstance(clip, vs.VideoNode):
         raise TypeError(f'{func_name}: "clip" must be a clip!')
 
-    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample != 32:
-        raise ValueError(f"{func_name}: only constant format 32 bit float input supported")
+    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample not in [16, 32]:
+        raise ValueError(f"{func_name}: only constant format 16/32 bit float input supported")
 
-    if clip.format.id != vs.RGBS:
-        raise ValueError(f'{func_name}: "clip" must be of RGBS format')
+    if clip.format.color_family != vs.RGB:
+        raise ValueError(f'{func_name}: "clip" must be of RGB color family')
 
     if multi < 2:
         raise ValueError(f'{func_name}: RIFE: multi must be at least 2')
+
+    gray_format = vs.GRAYS if clip.format.bits_per_sample == 32 else vs.GRAYH
 
     initial = core.std.Interleave([clip] * (multi - 1))
 
@@ -917,7 +925,7 @@ def RIFE(
     terminal = core.std.Interleave([terminal] * (multi - 1))
 
     timepoint = core.std.Interleave([
-        clip.std.BlankClip(format=vs.GRAYS, color=i/multi, length=1)
+        clip.std.BlankClip(format=gray_format, color=i/multi, length=1)
         for i in range(1, multi)
     ]).std.Loop(clip.num_frames)
 
@@ -954,7 +962,10 @@ def get_engine_path(
     device_id: int,
     use_cublas: bool,
     static_shape: bool,
-    tf32: bool
+    tf32: bool,
+    use_cudnn: bool,
+    input_format: int,
+    output_format: int
 ) -> str:
 
     with open(network_path, "rb") as file:
@@ -981,6 +992,9 @@ def get_engine_path(
         f"_workspace{workspace}" +
         f"_trt-{trt_version}" +
         ("_cublas" if use_cublas else "") +
+        ("_cudnn" if use_cudnn else "") +
+        "_I-" + ("fp32" if input_format == 0 else "fp16") +
+        "_O-" + ("fp32" if output_format == 0 else "fp16") +
         f"_{device_name}" +
         f"_{checksum:x}" +
         ".engine"
@@ -1005,7 +1019,9 @@ def trtexec(
     use_edge_mask_convolutions: bool = True,
     use_jit_convolutions: bool = True,
     heuristic: bool = False,
-    input_name: str = "input"
+    input_name: str = "input",
+    input_format: int = 0,
+    output_format: int = 0
 ) -> str:
 
     # tensort runtime version, e.g. 8401 => 8.4.1
@@ -1026,7 +1042,10 @@ def trtexec(
         device_id=device_id,
         use_cublas=use_cublas,
         static_shape=static_shape,
-        tf32=tf32
+        tf32=tf32,
+        use_cudnn=use_cudnn,
+        input_format=input_format,
+        output_format=output_format
     )
 
     if os.access(engine_path, mode=os.R_OK):
@@ -1107,6 +1126,11 @@ def trtexec(
 
     if heuristic and trt_version >= 8500 and core.trt.DeviceProperties(device_id)["major"] >= 8:
         args.append("--heuristic")
+
+    args.extend([
+        "--inputIOFormats=fp32:chw" if input_format == 0 else "--inputIOFormats=fp16:chw",
+        "--outputIOFormats=fp32:chw" if output_format == 0 else "--outputIOFormats=fp16:chw"
+    ])
 
     if log:
         env_key = "TRTEXEC_LOG_FILE"
@@ -1311,7 +1335,9 @@ def _inference(
             use_edge_mask_convolutions=backend.use_edge_mask_convolutions,
             use_jit_convolutions=backend.use_jit_convolutions,
             heuristic=backend.heuristic,
-            input_name=input_name
+            input_name=input_name,
+            input_format=clips[0].format.bits_per_sample == 16,
+            output_format=backend.output_format
         )
         clip = core.trt.Model(
             clips, engine_path,
@@ -1409,3 +1435,17 @@ def get_input_name(network_path: str) -> str:
     import onnx
     model = onnx.load(network_path)
     return model.graph.input[0].name
+
+
+def as_bits(clip: vs.VideoNode, target: vs.VideoNode) -> vs.VideoNode:
+    if clip.format.bits_per_sample == target.format.bits_per_sample:
+        return clipb
+    else:
+        format = core.query_video_format(
+            color_family=clip.format.color_family,
+            sample_type=clip.format.sample_type,
+            bits_per_sample=target.format.bits_per_sample,
+            subsampling_w=clip.format.subsampling_w,
+            subsampling_h=clip.format.subsampling_h
+        )
+        return clip.resize.Point(format=format)
