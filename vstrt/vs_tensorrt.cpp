@@ -441,7 +441,17 @@ static void VS_CC vsTrtCreate(
     }
 
     d->out_vi = std::make_unique<VSVideoInfo>(*in_vis[0]);
-    setDimensions(d->out_vi, d->instances[0].exec_context, core, vsapi);
+
+#if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+    auto output_name = d->engines[0]->getIOTensorName(1);
+    auto type = d->engines[0]->getTensorDataType(output_name);
+#else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+    auto type = d->engines[0]->getBindingDataType(1);
+#endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+
+    auto output_bits_per_sample = getBytesPerSample(type) * 8;
+
+    setDimensions(d->out_vi, d->instances[0].exec_context, core, vsapi, output_bits_per_sample);
 
     vsapi->createFilter(
         in, out, "Model",

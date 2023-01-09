@@ -17,7 +17,8 @@ void setDimensions(
     std::unique_ptr<VSVideoInfo> & vi,
     const std::unique_ptr<nvinfer1::IExecutionContext> & exec_context,
     VSCore * core,
-    const VSAPI * vsapi
+    const VSAPI * vsapi,
+    int bits_per_sample
 ) noexcept {
 
 #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
@@ -40,9 +41,9 @@ void setDimensions(
     vi->width *= out_width / in_width;
 
     if (out_dims.d[1] == 1) {
-        vi->format = vsapi->registerFormat(cmGray, stFloat, 32, 0, 0, core);
+        vi->format = vsapi->registerFormat(cmGray, stFloat, bits_per_sample, 0, 0, core);
     } else if (out_dims.d[1] == 3) {
-        vi->format = vsapi->registerFormat(cmRGB, stFloat, 32, 0, 0, core);
+        vi->format = vsapi->registerFormat(cmRGB, stFloat, bits_per_sample, 0, 0, core);
     }
 }
 
@@ -86,10 +87,6 @@ std::optional<std::string> checkNodes(
 ) noexcept {
 
     for (const auto & vi : vis) {
-        if (vi->format->sampleType != stFloat || vi->format->bitsPerSample != 32) {
-            return "expects clip with type fp32";
-        }
-
         if (vi->width != vis[0]->width || vi->height != vis[0]->height) {
             return "dimensions of clips mismatch";
         }

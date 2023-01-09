@@ -237,6 +237,24 @@ size_t getSize(
 }
 
 static inline
+size_t getBytesPerSample(nvinfer1::DataType type) noexcept {
+    switch (type) {
+        case nvinfer1::DataType::kFLOAT:
+            return 4;
+        case nvinfer1::DataType::kHALF:
+            return 2;
+        case nvinfer1::DataType::kINT8:
+            return 1;
+        case nvinfer1::DataType::kINT32:
+            return 4;
+        case nvinfer1::DataType::kBOOL:
+            return 1;
+        case nvinfer1::DataType::kUINT8:
+            return 1;
+    }
+}
+
+static inline
 std::variant<ErrorMessage, InferenceInstance> getInstance(
     const std::unique_ptr<nvinfer1::ICudaEngine> & engine,
     const std::optional<int> & profile_index,
@@ -319,11 +337,13 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
     {
 #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
         auto dim = exec_context->getTensorShape(input_name);
+        auto type = engine->getTensorDataType(input_name);
 #else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
         auto dim = exec_context->getBindingDimensions(0);
+        auto type = engine->getBindingDataType(0);
 #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
 
-        auto size = getSize(dim) * sizeof(float);
+        auto size = getSize(dim) * getBytesPerSample(type);
 
         Resource<uint8_t *, cudaFree> d_data {};
         checkError(cudaMalloc(&d_data.data, size));
@@ -342,11 +362,13 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
     {
 #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
         auto dim = exec_context->getTensorShape(output_name);
+        auto type = engine->getTensorDataType(output_name);
 #else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
         auto dim = exec_context->getBindingDimensions(1);
+        auto type = engine->getBindingDataType(1);
 #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
 
-        auto size = getSize(dim) * sizeof(float);
+        auto size = getSize(dim) * getBytesPerSample(type);
 
         Resource<uint8_t *, cudaFree> d_data {};
         checkError(cudaMalloc(&d_data.data, size));
@@ -471,16 +493,6 @@ std::optional<ErrorMessage> checkEngine(
     for (int i = 0; i < 2; i++) {
         if (engine->getLocation(i) != nvinfer1::TensorLocation::kDEVICE) {
             return "network binding " + std::to_string(i) + " should reside on device";
-        }
-#endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
-
-#if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
-        if (engine->getTensorDataType(name) != nvinfer1::DataType::kFLOAT) {
-            return "expects network IO with type fp32";
-        }
-#else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
-        if (engine->getBindingDataType(i) != nvinfer1::DataType::kFLOAT) {
-            return "expects network IO with type fp32";
         }
 #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
 
