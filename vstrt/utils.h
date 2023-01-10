@@ -18,6 +18,7 @@ void setDimensions(
     const std::unique_ptr<nvinfer1::IExecutionContext> & exec_context,
     VSCore * core,
     const VSAPI * vsapi,
+    int sample_type,
     int bits_per_sample
 ) noexcept {
 
@@ -33,7 +34,7 @@ void setDimensions(
 
     int in_height = in_dims.d[2];
     int in_width = in_dims.d[3];
-    
+
     int out_height = out_dims.d[2];
     int out_width = out_dims.d[3];
 
@@ -41,9 +42,9 @@ void setDimensions(
     vi->width *= out_width / in_width;
 
     if (out_dims.d[1] == 1) {
-        vi->format = vsapi->registerFormat(cmGray, stFloat, bits_per_sample, 0, 0, core);
+        vi->format = vsapi->registerFormat(cmGray, sample_type, bits_per_sample, 0, 0, core);
     } else if (out_dims.d[1] == 3) {
-        vi->format = vsapi->registerFormat(cmRGB, stFloat, bits_per_sample, 0, 0, core);
+        vi->format = vsapi->registerFormat(cmRGB, sample_type, bits_per_sample, 0, 0, core);
     }
 }
 
@@ -233,14 +234,14 @@ static inline void VS_CC getDeviceProp(
     setProp("conccurrent_managed_access", prop.concurrentManagedAccess);
     setProp("compute_preemption_supported", prop.computePreemptionSupported);
     setProp(
-        "can_use_host_pointer_for_registered_mem", 
+        "can_use_host_pointer_for_registered_mem",
         prop.canUseHostPointerForRegisteredMem
     );
     setProp("cooperative_launch", prop.cooperativeLaunch);
     setProp("cooperative_multi_device_launch", prop.cooperativeMultiDeviceLaunch);
     setProp("shared_mem_per_block_optin", prop.sharedMemPerBlockOptin);
     setProp(
-        "pageable_memory_access_uses_host_page_tables", 
+        "pageable_memory_access_uses_host_page_tables",
         prop.pageableMemoryAccessUsesHostPageTables
     );
     setProp("direct_managed_mem_access_from_host", prop.directManagedMemAccessFromHost);

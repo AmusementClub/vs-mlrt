@@ -535,4 +535,19 @@ std::variant<ErrorMessage, std::unique_ptr<nvinfer1::ICudaEngine>> initEngine(
     return engine;
 }
 
+// 0: integer, 1: float
+static inline
+int getSampleType(nvinfer1::DataType type) noexcept {
+    switch (type) {
+        case nvinfer1::DataType::kFLOAT:
+        case nvinfer1::DataType::kHALF:
+            return 1;
+        case nvinfer1::DataType::kINT8:
+        case nvinfer1::DataType::kINT32:
+        case nvinfer1::DataType::kBOOL:
+        case nvinfer1::DataType::kUINT8:
+            return 0;
+    }
+}
+
 #endif // VSTRT_TRT_UTILS_H_

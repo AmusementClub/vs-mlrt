@@ -444,14 +444,18 @@ static void VS_CC vsTrtCreate(
 
 #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
     auto output_name = d->engines[0]->getIOTensorName(1);
-    auto type = d->engines[0]->getTensorDataType(output_name);
+    auto output_type = d->engines[0]->getTensorDataType(output_name);
 #else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
-    auto type = d->engines[0]->getBindingDataType(1);
+    auto output_type = d->engines[0]->getBindingDataType(1);
 #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
 
-    auto output_bits_per_sample = getBytesPerSample(type) * 8;
+    auto output_sample_type = getSampleType(output_type) == 0 ? stInteger : stFloat;
+    auto output_bits_per_sample = getBytesPerSample(output_type) * 8;
 
-    setDimensions(d->out_vi, d->instances[0].exec_context, core, vsapi, output_bits_per_sample);
+    setDimensions(
+        d->out_vi, d->instances[0].exec_context, core, vsapi,
+        output_sample_type, output_bits_per_sample
+    );
 
     vsapi->createFilter(
         in, out, "Model",
