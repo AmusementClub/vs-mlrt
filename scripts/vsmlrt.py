@@ -1,4 +1,4 @@
-__version__ = "3.15.0"
+__version__ = "3.15.1"
 
 __all__ = [
     "Backend",
@@ -132,6 +132,10 @@ class Backend:
         heuristic: bool = False # only supported on Ampere+ with TensorRT 8.5+
 
         output_format: int = 0 # 0: fp32, 1: fp16
+
+        min_shapes: typing.Tuple[int, int] = (0, 0)
+
+        faster_dynamic_shapes: bool = True
 
         # internal backend attributes
         supports_onnx_serialization: bool = False
@@ -958,6 +962,7 @@ def RIFE(
 
 def get_engine_path(
     network_path: str,
+    min_shapes: typing.Tuple[int, int],
     opt_shapes: typing.Tuple[int, int],
     max_shapes: typing.Tuple[int, int],
     workspace: int,
@@ -985,7 +990,11 @@ def get_engine_path(
     if static_shape:
         shape_str = f".{max_shapes[0]}x{max_shapes[1]}"
     else:
-        shape_str = f".opt{opt_shapes[0]}x{opt_shapes[1]}" + f"_max{max_shapes[0]}x{max_shapes[1]}"
+        shape_str = (
+            f".min{min_shapes[0]}x{min_shapes[1]}"
+            f"_opt{opt_shapes[0]}x{opt_shapes[1]}"
+            f"_max{max_shapes[0]}x{max_shapes[1]}"
+        )
 
     return (
         network_path +
@@ -1024,7 +1033,9 @@ def trtexec(
     heuristic: bool = False,
     input_name: str = "input",
     input_format: int = 0,
-    output_format: int = 0
+    output_format: int = 0,
+    min_shapes: typing.Tuple[int, int] = (0, 0),
+    faster_dynamic_shapes: bool = True
 ) -> str:
 
     # tensort runtime version, e.g. 8401 => 8.4.1
@@ -1038,6 +1049,7 @@ def trtexec(
 
     engine_path = get_engine_path(
         network_path=network_path,
+        min_shapes=min_shapes,
         opt_shapes=opt_shapes,
         max_shapes=max_shapes,
         workspace=workspace,
@@ -1093,7 +1105,7 @@ def trtexec(
         args.append(f"--shapes={input_name}:1x{channels}x{max_shapes[1]}x{max_shapes[0]}")
     else:
         args.extend([
-            f"--minShapes=input:1x{channels}x0x0",
+            f"--minShapes=input:1x{channels}x{min_shapes[1]}x{min_shapes[0]}",
             f"--optShapes=input:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}",
             f"--maxShapes=input:1x{channels}x{max_shapes[1]}x{max_shapes[0]}"
         ])
@@ -1134,6 +1146,9 @@ def trtexec(
         "--inputIOFormats=fp32:chw" if input_format == 0 else "--inputIOFormats=fp16:chw",
         "--outputIOFormats=fp32:chw" if output_format == 0 else "--outputIOFormats=fp16:chw"
     ])
+
+    if faster_dynamic_shapes and not static_shape and trt_version >= 8500:
+        args.append("--preview=+fasterDynamicShapes0805")
 
     if log:
         env_key = "TRTEXEC_LOG_FILE"
@@ -1340,7 +1355,9 @@ def _inference(
             heuristic=backend.heuristic,
             input_name=input_name,
             input_format=clips[0].format.bits_per_sample == 16,
-            output_format=backend.output_format
+            output_format=backend.output_format,
+            min_shapes=backend.min_shapes,
+            faster_dynamic_shapes=backend.faster_dynamic_shapes
         )
         clip = core.trt.Model(
             clips, engine_path,
