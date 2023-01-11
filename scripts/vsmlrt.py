@@ -1,4 +1,4 @@
-__version__ = "3.15.1"
+__version__ = "3.15.2"
 
 __all__ = [
     "Backend",
@@ -115,7 +115,7 @@ class Backend:
         opt_shapes: typing.Optional[typing.Tuple[int, int]] = None
         fp16: bool = False
         device_id: int = 0
-        workspace: int = 128
+        workspace: typing.Optional[int] = 128
         verbose: bool = False
         use_cuda_graph: bool = False
         num_streams: int = 1
@@ -965,7 +965,7 @@ def get_engine_path(
     min_shapes: typing.Tuple[int, int],
     opt_shapes: typing.Tuple[int, int],
     max_shapes: typing.Tuple[int, int],
-    workspace: int,
+    workspace: typing.Optional[int],
     fp16: bool,
     device_id: int,
     use_cublas: bool,
@@ -1001,7 +1001,7 @@ def get_engine_path(
         shape_str +
         ("_fp16" if fp16 else "") +
         ("_no-tf32" if not tf32 else "") +
-        f"_workspace{workspace}" +
+        (f"_workspace{workspace}" if workspace is not None else "") +
         f"_trt-{trt_version}" +
         ("_cublas" if use_cublas else "") +
         ("_cudnn" if use_cudnn else "") +
@@ -1020,7 +1020,7 @@ def trtexec(
     max_shapes: typing.Tuple[int, int],
     fp16: bool,
     device_id: int,
-    workspace: int = 128,
+    workspace: typing.Optional[int] = 128,
     verbose: bool = False,
     use_cuda_graph: bool = False,
     use_cublas: bool = False,
@@ -1087,19 +1087,19 @@ def trtexec(
             os.makedirs(dirname)
         print(f"change engine path to {engine_path}", file=sys.stderr)
 
-    if trt_version >= 8400:
-        workspace_arg = f"--memPoolSize=workspace:{workspace}"
-    else:
-        workspace_arg = f"--workspace{workspace}"
-
     args = [
         trtexec_path,
         f"--onnx={network_path}",
-        workspace_arg,
         f"--timingCacheFile={engine_path}.cache",
         f"--device={device_id}",
         f"--saveEngine={engine_path}"
     ]
+
+    if workspace is not None:
+        if trt_version >= 8400:
+            args.append(f"--memPoolSize=workspace:{workspace}")
+        else:
+            args.append(f"--workspace{workspace}")
 
     if static_shape:
         args.append(f"--shapes={input_name}:1x{channels}x{max_shapes[1]}x{max_shapes[0]}")
