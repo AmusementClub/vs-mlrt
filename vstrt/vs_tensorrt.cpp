@@ -283,8 +283,6 @@ static void VS_CC vsTrtCreate(
         return set_error(err.value());
     }
 
-    int error;
-
     int error1, error2;
     d->overlap_w = int64ToIntS(vsapi->propGetInt(in, "overlap", 0, &error1));
     d->overlap_h = int64ToIntS(vsapi->propGetInt(in, "overlap", 1, &error2));
@@ -335,6 +333,8 @@ static void VS_CC vsTrtCreate(
             .height = height
         };
     }
+
+    int error;
 
     int device_id = int64ToIntS(vsapi->propGetInt(in, "device_id", 0, &error));
     if (error) {
@@ -438,6 +438,20 @@ static void VS_CC vsTrtCreate(
     d->tickets.reserve(d->num_streams);
     for (int i = 0; i < d->num_streams; ++i) {
         d->tickets.push_back(i);
+    }
+
+#if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+    auto input_name = d->engines[0]->getIOTensorName(0);
+    auto input_type = d->engines[0]->getTensorDataType(input_name);
+#else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+    auto input_type = d->engines[0]->getBindingDataType(0);
+#endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+
+    auto input_sample_type = getSampleType(input_type) == 0 ? stInteger : stFloat;
+    auto input_bits_per_sample = getBytesPerSample(input_type) * 8;
+
+    if (auto err = checkNodes(in_vis, input_sample_type, input_bits_per_sample); err.has_value()) {
+        return set_error(err.value());
     }
 
     d->out_vi = std::make_unique<VSVideoInfo>(*in_vis[0]);

@@ -11,6 +11,7 @@
 #include <NvInferRuntime.h>
 
 #include <VapourSynth.h>
+#include <VSHelper.h>
 
 static inline
 void setDimensions(
@@ -88,6 +89,10 @@ std::optional<std::string> checkNodes(
 ) noexcept {
 
     for (const auto & vi : vis) {
+        if (isConstantFormat(vi)) {
+            return "video format must be constant";
+        }
+
         if (vi->width != vis[0]->width || vi->height != vis[0]->height) {
             return "dimensions of clips mismatch";
         }
@@ -98,6 +103,26 @@ std::optional<std::string> checkNodes(
 
         if (vi->format->subSamplingH != 0 || vi->format->subSamplingW != 0) {
             return "clip must not be sub-sampled";
+        }
+    }
+
+    return {};
+}
+
+static inline
+std::optional<std::string> checkNodes(
+    const std::vector<const VSVideoInfo *> & vis,
+    int sample_type,
+    int bits_per_sample
+) noexcept {
+
+    for (const auto & vi : vis) {
+        if (vi->format->sampleType != sample_type) {
+            return "sample type mismatch";
+        }
+
+        if (vi->format->bitsPerSample != bits_per_sample) {
+            return "bits per sample mismatch";
         }
     }
 
