@@ -1,4 +1,4 @@
-__version__ = "3.15.2"
+__version__ = "3.15.3"
 
 __all__ = [
     "Backend",
@@ -274,7 +274,7 @@ def Waifu2x(
 
     backend = init_backend(
         backend=backend,
-        trt_max_shapes=(tile_w, tile_h)
+        trt_opt_shapes=(tile_w, tile_h)
     )
 
     folder_path = os.path.join(
@@ -404,7 +404,7 @@ def DPIR(
 
     backend = init_backend(
         backend=backend,
-        trt_max_shapes=(tile_w, tile_h)
+        trt_opt_shapes=(tile_w, tile_h)
     )
 
     network_path = os.path.join(
@@ -475,7 +475,7 @@ def RealESRGAN(
 
     backend = init_backend(
         backend=backend,
-        trt_max_shapes=(tile_w, tile_h)
+        trt_opt_shapes=(tile_w, tile_h)
     )
 
     if model in [0, 1]:
@@ -586,7 +586,7 @@ def CUGAN(
 
     backend = init_backend(
         backend=backend,
-        trt_max_shapes=(tile_w, tile_h)
+        trt_opt_shapes=(tile_w, tile_h)
     )
 
     folder_path = os.path.join(models_path, "cugan")
@@ -806,7 +806,7 @@ def RIFEMerge(
 
     backend = init_backend(
         backend=backend,
-        trt_max_shapes=(tile_w, tile_h)
+        trt_opt_shapes=(tile_w, tile_h)
     )
 
     network_path = os.path.join(
@@ -988,7 +988,7 @@ def get_engine_path(
         device_name = f"device{device_id}"
 
     if static_shape:
-        shape_str = f".{max_shapes[0]}x{max_shapes[1]}"
+        shape_str = f".{opt_shapes[0]}x{opt_shapes[1]}"
     else:
         shape_str = (
             f".min{min_shapes[0]}x{min_shapes[1]}"
@@ -1102,7 +1102,7 @@ def trtexec(
             args.append(f"--workspace{workspace}")
 
     if static_shape:
-        args.append(f"--shapes={input_name}:1x{channels}x{max_shapes[1]}x{max_shapes[0]}")
+        args.append(f"--shapes={input_name}:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}")
     else:
         args.extend([
             f"--minShapes=input:1x{channels}x{min_shapes[1]}x{min_shapes[0]}",
@@ -1224,7 +1224,7 @@ def calc_tilesize(
 
 def init_backend(
     backend: backendT,
-    trt_max_shapes: typing.Tuple[int, int]
+    trt_opt_shapes: typing.Tuple[int, int]
 ) -> backendT:
 
     if backend is Backend.ORT_CPU: # type: ignore
@@ -1243,11 +1243,11 @@ def init_backend(
     backend = copy.deepcopy(backend)
 
     if isinstance(backend, Backend.TRT):
-        if backend.max_shapes is None:
-            backend.max_shapes = trt_max_shapes
-
         if backend.opt_shapes is None:
-            backend.opt_shapes = backend.max_shapes
+            backend.opt_shapes = trt_opt_shapes
+
+        if backend.max_shapes is None:
+            backend.max_shapes = backend.opt_shapes
 
     return backend
 
@@ -1435,7 +1435,7 @@ def inference(
     if tilesize is None:
         tilesize = (clips[0].width, clips[0].height)
 
-    backend = init_backend(backend=backend, trt_max_shapes=tilesize)
+    backend = init_backend(backend=backend, trt_opt_shapes=tilesize)
 
     if input_name is None:
         input_name = get_input_name(network_path)
