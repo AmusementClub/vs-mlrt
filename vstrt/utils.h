@@ -89,7 +89,7 @@ std::optional<std::string> checkNodes(
 ) noexcept {
 
     for (const auto & vi : vis) {
-        if (isConstantFormat(vi)) {
+        if (!isConstantFormat(vi)) {
             return "video format must be constant";
         }
 

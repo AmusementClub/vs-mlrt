@@ -251,6 +251,8 @@ size_t getBytesPerSample(nvinfer1::DataType type) noexcept {
             return 1;
         case nvinfer1::DataType::kUINT8:
             return 1;
+        default:
+            return 0;
     }
 }
 
@@ -547,6 +549,8 @@ int getSampleType(nvinfer1::DataType type) noexcept {
         case nvinfer1::DataType::kBOOL:
         case nvinfer1::DataType::kUINT8:
             return 0;
+        default:
+            return -1;
     }
 }
 
