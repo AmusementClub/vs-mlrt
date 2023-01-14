@@ -1,7 +1,7 @@
-__version__ = "3.15.3"
+__version__ = "3.15.4"
 
 __all__ = [
-    "Backend",
+    "Backend", "BackendV2"
     "Waifu2x", "Waifu2xModel",
     "DPIR", "DPIRModel",
     "RealESRGAN", "RealESRGANModel",
@@ -1471,3 +1471,108 @@ def as_bits(clip: vs.VideoNode, target: vs.VideoNode) -> vs.VideoNode:
             subsampling_h=clip.format.subsampling_h
         )
         return clip.resize.Point(format=format)
+
+
+class BackendV2:
+    """ simplified backend interfaces with keyword-only arguments
+
+    More exposed arguments may be added for each backend,
+    but existing ones will always function in a forward compatible way.
+    """
+
+    @staticmethod
+    def TRT(*,
+        num_streams: int = 1,
+        fp16: bool = False,
+        tf32: bool = True,
+        output_format: int = 0, # 0: fp32, 1: fp16
+        workspace: typing.Optional[int] = 128,
+        use_cuda_graph: bool = False,
+        static_shape: bool = True,
+        min_shapes: typing.Tuple[int, int] = (0, 0),
+        opt_shapes: typing.Optional[typing.Tuple[int, int]] = None,
+        max_shapes: typing.Optional[typing.Tuple[int, int]] = None,
+        use_cublas: bool = False,
+        use_cudnn: bool = True,
+        device_id: int = 0,
+        **kwargs
+    ) -> Backend.TRT:
+
+        return Backend.TRT(
+            num_streams=num_streams,
+            fp16=fp16, tf32=tf32, output_format=output_format,
+            workspace=workspace, use_cuda_graph=use_cuda_graph,
+            static_shape=static_shape,
+            min_shapes=min_shapes, opt_shapes=opt_shapes, max_shapes=max_shapes,
+            use_cublas=use_cublas, use_cudnn=use_cudnn,
+            device_id=device_id,
+            **kwargs
+        )
+
+    @staticmethod
+    def NCNN_VK(*,
+        num_streams: int = 1,
+        fp16: bool = False,
+        device_id: int = 0,
+        **kwargs
+    ) -> Backend.NCNN_VK:
+        return Backend.NCNN_VK(
+            num_streams=num_streams,
+            fp16=fp16,
+            device_id=device_id,
+            **kwargs
+        )
+
+    @staticmethod
+    def ORT_CUDA(*,
+        num_streams: int = 1,
+        fp16: bool = False,
+        cudnn_benchmark: bool = True,
+        device_id: int = 0,
+        **kwargs
+    ) -> Backend.ORT_CUDA:
+        return Backend.ORT_CUDA(
+            num_streams=num_streams,
+            fp16=fp16,
+            cudnn_benchmark=cudnn_benchmark,
+            device_id=device_id,
+            **kwargs
+        )
+
+    @staticmethod
+    def OV_CPU(*,
+        num_streams: typing.Union[int, str] = 1,
+        bf16: bool = False,
+        bind_thread: bool = True,
+        **kwargs
+    ) -> Backend.OV_CPU:
+        return Backend.OV_CPU(
+            num_streams=num_streams,
+            bf16=bf16,
+            bind_thread=bind_thread,
+            **kwargs
+        )
+
+    @staticmethod
+    def ORT_CPU(*,
+        num_streams: int = 1,
+        **kwargs
+    ) -> Backend.ORT_CPU:
+        return Backend.ORT_CPU(
+            num_streams=num_streams,
+            **kwargs
+        )
+
+    @staticmethod
+    def OV_GPU(*,
+        num_streams: typing.Union[int, str] = 1,
+        fp16: bool = False,
+        device_id: int = 0,
+        **kwargs
+    ) -> Backend.OV_GPU:
+        return Backend.OV_GPU(
+            num_streams=num_streams,
+            fp16=fp16,
+            device_id=device_id,
+            **kwargs
+        )
