@@ -1,4 +1,4 @@
-__version__ = "3.15.4"
+__version__ = "3.15.5"
 
 __all__ = [
     "Backend", "BackendV2"
@@ -779,6 +779,9 @@ def RIFEMerge(
     if mask.format.color_family != vs.GRAY:
         raise ValueError(f'{func_name}: "mask" must be of GRAY color family')
 
+    if tiles is not None or tilesize is not None or overlap is not None:
+        raise ValueError(f'{func_name}: tiling is not supported')
+
     if overlap is None:
         overlap_w = overlap_h = 0
     elif isinstance(overlap, int):
@@ -920,6 +923,9 @@ def RIFE(
 
     if multi < 2:
         raise ValueError(f'{func_name}: RIFE: multi must be at least 2')
+
+    if tiles is not None or tilesize is not None or overlap is not None:
+        raise ValueError(f'{func_name}: tiling is not supported')
 
     gray_format = vs.GRAYS if clip.format.bits_per_sample == 32 else vs.GRAYH
 
