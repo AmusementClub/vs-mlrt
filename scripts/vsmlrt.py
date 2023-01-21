@@ -1,4 +1,4 @@
-__version__ = "3.15.6"
+__version__ = "3.15.7"
 
 __all__ = [
     "Backend", "BackendV2"
@@ -679,12 +679,21 @@ def CUGAN(
 
 
 def get_rife_input(clip: vs.VideoNode) -> typing.List[vs.VideoNode]:
-    empty = clip.std.BlankClip(format=vs.GRAYS, length=1)
+    assert clip.format.sample_type == vs.FLOAT
+    gray_format = vs.GRAYS if clip.format.bits_per_sample == 32 else vs.GRAYH
 
     if hasattr(core, 'akarin'):
-        horizontal = as_bits(core.akarin.Expr(empty, 'X 2 * width 1 - / 1 -'), clip)
-        vertical = as_bits(core.akarin.Expr(empty, 'Y 2 * height 1 - / 1 -'), clip)
+        if b"fp16" in core.akarin.Version()["expr_features"]:
+            empty = clip.std.BlankClip(format=gray_format, length=1)
+            horizontal = core.akarin.Expr(empty, 'X 2 * width 1 - / 1 -')
+            vertical = core.akarin.Expr(empty, 'Y 2 * height 1 - / 1 -')
+        else:
+            empty = clip.std.BlankClip(format=vs.GRAYS, length=1)
+            horizontal = bits_as(core.akarin.Expr(empty, 'X 2 * width 1 - / 1 -'), clip)
+            vertical = bits_as(core.akarin.Expr(empty, 'Y 2 * height 1 - / 1 -'), clip)
     else:
+        empty = clip.std.BlankClip(format=vs.GRAYS, length=1)
+
         from functools import partial
 
         def meshgrid_core(n: int, f: vs.VideoFrame, horizontal: bool) -> vs.VideoFrame:
@@ -709,13 +718,11 @@ def get_rife_input(clip: vs.VideoNode) -> typing.List[vs.VideoNode]:
 
             return fout
 
-        horizontal = as_bits(core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=True)), clip)
-        vertical = as_bits(core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=False)), clip)
+        horizontal = bits_as(core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=True)), clip)
+        vertical = bits_as(core.std.ModifyFrame(empty, empty, partial(meshgrid_core, horizontal=False)), clip)
 
     horizontal = horizontal.std.Loop(clip.num_frames)
     vertical = vertical.std.Loop(clip.num_frames)
-
-    gray_format = vs.GRAYS if clip.format.bits_per_sample == 32 else vs.GRAYH
 
     multiplier_h = clip.std.BlankClip(format=gray_format, color=2/(clip.width-1), keep=True)
 
@@ -942,7 +949,7 @@ def RIFE(
         model=model, backend=backend
     )
 
-    clip = as_bits(clip, output0)
+    clip = bits_as(clip, output0)
     initial = core.std.Interleave([clip] * (multi - 1))
 
     if hasattr(core, 'akarin') and hasattr(core.akarin, 'Select'):
@@ -1476,7 +1483,7 @@ def get_input_name(network_path: str) -> str:
     return model.graph.input[0].name
 
 
-def as_bits(clip: vs.VideoNode, target: vs.VideoNode) -> vs.VideoNode:
+def bits_as(clip: vs.VideoNode, target: vs.VideoNode) -> vs.VideoNode:
     if clip.format.bits_per_sample == target.format.bits_per_sample:
         return clip
     else:
