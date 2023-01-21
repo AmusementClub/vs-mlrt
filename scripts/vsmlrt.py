@@ -685,12 +685,11 @@ def get_rife_input(clip: vs.VideoNode) -> typing.List[vs.VideoNode]:
     if hasattr(core, 'akarin'):
         if b"fp16" in core.akarin.Version()["expr_features"]:
             empty = clip.std.BlankClip(format=gray_format, length=1)
-            horizontal = core.akarin.Expr(empty, 'X 2 * width 1 - / 1 -')
-            vertical = core.akarin.Expr(empty, 'Y 2 * height 1 - / 1 -')
         else:
             empty = clip.std.BlankClip(format=vs.GRAYS, length=1)
-            horizontal = bits_as(core.akarin.Expr(empty, 'X 2 * width 1 - / 1 -'), clip)
-            vertical = bits_as(core.akarin.Expr(empty, 'Y 2 * height 1 - / 1 -'), clip)
+
+        horizontal = bits_as(core.akarin.Expr(empty, 'X 2 * width 1 - / 1 -'), clip)
+        vertical = bits_as(core.akarin.Expr(empty, 'Y 2 * height 1 - / 1 -'), clip)
     else:
         empty = clip.std.BlankClip(format=vs.GRAYS, length=1)
 
