@@ -1,7 +1,7 @@
-__version__ = "3.15.7"
+__version__ = "3.15.8"
 
 __all__ = [
-    "Backend", "BackendV2"
+    "Backend", "BackendV2",
     "Waifu2x", "Waifu2xModel",
     "DPIR", "DPIRModel",
     "RealESRGAN", "RealESRGANModel",
