@@ -9,13 +9,6 @@
 #include <onnx/shape_inference/implementation.h>
 
 
-std::variant<std::string, ONNX_NAMESPACE::ModelProto> loadONNX(
-    const std::string & path,
-    int64_t tile_w,
-    int64_t tile_h
-) noexcept;
-
-
 using namespace std::string_literals;
 
 #ifdef _WIN32
