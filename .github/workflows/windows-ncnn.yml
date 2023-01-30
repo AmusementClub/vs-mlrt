@@ -161,7 +161,7 @@ jobs:
         copy install\bin\vsncnn.dll artifact\
 
     - name: Upload
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: VSNCNN-GPU-Windows-x64
         path: vsncnn/artifact

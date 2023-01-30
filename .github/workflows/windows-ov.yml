@@ -161,7 +161,7 @@ jobs:
         xcopy openvino\runtime\bin\intel64\Release\* artifact\vsov\ /s
 
     - name: Upload
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: VSOV-Windows-x64
         path: vsov/artifact

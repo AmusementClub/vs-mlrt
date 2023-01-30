@@ -70,7 +70,7 @@ jobs:
         7za a -t7z -bb3 -mx=3 ../scripts.${{ github.event.inputs.tag }}.7z .
 
     - name: Upload scripts release
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: Scripts
         path: scripts
@@ -112,7 +112,7 @@ jobs:
         7za a -t7z -bb3 -mx=3 ../models.7z .
 
     - name: Upload model release
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: Models
         path: release
@@ -143,7 +143,7 @@ jobs:
         7za a -t7z -bb3 -mx=3 ../ext-models.7z .
 
     - name: Upload external model release
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: External-Models
         path: release
@@ -175,43 +175,43 @@ jobs:
 
     steps:
     - name: Download artifact for scripts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: Scripts
         path: scripts-release
 
     - name: Download artifact for models
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: Models
         path: models-release
 
     - name: Download artifact for vsov
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: VSOV-Windows-x64
         path: vsov-release
 
     - name: Download artifact for vsort
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: VSORT-Windows-x64
         path: vsort-release
 
     - name: Download artifact for vstrt
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: VSTRT-Windows-x64
         path: vstrt-release
 
     - name: Download artifact for vsncnn
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: VSNCNN-GPU-Windows-x64
         path: vsncnn-release
 
     - name: Download artifact for cuda dependencies
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: vsmlrt-cuda
         path: cuda-release
@@ -230,7 +230,7 @@ jobs:
         7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-cpu.7z .
 
     - name: Upload CPU-only release
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: vsmlrt-cpu-release
         path: vsmlrt-windows-x64-cpu.7z
@@ -263,7 +263,7 @@ jobs:
         7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-vk.7z .
 
     - name: Upload non-CUDA GPU release
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: vsmlrt-vk-release
         path: vsmlrt-windows-x64-vk.7z
@@ -303,7 +303,7 @@ jobs:
         7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-cuda.7z .
 
     - name: Upload CUDA release
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: vsmlrt-cuda-release
         path: vsmlrt-windows-x64-cuda.7z
