@@ -86,7 +86,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: vsov/onnx/install
-        key: ${{ runner.os }}-vsov-onnx-v1
+        key: ${{ runner.os }}-vsov-onnx-v2
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
@@ -95,7 +95,7 @@ jobs:
         repository: onnx/onnx
         # follows onnx in https://github.com/AmusementClub/openvino/tree/master/thirdparty/onnx
         # if you change this, remember to bump the version of the cache key.
-        ref: 96046b8ccfb8e6fa82f6b2b34b3d56add2e8849c
+        ref: f7ee1ac60d06abe8e26c9b6bbe1e3db5286b614b
         fetch-depth: 1
         path: vsov/onnx
 
