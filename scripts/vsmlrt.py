@@ -1,4 +1,4 @@
-__version__ = "3.15.8"
+__version__ = "3.15.9"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -96,6 +96,7 @@ class Backend:
         bind_thread: bool = True
         fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
         bf16: bool = False
+        num_threads: int = 0
 
         # internal backend attributes
         supports_onnx_serialization: bool = True
@@ -1323,6 +1324,7 @@ def _inference(
         config = lambda: dict(
             CPU_THROUGHPUT_STREAMS=backend.num_streams,
             CPU_BIND_THREAD="YES" if backend.bind_thread else "NO",
+            CPU_THREADS_NUM=backend.num_threads,
             ENFORCE_BF16="YES" if backend.bf16 else "NO"
         )
 
@@ -1570,12 +1572,14 @@ class BackendV2:
         num_streams: typing.Union[int, str] = 1,
         bf16: bool = False,
         bind_thread: bool = True,
+        num_threads: int = 0,
         **kwargs
     ) -> Backend.OV_CPU:
         return Backend.OV_CPU(
             num_streams=num_streams,
             bf16=bf16,
             bind_thread=bind_thread,
+            num_threads=num_threads,
             **kwargs
         )
 
