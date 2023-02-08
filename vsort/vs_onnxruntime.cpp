@@ -1059,6 +1059,8 @@ static void VS_CC vsOrtCreate(
             checkError(ortapi->UpdateCUDAProviderOptions(cuda_options, keys, values, std::size(keys)));
 
             checkError(ortapi->SessionOptionsAppendExecutionProvider_CUDA_V2(session_options, cuda_options));
+
+            ortapi->ReleaseCUDAProviderOptions(cuda_options);
         }
 #endif // ENABLE_CUDA
 #ifdef ENABLE_COREML
