@@ -1091,7 +1091,7 @@ static void VS_CC vsOrtCreate(
 
 #ifdef ENABLE_CUDA
         if (d->backend == Backend::CUDA) {
-            checkCUDAError(cudaStreamCreate(&resource.stream));
+            checkCUDAError(cudaStreamCreateWithFlags(&resource.stream, cudaStreamNonBlocking));
 
             resource.input.size = (
                 input_shape[0] *
