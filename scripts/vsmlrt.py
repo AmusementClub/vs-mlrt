@@ -1,4 +1,4 @@
-__version__ = "3.15.9"
+__version__ = "3.15.10"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -683,7 +683,11 @@ def get_rife_input(clip: vs.VideoNode) -> typing.List[vs.VideoNode]:
     assert clip.format.sample_type == vs.FLOAT
     gray_format = vs.GRAYS if clip.format.bits_per_sample == 32 else vs.GRAYH
 
-    if hasattr(core, 'akarin'):
+
+    if (hasattr(core, 'akarin') and
+        b"width" in core.akarin.Version()["expr_features"] and
+        b"height" in core.akarin.Version()["expr_features"]
+    ):
         if b"fp16" in core.akarin.Version()["expr_features"]:
             empty = clip.std.BlankClip(format=gray_format, length=1)
         else:
