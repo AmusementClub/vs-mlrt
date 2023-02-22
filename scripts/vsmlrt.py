@@ -1,4 +1,4 @@
-__version__ = "3.15.10"
+__version__ = "3.15.11"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -754,7 +754,8 @@ def RIFEMerge(
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     model: typing.Literal[40, 42, 43, 44, 45, 46] = 44,
-    backend: backendT = Backend.OV_CPU()
+    backend: backendT = Backend.OV_CPU(),
+    ensemble: bool = False
 ) -> vs.VideoNode:
     """ temporal MaskedMerge-like interface for the RIFE model
 
@@ -823,7 +824,7 @@ def RIFEMerge(
     network_path = os.path.join(
         models_path,
         "rife",
-        f"rife_v{model // 10}.{model % 10}.onnx"
+        f"rife_v{model // 10}.{model % 10}{'_ensemble' if ensemble else ''}.onnx"
     )
 
     clips = [clipa, clipb, mask, *get_rife_input(clipa)]
@@ -897,7 +898,8 @@ def RIFE(
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     model: typing.Literal[40, 42, 43, 44, 45, 46] = 44,
-    backend: backendT = Backend.OV_CPU()
+    backend: backendT = Backend.OV_CPU(),
+    ensemble: bool = False
 ) -> vs.VideoNode:
     """ RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation
 
@@ -950,7 +952,7 @@ def RIFE(
     output0 = RIFEMerge(
         clipa=initial, clipb=terminal, mask=timepoint,
         scale=scale, tiles=tiles, tilesize=tilesize, overlap=overlap,
-        model=model, backend=backend
+        model=model, backend=backend, ensemble=ensemble
     )
 
     clip = bits_as(clip, output0)
@@ -1296,7 +1298,10 @@ def _inference(
         if not os.path.exists(network_path):
             raise RuntimeError(
                 f'"{network_path}" not found, '
-                f'built-in models can be found at https://github.com/AmusementClub/vs-mlrt/releases'
+                "built-in models can be found at"
+                "https://github.com/AmusementClub/vs-mlrt/releases/tag/model-20211209, "
+                "https://github.com/AmusementClub/vs-mlrt/releases/tag/model-20220923 and "
+                "https://github.com/AmusementClub/vs-mlrt/releases/tag/external-models"
             )
 
     if isinstance(backend, Backend.ORT_CPU):
