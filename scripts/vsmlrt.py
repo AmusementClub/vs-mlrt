@@ -1,4 +1,4 @@
-__version__ = "3.15.11"
+__version__ = "3.15.12"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -194,16 +194,17 @@ class Waifu2xModel(enum.IntEnum):
     upconv_7_photo = 4
     upresnet10 = 5
     cunet = 6
+    swin_unet_art = 7
 
 
 def Waifu2x(
     clip: vs.VideoNode,
     noise: typing.Literal[-1, 0, 1, 2, 3] = -1,
-    scale: typing.Literal[1, 2] = 2,
+    scale: typing.Literal[1, 2, 4] = 2,
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
-    model: typing.Literal[0, 1, 2, 3, 4, 5, 6] = 6,
+    model: typing.Literal[0, 1, 2, 3, 4, 5, 6, 7] = 6,
     backend: backendT = Backend.OV_CPU(),
     preprocess: bool = True
 ) -> vs.VideoNode:
@@ -219,17 +220,20 @@ def Waifu2x(
     if not isinstance(noise, int) or noise not in range(-1, 4):
         raise ValueError(f'{func_name}: "noise" must be -1, 0, 1, 2, or 3')
 
-    if not isinstance(scale, int) or scale not in (1, 2):
-        raise ValueError(f'{func_name}: "scale" must be 1 or 2')
+    if not isinstance(scale, int) or scale not in (1, 2, 4):
+        raise ValueError(f'{func_name}: "scale" must be 1, 2 or 4')
 
     if not isinstance(model, int) or model not in Waifu2xModel.__members__.values():
-        raise ValueError(f'{func_name}: "model" must be 0, 1, 2, 3, 4, 5, or 6')
+        raise ValueError(f'{func_name}: "model" must be 0, 1, 2, 3, 4, 5, 6 or 7')
 
     if model == 0 and noise == 0:
         raise ValueError(
             f'{func_name}: "anime_style_art" model'
             ' does not support noise reduction level 0'
         )
+
+    if model in range(7) and scale not in (1, 2):
+        raise ValueError(f'{func_name}: "scale" must be 1 or 2')
 
     if model == 0:
         if clip.format.color_family != vs.GRAY:
@@ -238,7 +242,7 @@ def Waifu2x(
         raise ValueError(f'{func_name}: "clip" must be of RGB color family')
 
     if overlap is None:
-        overlap_w = overlap_h = [8, 8, 8, 8, 8, 4, 4][model]
+        overlap_w = overlap_h = [8, 8, 8, 8, 8, 4, 4, 4][model]
     elif isinstance(overlap, int):
         overlap_w = overlap_h = overlap
     else:
@@ -291,7 +295,7 @@ def Waifu2x(
             model_name = "scale2.0x_model.onnx"
         else:
             model_name = f"noise{noise}_scale2.0x_model.onnx"
-    else:
+    elif model == 6:
         if scale == 1:
             scale_name = ""
         else:
@@ -301,6 +305,26 @@ def Waifu2x(
             model_name = "scale2.0x_model.onnx"
         else:
             model_name = f"noise{noise}_{scale_name}model.onnx"
+    elif model == 7:
+        if scale == 1:
+            scale_name = ""
+        elif scale == 2:
+            scale_name = "scale2x"
+        elif scale == 4:
+            scale_name = "scale4x"
+        
+        if noise == -1:
+            if scale == 1:
+                raise ValueError("swin_unet model for \"noise == -1\" and \"scale == 1\" does not exist")
+
+            model_name = f"{scale_name}.onnx"
+        else:
+            if scale == 1:
+                model_name = f"noise{noise}.onnx"
+            else:
+                model_name = f"noise{noise}_{scale_name}.onnx"
+    else:
+        raise ValueError(f"{func_name}: inavlid model {model}")
 
     network_path = os.path.join(folder_path, model_name)
 
