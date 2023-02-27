@@ -1,4 +1,4 @@
-__version__ = "3.15.12"
+__version__ = "3.15.13"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -828,6 +828,25 @@ def RIFEMerge(
     multiple = int(multiple_frac.numerator)
     scale = float(Fraction(scale))
 
+    # use v2 implementation by default
+    network_path = os.path.join(
+        models_path,
+        "rife_v2",
+        f"rife_v{model // 10}.{model % 10}{'_ensemble' if ensemble else ''}.onnx"
+    )
+    if os.path.exists(network_path) and scale == 1.0:
+        clips = [clipa, clipb, mask]
+        multiple = 1 # v2 implements internal padding
+    else:
+        # v2 onnx not found, try v1
+        network_path = os.path.join(
+            models_path,
+            "rife",
+            f"rife_v{model // 10}.{model % 10}{'_ensemble' if ensemble else ''}.onnx"
+        )
+
+        clips = [clipa, clipb, mask, *get_rife_input(clipa)]
+
     (tile_w, tile_h), (overlap_w, overlap_h) = calc_tilesize(
         tiles=tiles, tilesize=tilesize,
         width=clip.width, height=clip.height,
@@ -844,14 +863,6 @@ def RIFEMerge(
         backend=backend,
         trt_opt_shapes=(tile_w, tile_h)
     )
-
-    network_path = os.path.join(
-        models_path,
-        "rife",
-        f"rife_v{model // 10}.{model % 10}{'_ensemble' if ensemble else ''}.onnx"
-    )
-
-    clips = [clipa, clipb, mask, *get_rife_input(clipa)]
 
     if scale == 1.0:
         return inference_with_fallback(
