@@ -1,4 +1,4 @@
-__version__ = "3.15.13"
+__version__ = "3.15.14"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -779,7 +779,8 @@ def RIFEMerge(
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     model: typing.Literal[40, 42, 43, 44, 45, 46] = 44,
     backend: backendT = Backend.OV_CPU(),
-    ensemble: bool = False
+    ensemble: bool = False,
+    _implementation: typing.Optional[typing.Literal[1, 2]] = None
 ) -> vs.VideoNode:
     """ temporal MaskedMerge-like interface for the RIFE model
 
@@ -834,10 +835,12 @@ def RIFEMerge(
         "rife_v2",
         f"rife_v{model // 10}.{model % 10}{'_ensemble' if ensemble else ''}.onnx"
     )
-    if os.path.exists(network_path) and scale == 1.0:
-        clips = [clipa, clipb, mask]
+    if _implementation != 1 and os.path.exists(network_path) and scale == 1.0:
+        implementation_version = 2
         multiple = 1 # v2 implements internal padding
+        clips = [clipa, clipb, mask]
     else:
+        implementation_version = 1
         # v2 onnx not found, try v1
         network_path = os.path.join(
             models_path,
@@ -870,6 +873,8 @@ def RIFEMerge(
             overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
             backend=backend
         )
+    elif ensemble or implementation_version != 1:
+        raise ValueError(f'{func_name}: currently not supported')
     else:
         import onnx
         from onnx.numpy_helper import from_array, to_array
@@ -934,7 +939,8 @@ def RIFE(
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     model: typing.Literal[40, 42, 43, 44, 45, 46] = 44,
     backend: backendT = Backend.OV_CPU(),
-    ensemble: bool = False
+    ensemble: bool = False,
+    _implementation: typing.Optional[typing.Literal[1, 2]] = None
 ) -> vs.VideoNode:
     """ RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation
 
@@ -953,6 +959,10 @@ def RIFE(
         scale: Controls the process resolution for optical flow model.
             32 / fractions.Fraction(scale) must be an integer.
             scale=0.5 is recommended for 4K video.
+
+        _implementation: (None, 1 or 2, experimental and maybe removed in the future)
+            Switch between different onnx implementation.
+            Implmementation will be selected based on internal heuristic if it is None.
     """
 
     func_name = "vsmlrt.RIFE"
@@ -987,7 +997,8 @@ def RIFE(
     output0 = RIFEMerge(
         clipa=initial, clipb=terminal, mask=timepoint,
         scale=scale, tiles=tiles, tilesize=tilesize, overlap=overlap,
-        model=model, backend=backend, ensemble=ensemble
+        model=model, backend=backend, ensemble=ensemble,
+        _implementation=_implementation
     )
 
     clip = bits_as(clip, output0)
