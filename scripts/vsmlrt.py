@@ -1,4 +1,4 @@
-__version__ = "3.15.14"
+__version__ = "3.15.15"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -134,6 +134,7 @@ class Backend:
         min_shapes: typing.Tuple[int, int] = (0, 0)
         faster_dynamic_shapes: bool = True
         force_fp16: bool = False
+        builder_optimization_level: int = 3
 
         # internal backend attributes
         supports_onnx_serialization: bool = False
@@ -1098,7 +1099,8 @@ def trtexec(
     output_format: int = 0,
     min_shapes: typing.Tuple[int, int] = (0, 0),
     faster_dynamic_shapes: bool = True,
-    force_fp16: bool = False
+    force_fp16: bool = False,
+    builder_optimization_level: int = 3
 ) -> str:
 
     # tensort runtime version, e.g. 8401 => 8.4.1
@@ -1201,20 +1203,26 @@ def trtexec(
             "--noDataTransfers"
         ))
     else:
-        args.append("--buildOnly")
+        if trt_version >= 8600:
+            args.append("--skipInference")
+        else:
+            args.append("--buildOnly")
 
     if not tf32:
         args.append("--noTF32")
 
     if heuristic and trt_version >= 8500 and core.trt.DeviceProperties(device_id)["major"] >= 8:
-        args.append("--heuristic")
+        if trt_version < 8600:
+            args.append("--heuristic")
+        else:
+            builder_optimization_level = 2
 
     args.extend([
         "--inputIOFormats=fp32:chw" if input_format == 0 else "--inputIOFormats=fp16:chw",
         "--outputIOFormats=fp32:chw" if output_format == 0 else "--outputIOFormats=fp16:chw"
     ])
 
-    if faster_dynamic_shapes and not static_shape and trt_version >= 8500:
+    if faster_dynamic_shapes and not static_shape and 8500 <= trt_version < 8600:
         args.append("--preview=+fasterDynamicShapes0805")
 
     if force_fp16:
@@ -1226,6 +1234,9 @@ def trtexec(
             ])
         else:
             raise ValueError('"force_fp16" is not available')
+
+    if trt_version >= 8600:
+        args.append(f"--builderOptimizationLevel={builder_optimization_level}")
 
     if log:
         env_key = "TRTEXEC_LOG_FILE"
@@ -1439,7 +1450,8 @@ def _inference(
             output_format=backend.output_format,
             min_shapes=backend.min_shapes,
             faster_dynamic_shapes=backend.faster_dynamic_shapes,
-            force_fp16=backend.force_fp16
+            force_fp16=backend.force_fp16,
+            builder_optimization_level=backend.builder_optimization_level
         )
         clip = core.trt.Model(
             clips, engine_path,
