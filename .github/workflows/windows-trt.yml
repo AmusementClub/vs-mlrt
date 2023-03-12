@@ -52,7 +52,7 @@ jobs:
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
         curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.0.0/network_installers/cuda_12.0.0_windows_network.exe
-        cuda_installer.exe -s nvcc_12.0 cudart_12.0 nvprof_12.0 cuda_profiler_api_12.0
+        cuda_installer.exe -s nvcc_12.0 cudart_12.0 nvprof_12.0 cuda_profiler_api_12.0 thrust_12.0
 
     - name: Checkout tensorrt
       uses: actions/checkout@v3
