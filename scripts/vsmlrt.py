@@ -1,4 +1,4 @@
-__version__ = "3.16.0"
+__version__ = "3.16.1"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -116,7 +116,7 @@ class Backend:
         opt_shapes: typing.Optional[typing.Tuple[int, int]] = None
         fp16: bool = False
         device_id: int = 0
-        workspace: typing.Optional[int] = 128
+        workspace: typing.Optional[int] = None
         verbose: bool = False
         use_cuda_graph: bool = False
         num_streams: int = 1
@@ -1083,7 +1083,7 @@ def trtexec(
     max_shapes: typing.Tuple[int, int],
     fp16: bool,
     device_id: int,
-    workspace: typing.Optional[int] = 128,
+    workspace: typing.Optional[int] = None,
     verbose: bool = False,
     use_cuda_graph: bool = False,
     use_cublas: bool = False,
@@ -1580,7 +1580,7 @@ class BackendV2:
         fp16: bool = False,
         tf32: bool = True,
         output_format: int = 0, # 0: fp32, 1: fp16
-        workspace: typing.Optional[int] = 128,
+        workspace: typing.Optional[int] = None,
         use_cuda_graph: bool = False,
         static_shape: bool = True,
         min_shapes: typing.Tuple[int, int] = (0, 0),
