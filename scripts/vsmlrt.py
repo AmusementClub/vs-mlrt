@@ -1,4 +1,4 @@
-__version__ = "3.15.15"
+__version__ = "3.16.0"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -126,7 +126,7 @@ class Backend:
         log: bool = True
 
         # as of TensorRT 8.4, it can be turned off without performance penalty in most cases
-        use_cudnn: bool = True
+        use_cudnn: bool = False # changed to False since vsmlrt.vpy 3.16
         use_edge_mask_convolutions: bool = True
         use_jit_convolutions: bool = True
         heuristic: bool = False # only supported on Ampere+ with TensorRT 8.5+
