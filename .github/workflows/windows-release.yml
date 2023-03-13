@@ -300,7 +300,7 @@ jobs:
         cp scripts-release/*.py release-cuda/
         cd release-cuda
         ls -lR
-        7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-cuda.7z .
+        7za a -t7z -bb3 -mx=9 ../vsmlrt-windows-x64-cuda.7z .
 
     - name: Upload CUDA release
       uses: actions/upload-artifact@v3
