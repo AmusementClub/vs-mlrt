@@ -1,4 +1,4 @@
-__version__ = "3.16.2"
+__version__ = "3.16.3"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -532,9 +532,15 @@ def RealESRGAN(
             rescale = scale / scale_h
 
             if rescale > 1:
-                clip = core.fmtc.resample(clip, scale=rescale, kernel="lanczos", taps=4)
+                clip = core.resize.Lanczos(clip, int(clip_org.width * scale), int(clip_org.height * scale), filter_param_a=4)
             else:
+                if clip_org.format.bits_per_sample != 32:
+                    clip = core.resize.Point(clip, format=vs.RGBS)
+
                 clip = core.fmtc.resample(clip, scale=rescale, kernel="lanczos", taps=4, fh=1/rescale, fv=1/rescale)
+
+                if clip_org.format.bits_per_sample == 16:
+                    clip = core.resize.Point(clip, format=vs.RGBH)
 
     return clip
 
