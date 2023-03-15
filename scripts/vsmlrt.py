@@ -1,4 +1,4 @@
-__version__ = "3.16.1"
+__version__ = "3.16.2"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -135,6 +135,7 @@ class Backend:
         faster_dynamic_shapes: bool = True
         force_fp16: bool = False
         builder_optimization_level: int = 3
+        max_aux_streams: typing.Optional[int] = None
 
         # internal backend attributes
         supports_onnx_serialization: bool = False
@@ -1036,7 +1037,9 @@ def get_engine_path(
     tf32: bool,
     use_cudnn: bool,
     input_format: int,
-    output_format: int
+    output_format: int,
+    builder_optimization_level: int,
+    max_aux_streams: typing.Optional[int]
 ) -> str:
 
     with open(network_path, "rb") as file:
@@ -1065,6 +1068,8 @@ def get_engine_path(
         ("_fp16" if fp16 else "") +
         ("_no-tf32" if not tf32 else "") +
         (f"_workspace{workspace}" if workspace is not None else "") +
+        f"_opt{builder_optimization_level}" +
+        (f"_max-aux-streams{max_aux_streams}" if max_aux_streams is not None else "") +
         f"_trt-{trt_version}" +
         ("_cublas" if use_cublas else "") +
         ("_cudnn" if use_cudnn else "") +
@@ -1100,7 +1105,8 @@ def trtexec(
     min_shapes: typing.Tuple[int, int] = (0, 0),
     faster_dynamic_shapes: bool = True,
     force_fp16: bool = False,
-    builder_optimization_level: int = 3
+    builder_optimization_level: int = 3,
+    max_aux_streams: typing.Optional[int] = None
 ) -> str:
 
     # tensort runtime version, e.g. 8401 => 8.4.1
@@ -1129,7 +1135,9 @@ def trtexec(
         tf32=tf32,
         use_cudnn=use_cudnn,
         input_format=input_format,
-        output_format=output_format
+        output_format=output_format,
+        builder_optimization_level=builder_optimization_level,
+        max_aux_streams=max_aux_streams
     )
 
     if os.access(engine_path, mode=os.R_OK):
@@ -1237,6 +1245,9 @@ def trtexec(
 
     if trt_version >= 8600:
         args.append(f"--builderOptimizationLevel={builder_optimization_level}")
+
+        if max_aux_streams is not None:
+            args.append(f"--maxAuxStreams={max_aux_streams}")
 
     if log:
         env_key = "TRTEXEC_LOG_FILE"
@@ -1451,7 +1462,8 @@ def _inference(
             min_shapes=backend.min_shapes,
             faster_dynamic_shapes=backend.faster_dynamic_shapes,
             force_fp16=backend.force_fp16,
-            builder_optimization_level=backend.builder_optimization_level
+            builder_optimization_level=backend.builder_optimization_level,
+            max_aux_streams=backend.max_aux_streams
         )
         clip = core.trt.Model(
             clips, engine_path,
