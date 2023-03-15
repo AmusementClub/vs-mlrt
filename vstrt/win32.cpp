@@ -20,8 +20,8 @@ std::vector<std::wstring> dlls = {
 #ifdef USE_NVINFER_PLUGIN
 	// nvinfer_plugin dependencies
 	L"nvinfer.dll",
-	L"cublasLt64_11.dll",
-	L"cublas64_11.dll",
+	L"cublasLt64_12.dll",
+	L"cublas64_12.dll",
 	L"nvinfer_plugin.dll",
 #endif
 	// Finally, nvinfer again.
