@@ -99,7 +99,7 @@ jobs:
         while true; do
           changed=false
           for dll in *.[dD][lL][lL]; do
-             for dep in $(dumpbin -dependents "$dll" | grep -o -i '\(vc\|msvc\)[a-z0-9_-]*\.dll'); do
+             for dep in $(dumpbin -dependents "$dll" | grep -o -i '\<\(vc\|msvc\)[a-z0-9_-]*\.dll'); do
                 echo "finding $dep for $dll"
                 if ! test -f ./"$dep"; then
                   changed=true
