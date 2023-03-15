@@ -46,12 +46,12 @@ jobs:
       uses: actions/cache@v3
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-vstrt-cuda-12.0.0
+        key: ${{ runner.os }}-vstrt-cuda-12.0.1
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.0.0/network_installers/cuda_12.0.0_windows_network.exe
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.0.1/network_installers/cuda_12.0.1_windows_network.exe
         cuda_installer.exe -s nvcc_12.0 cudart_12.0 nvprof_12.0 cuda_profiler_api_12.0 thrust_12.0
 
     - name: Checkout tensorrt
@@ -87,7 +87,7 @@ jobs:
       uses: actions/checkout@v3
       with:
         repository: NVIDIA/TensorRT
-        ref: dev-shuyuel-release-86
+        ref: v8.6.0
         fetch-depth: 1
         path: tensorrt-oss
 
