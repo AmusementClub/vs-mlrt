@@ -67,7 +67,7 @@ jobs:
     - name: Compress scirpts.7z
       run: |
         cd scripts
-        7za a -t7z -bb3 -mx=3 ../scripts.${{ github.event.inputs.tag }}.7z .
+        7za a -t7z -bb3 -mx=9 ../scripts.${{ github.event.inputs.tag }}.7z .
 
     - name: Upload scripts release
       uses: actions/upload-artifact@v3
@@ -109,7 +109,7 @@ jobs:
         popd
         ls -lR
         du -sh
-        7za a -t7z -bb3 -mx=3 ../models.7z .
+        7za a -t7z -bb3 -mx=9 ../models.7z .
 
     - name: Upload model release
       uses: actions/upload-artifact@v3
@@ -140,7 +140,7 @@ jobs:
         popd
         ls -lR
         du -sh
-        7za a -t7z -bb3 -mx=3 ../ext-models.7z .
+        7za a -t7z -bb3 -mx=9 ../ext-models.7z .
 
     - name: Upload external model release
       uses: actions/upload-artifact@v3
@@ -227,7 +227,7 @@ jobs:
         cp scripts-release/*.py release-cpu/
         cd release-cpu
         ls -lR
-        7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-cpu.7z .
+        7za a -t7z -bb3 -mx=9 ../vsmlrt-windows-x64-cpu.7z .
 
     - name: Upload CPU-only release
       uses: actions/upload-artifact@v3
@@ -260,7 +260,7 @@ jobs:
         cp scripts-release/*.py release-vk/
         cd release-vk
         ls -lR
-        7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-vk.7z .
+        7za a -t7z -bb3 -mx=9 ../vsmlrt-windows-x64-vk.7z .
 
     - name: Upload non-CUDA GPU release
       uses: actions/upload-artifact@v3
