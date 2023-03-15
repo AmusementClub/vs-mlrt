@@ -72,9 +72,7 @@ jobs:
       run: 7z x trt.7z
 
     - name: Move TensorRT library
-      run: |
-        mv TensorRT/*.dll vsmlrt-cuda -v
-        rm vsmlrt-cuda/nvinfer_vc_plugin.dll
+      run: mv TensorRT/*.dll vsmlrt-cuda -v
 
     - name: Download CUDA Libraries
       shell: cmd
