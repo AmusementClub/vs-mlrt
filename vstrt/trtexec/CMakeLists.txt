@@ -7,6 +7,7 @@ set(TENSORRT_HOME "" CACHE PATH "Path to TensorRT")
 find_package(CUDAToolkit REQUIRED)
 
 add_executable(trtexec
+    $<$<PLATFORM_ID:Windows>: trtexec.manifest>
     trtexec.cpp
     logfile.cpp
     ../common/logger.cpp
