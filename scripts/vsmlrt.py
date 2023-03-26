@@ -1,4 +1,4 @@
-__version__ = "3.16.3"
+__version__ = "3.16.4"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -339,11 +339,26 @@ def Waifu2x(
     if scale == 1 and clip.width // width == 2:
         # emulating cv2.resize(interpolation=cv2.INTER_CUBIC)
         # cr: @AkarinVS
+
+        clip_out = clip
+
+        if clip.format.sample_type == vs.FLOAT and clip.format.bits_per_sample != 32:
+            if clip.format.color_family == vs.RGB:
+                clip = core.resize.Point(clip, format=vs.RGBS)
+            else:
+                clip = core.resize.Point(clip, format=vs.GRAYS)
+
         clip = core.fmtc.resample(
             clip, scale=0.5,
             kernel="impulse", impulse=[-0.1875, 1.375, -0.1875],
             kovrspl=2
         )
+
+        if clip_out.format.sample_type == vs.FLOAT and clip_out.format.bits_per_sample == 16:
+            if clip.format.color_family == vs.RGB:
+                clip = core.resize.Point(clip, format=vs.RGBH)
+            else:
+                clip = core.resize.Point(clip, format=vs.GRAYH)
 
     return clip
 
@@ -534,12 +549,14 @@ def RealESRGAN(
             if rescale > 1:
                 clip = core.resize.Lanczos(clip, int(clip_org.width * scale), int(clip_org.height * scale), filter_param_a=4)
             else:
-                if clip_org.format.bits_per_sample != 32:
+                clip_out = clip
+
+                if clip.format.sample_type == vs.FLOAT and clip.format.bits_per_sample != 32:
                     clip = core.resize.Point(clip, format=vs.RGBS)
 
                 clip = core.fmtc.resample(clip, scale=rescale, kernel="lanczos", taps=4, fh=1/rescale, fv=1/rescale)
 
-                if clip_org.format.bits_per_sample == 16:
+                if clip_out.format.sample_type == vs.FLOAT and clip_out.format.bits_per_sample == 16:
                     clip = core.resize.Point(clip, format=vs.RGBH)
 
     return clip
