@@ -1,4 +1,4 @@
-__version__ = "3.16.4"
+__version__ = "3.16.5"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -197,6 +197,7 @@ class Waifu2xModel(enum.IntEnum):
     upresnet10 = 5
     cunet = 6
     swin_unet_art = 7
+    swin_unet_photo = 8
 
 
 def Waifu2x(
@@ -206,7 +207,7 @@ def Waifu2x(
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
-    model: typing.Literal[0, 1, 2, 3, 4, 5, 6, 7] = 6,
+    model: typing.Literal[0, 1, 2, 3, 4, 5, 6, 7, 8] = 6,
     backend: backendT = Backend.OV_CPU(),
     preprocess: bool = True
 ) -> vs.VideoNode:
@@ -226,7 +227,7 @@ def Waifu2x(
         raise ValueError(f'{func_name}: "scale" must be 1, 2 or 4')
 
     if not isinstance(model, int) or model not in Waifu2xModel.__members__.values():
-        raise ValueError(f'{func_name}: "model" must be 0, 1, 2, 3, 4, 5, 6 or 7')
+        raise ValueError(f'{func_name}: "model" must be 0, 1, 2, 3, 4, 5, 6, 7 or 8')
 
     if model == 0 and noise == 0:
         raise ValueError(
@@ -236,6 +237,8 @@ def Waifu2x(
 
     if model in range(7) and scale not in (1, 2):
         raise ValueError(f'{func_name}: "scale" must be 1 or 2')
+    elif model == 8 and scale != 4:
+        raise ValueError(f'{func_name}: "scale" must be 4')
 
     if model == 0:
         if clip.format.color_family != vs.GRAY:
@@ -244,7 +247,7 @@ def Waifu2x(
         raise ValueError(f'{func_name}: "clip" must be of RGB color family')
 
     if overlap is None:
-        overlap_w = overlap_h = [8, 8, 8, 8, 8, 4, 4, 4][model]
+        overlap_w = overlap_h = [8, 8, 8, 8, 8, 4, 4, 4, 4][model]
     elif isinstance(overlap, int):
         overlap_w = overlap_h = overlap
     else:
@@ -307,7 +310,7 @@ def Waifu2x(
             model_name = "scale2.0x_model.onnx"
         else:
             model_name = f"noise{noise}_{scale_name}model.onnx"
-    elif model == 7:
+    elif model in (7, 8):
         if scale == 1:
             scale_name = ""
         elif scale == 2:
