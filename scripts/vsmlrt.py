@@ -1,4 +1,4 @@
-__version__ = "3.15.17"
+__version__ = "3.15.18"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -309,14 +309,14 @@ def Waifu2x(
             model_name = "scale2.0x_model.onnx"
         else:
             model_name = f"noise{noise}_{scale_name}model.onnx"
-    elif model in (7, 8):
+    elif model == 7:
         if scale == 1:
             scale_name = ""
         elif scale == 2:
             scale_name = "scale2x"
         elif scale == 4:
             scale_name = "scale4x"
-        
+
         if noise == -1:
             if scale == 1:
                 raise ValueError("swin_unet model for \"noise == -1\" and \"scale == 1\" does not exist")
@@ -327,6 +327,12 @@ def Waifu2x(
                 model_name = f"noise{noise}.onnx"
             else:
                 model_name = f"noise{noise}_{scale_name}.onnx"
+    elif model == 8:
+        scale_name = "scale4x"
+        if noise == -1:
+            model_name = f"{scale_name}.onnx"
+        else:
+            model_name = f"noise{noise}_{scale_name}.onnx"
     else:
         raise ValueError(f"{func_name}: inavlid model {model}")
 
@@ -338,7 +344,7 @@ def Waifu2x(
         backend=backend
     )
 
-    if scale == 1 and clip.width // width == 2:
+    if model in range(8) and scale == 1 and clip.width // width == 2:
         # emulating cv2.resize(interpolation=cv2.INTER_CUBIC)
         # cr: @AkarinVS
 
@@ -361,6 +367,11 @@ def Waifu2x(
                 clip = core.resize.Point(clip, format=vs.RGBH)
             else:
                 clip = core.resize.Point(clip, format=vs.GRAYH)
+    elif model == 8 and scale != 4:
+        clip = core.resize.Bicubic(
+            clip, clip.width * scale // 4, clip.height * scale // 4,
+            filter_param_a=0, filter_param_b=0.5
+        )
 
     return clip
 
