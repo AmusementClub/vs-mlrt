@@ -1,4 +1,4 @@
-__version__ = "3.15.18"
+__version__ = "3.15.19"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -236,8 +236,6 @@ def Waifu2x(
 
     if model in range(7) and scale not in (1, 2):
         raise ValueError(f'{func_name}: "scale" must be 1 or 2')
-    elif model == 8 and scale != 4:
-        raise ValueError(f'{func_name}: "scale" must be 4')
 
     if model == 0:
         if clip.format.color_family != vs.GRAY:
@@ -348,25 +346,12 @@ def Waifu2x(
         # emulating cv2.resize(interpolation=cv2.INTER_CUBIC)
         # cr: @AkarinVS
 
-        clip_out = clip
-
-        if clip.format.sample_type == vs.FLOAT and clip.format.bits_per_sample != 32:
-            if clip.format.color_family == vs.RGB:
-                clip = core.resize.Point(clip, format=vs.RGBS)
-            else:
-                clip = core.resize.Point(clip, format=vs.GRAYS)
-
-        clip = core.fmtc.resample(
+        clip = fmtc_resample(
             clip, scale=0.5,
             kernel="impulse", impulse=[-0.1875, 1.375, -0.1875],
             kovrspl=2
         )
 
-        if clip_out.format.sample_type == vs.FLOAT and clip_out.format.bits_per_sample == 16:
-            if clip.format.color_family == vs.RGB:
-                clip = core.resize.Point(clip, format=vs.RGBH)
-            else:
-                clip = core.resize.Point(clip, format=vs.GRAYH)
     elif model == 8 and scale != 4:
         clip = core.resize.Bicubic(
             clip, clip.width * scale // 4, clip.height * scale // 4,
@@ -560,17 +545,9 @@ def RealESRGAN(
             rescale = scale / scale_h
 
             if rescale > 1:
-                clip = core.fmtc.resample(clip, scale=rescale, kernel="lanczos", taps=4)
+                clip = core.resize.Lanczos(clip, int(clip_org.width * scale), int(clip_org.height * scale), filter_param_a=4)
             else:
-                clip_out = clip
-
-                if clip.format.sample_type == vs.FLOAT and clip.format.bits_per_sample != 32:
-                    clip = core.resize.Point(clip, format=vs.RGBS)
-
-                clip = core.fmtc.resample(clip, scale=rescale, kernel="lanczos", taps=4, fh=1/rescale, fv=1/rescale)
-
-                if clip_out.format.sample_type == vs.FLOAT and clip_out.format.bits_per_sample == 16:
-                    clip = core.resize.Point(clip, format=vs.RGBH)
+                clip = fmtc_resample(clip, scale=rescale, kernel="lanczos", taps=4, fh=1/rescale, fv=1/rescale)
 
     return clip
 
@@ -1710,3 +1687,19 @@ class BackendV2:
             device_id=device_id,
             **kwargs
         )
+
+
+def fmtc_resample(clip: vs.VideoNode, **kwargs) -> vs.VideoNode:
+    clip_org = clip
+
+    if clip.format.sample_type == vs.FLOAT and clip.format.bits_per_sample != 32:
+        format = clip.format.replace(core, bits_per_sample=32)
+        clip = core.resize.Point(clip, format=format)
+
+    clip = core.fmtc.resample(clip, **kwargs)
+
+    if clip.format.bits_per_sample != clip_org.format.bits_per_sample:
+        format = clip.format.replace(core, bits_per_sample=clip_org.format.bits_per_sample)
+        clip = core.resize.Point(clip, format=format)
+
+    return clip
