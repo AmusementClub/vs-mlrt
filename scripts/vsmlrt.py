@@ -1,4 +1,4 @@
-__version__ = "3.16.8"
+__version__ = "3.16.9"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -846,19 +846,18 @@ def RIFEMerge(
     multiple = int(multiple_frac.numerator)
     scale = float(Fraction(scale))
 
-    # use v2 implementation by default
     network_path = os.path.join(
         models_path,
         "rife_v2",
         f"rife_v{model // 10}.{model % 10}{'_ensemble' if ensemble else ''}.onnx"
     )
-    if _implementation != 1 and os.path.exists(network_path) and scale == 1.0:
+    if _implementation == 2 and os.path.exists(network_path) and scale == 1.0:
         implementation_version = 2
         multiple = 1 # v2 implements internal padding
         clips = [clipa, clipb, mask]
     else:
         implementation_version = 1
-        # v2 onnx not found, try v1
+
         network_path = os.path.join(
             models_path,
             "rife",
