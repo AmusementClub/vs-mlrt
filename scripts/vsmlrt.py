@@ -1,4 +1,4 @@
-__version__ = "3.16.9"
+__version__ = "3.16.10"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1705,7 +1705,7 @@ def fmtc_resample(clip: vs.VideoNode, **kwargs) -> vs.VideoNode:
     clip_org = clip
 
     if clip.format.sample_type == vs.FLOAT and clip.format.bits_per_sample != 32:
-        format = clip.format.replace(core, bits_per_sample=32)
+        format = clip.format.replace(core=core, bits_per_sample=32)
         clip = core.resize.Point(clip, format=format)
 
     clip = core.fmtc.resample(clip, **kwargs)
