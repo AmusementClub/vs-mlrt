@@ -468,6 +468,12 @@ class RealESRGANModel(enum.IntEnum):
     animevideo_xsx4 = 1
     # v3
     animevideov3 = 2 # 4x
+    # janai
+    animejanaiL1_sharp = 3 # 2x
+    animejanaiL2_std = 4   # 2x
+    animejanaiL2_sharp = 5 # 2x
+    animejanaiL3_std = 6   # 2x
+    animejanaiL3_sharp = 7 # 2x
 
 RealESRGANv2Model = RealESRGANModel
 
@@ -477,7 +483,7 @@ def RealESRGAN(
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
-    model: typing.Literal[0, 1, 2] = 0,
+    model: typing.Literal[0, 1, 2, 3, 4, 5, 6, 7] = 0,
     backend: backendT = Backend.OV_CPU(),
     scale: typing.Optional[float] = None
 ) -> vs.VideoNode:
@@ -494,7 +500,7 @@ def RealESRGAN(
         raise ValueError(f'{func_name}: "clip" must be of RGB color family')
 
     if not isinstance(model, int) or model not in RealESRGANv2Model.__members__.values():
-        raise ValueError(f'{func_name}: "model" must be 0, 1 or 2')
+        raise ValueError(f'{func_name}: "model" must be 0, 1, 2, 3, 4, 5, 6 or 7')
 
     if overlap is None:
         overlap_w = overlap_h = 8
@@ -528,6 +534,12 @@ def RealESRGAN(
             models_path,
             "RealESRGANv2",
             "realesr-animevideov3.onnx"
+        )
+    elif model in [3, 4, 5, 6, 7]:
+        network_path = os.path.join(
+            models_path,
+            "RealESRGANv2",
+            f"{tuple(RealESRGANv2Model.__members__)[model]}.onnx".replace('_', '-')
         )
 
     clip_org = clip
