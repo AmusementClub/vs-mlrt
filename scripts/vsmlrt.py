@@ -1545,6 +1545,9 @@ def inference(
 
     backend = init_backend(backend=backend, trt_opt_shapes=tilesize)
 
+    if network_path.startswith("~~vsmlrt_models/"):
+        network_path = network_path.replace("~~vsmlrt_models", models_path, 1)
+
     if input_name is None:
         input_name = get_input_name(network_path)
 
