@@ -6,7 +6,7 @@ on:
       tag:
         description: 'which tag to create and release?'
         required: true
-        default: 'v100'
+        default: 'nightly'
       model-tags:
         description: 'which tag(s) of model release to use? (comma-separated list of tags)'
         required: true
@@ -15,6 +15,10 @@ on:
         description: 'which tag(s) of external model release to use?'
         required: true
         default: 'external-models'
+      contrib-model-tags:
+        description: 'which tag(s) of contributed model release to use?'
+        required: true
+        default: 'contrib-models'
       ov_tag:
         description: 'which tag of openvino to use'
         required: true
@@ -149,10 +153,42 @@ jobs:
         path: release
         retention-days: 1
 
+    - name: Download Contributed Models
+      run: |
+        rm -rf release
+        set -ex
+        mkdir -p release/models
+        cd release
+        pushd models
+        for tag in $(echo "${{ github.event.inputs.contrib-model-tags }}" | tr ',' ' '); do
+          echo "Handling tag $tag"
+          curl -s https://api.github.com/repos/AmusementClub/vs-mlrt/releases/tags/"$tag" > release.json
+          for url in $(cat release.json | jq '.assets | .[] | .url ' | tr -d '"'); do
+            echo "Downloading $url"
+            curl -o dl.7z -LJ -H 'Accept: application/octet-stream' "$url"
+            # later release should overwrite earlier ones
+            7za x -y dl.7z
+          done
+          #test -f "dl.7z"  # contrib-models might be empty.
+          rm -f dl.7z release.json
+        done
+        popd
+        ls -lR
+        du -sh
+        7za a -t7z -bb3 -mx=3 ../contrib-models.7z .
+
+    - name: Upload contrib model release
+      uses: actions/upload-artifact@v3
+      with:
+        name: Contrib-Models
+        path: release
+        retention-days: 1
+
     - name: Rename release asset
       run: |
         mv models.7z models.${{ github.event.inputs.tag }}.7z
         mv ext-models.7z ext-models.${{ github.event.inputs.tag }}.7z
+        mv contrib-models.7z contrib-models.${{ github.event.inputs.tag }}.7z
 
     - name: Release models
       uses: softprops/action-gh-release@v1
@@ -161,6 +197,7 @@ jobs:
         files: |
           models.${{ github.event.inputs.tag }}.7z
           ext-models.${{ github.event.inputs.tag }}.7z
+          contrib-models.${{ github.event.inputs.tag }}.7z
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true
@@ -231,6 +268,7 @@ jobs:
 
     - name: Upload CPU-only release
       uses: actions/upload-artifact@v3
+      if: false
       with:
         name: vsmlrt-cpu-release
         path: vsmlrt-windows-x64-cpu.7z
@@ -264,6 +302,7 @@ jobs:
 
     - name: Upload non-CUDA GPU release
       uses: actions/upload-artifact@v3
+      if: false
       with:
         name: vsmlrt-vk-release
         path: vsmlrt-windows-x64-vk.7z
@@ -304,6 +343,7 @@ jobs:
 
     - name: Upload CUDA release
       uses: actions/upload-artifact@v3
+      if: false
       with:
         name: vsmlrt-cuda-release
         path: vsmlrt-windows-x64-cuda.7z
@@ -320,3 +360,16 @@ jobs:
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true
+
+    # Update nightly tag.
+    - name: Checkout repo
+      if: github.event.inputs.tag == 'nightly'
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: Overwrite tag
+      if: github.event.inputs.tag == 'nightly'
+      run: |
+        git pull --tags --force
+        git tag -f ${{ github.event.inputs.tag }}
+        git push -f origin ${{ github.event.inputs.tag }}
