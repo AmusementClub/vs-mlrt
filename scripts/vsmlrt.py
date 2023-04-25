@@ -1,4 +1,4 @@
-__version__ = "3.17.0"
+__version__ = "3.17.1"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -12,10 +12,12 @@ __all__ = [
 ]
 
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import enum
 import math
 import os
+import os.path
+import platform
 import subprocess
 import sys
 import tempfile
@@ -1080,16 +1082,15 @@ def get_engine_path(
         device_name = f"device{device_id}"
 
     if static_shape:
-        shape_str = f".{opt_shapes[0]}x{opt_shapes[1]}"
+        shape_str = f"{opt_shapes[0]}x{opt_shapes[1]}"
     else:
         shape_str = (
-            f".min{min_shapes[0]}x{min_shapes[1]}"
+            f"min{min_shapes[0]}x{min_shapes[1]}"
             f"_opt{opt_shapes[0]}x{opt_shapes[1]}"
             f"_max{max_shapes[0]}x{max_shapes[1]}"
         )
 
-    return (
-        network_path +
+    identity = (
         shape_str +
         ("_fp16" if fp16 else "") +
         ("_tf32" if tf32 else "") +
@@ -1102,9 +1103,14 @@ def get_engine_path(
         "_I-" + ("fp32" if input_format == 0 else "fp16") +
         "_O-" + ("fp32" if output_format == 0 else "fp16") +
         f"_{device_name}" +
-        f"_{checksum:x}" +
-        ".engine"
+        f"_{checksum:x}"
     )
+
+    if platform.system() == "Windows" and len(network_path) + len(identity) >= 235:
+        dirname, basename = os.path.split(network_path)
+        return os.path.join(dirname, f"{zlib.crc32((basename + identity).encode())}.engine")
+    else:
+        return f"{network_path}.{identity}.engine"
 
 
 def trtexec(
