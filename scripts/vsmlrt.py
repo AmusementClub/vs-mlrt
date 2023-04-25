@@ -1,4 +1,4 @@
-__version__ = "3.16.10"
+__version__ = "3.17.0"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -122,7 +122,7 @@ class Backend:
         num_streams: int = 1
         use_cublas: bool = False # cuBLAS + cuBLASLt
         static_shape: bool = True
-        tf32: bool = True
+        tf32: bool = False
         log: bool = True
 
         # as of TensorRT 8.4, it can be turned off without performance penalty in most cases
@@ -1092,7 +1092,7 @@ def get_engine_path(
         network_path +
         shape_str +
         ("_fp16" if fp16 else "") +
-        ("_no-tf32" if not tf32 else "") +
+        ("_tf32" if tf32 else "") +
         (f"_workspace{workspace}" if workspace is not None else "") +
         f"_opt{builder_optimization_level}" +
         (f"_max-aux-streams{max_aux_streams}" if max_aux_streams is not None else "") +
@@ -1119,7 +1119,7 @@ def trtexec(
     use_cuda_graph: bool = False,
     use_cublas: bool = False,
     static_shape: bool = True,
-    tf32: bool = True,
+    tf32: bool = False,
     log: bool = False,
     use_cudnn: bool = True,
     use_edge_mask_convolutions: bool = True,
@@ -1616,7 +1616,7 @@ class BackendV2:
     def TRT(*,
         num_streams: int = 1,
         fp16: bool = False,
-        tf32: bool = True,
+        tf32: bool = False,
         output_format: int = 0, # 0: fp32, 1: fp16
         workspace: typing.Optional[int] = None,
         use_cuda_graph: bool = False,
@@ -1626,7 +1626,7 @@ class BackendV2:
         max_shapes: typing.Optional[typing.Tuple[int, int]] = None,
         force_fp16: bool = False,
         use_cublas: bool = False,
-        use_cudnn: bool = True,
+        use_cudnn: bool = False,
         device_id: int = 0,
         **kwargs
     ) -> Backend.TRT:
