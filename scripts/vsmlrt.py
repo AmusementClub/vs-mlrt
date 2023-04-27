@@ -1,4 +1,4 @@
-__version__ = "3.17.1"
+__version__ = "3.17.2"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -211,7 +211,7 @@ def Waifu2x(
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
-    model: typing.Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9] = 6,
+    model: Waifu2xModel = Waifu2xModel.cunet,
     backend: backendT = Backend.OV_CPU(),
     preprocess: bool = True
 ) -> vs.VideoNode:
@@ -231,7 +231,7 @@ def Waifu2x(
         raise ValueError(f'{func_name}: "scale" must be 1, 2 or 4')
 
     if not isinstance(model, int) or model not in Waifu2xModel.__members__.values():
-        raise ValueError(f'{func_name}: "model" must be in [0, 9]')
+        raise ValueError(f'{func_name}: invalid "model"')
 
     if model == 0 and noise == 0:
         raise ValueError(
@@ -380,7 +380,7 @@ def DPIR(
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
-    model: typing.Literal[0, 1, 2, 3] = 0,
+    model: DPIRModel = DPIRModel.drunet_gray,
     backend: backendT = Backend.OV_CPU()
 ) -> vs.VideoNode:
 
@@ -393,7 +393,7 @@ def DPIR(
         raise ValueError(f"{func_name}: only constant format 16/32 bit float input supported")
 
     if not isinstance(model, int) or model not in DPIRModel.__members__.values():
-        raise ValueError(f'{func_name}: "model" must be 0, 1, 2 or 3')
+        raise ValueError(f'{func_name}: invalid "model"')
 
     if model in [0, 2] and clip.format.color_family != vs.GRAY:
         raise ValueError(f'{func_name}: "clip" must be of GRAY color family')
@@ -486,7 +486,7 @@ def RealESRGAN(
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
-    model: RealESRGANv2Model = 0,
+    model: RealESRGANv2Model = RealESRGANv2Model.animevideo_xsx2,
     backend: backendT = Backend.OV_CPU(),
     scale: typing.Optional[float] = None
 ) -> vs.VideoNode:
@@ -579,7 +579,6 @@ def CUGAN(
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     backend: backendT = Backend.OV_CPU(),
-    preprocess: bool = True,
     alpha: float = 1.0,
     version: typing.Literal[1, 2] = 1, # 1: legacy, 2: pro
     conformance: bool = True # currently specifies dynamic range compression for cugan-pro
@@ -623,8 +622,6 @@ def CUGAN(
         overlap_w, overlap_h = overlap
 
     multiple = 2
-
-    width, height = clip.width, clip.height
 
     (tile_w, tile_h), (overlap_w, overlap_h) = calc_tilesize(
         tiles=tiles, tilesize=tilesize,
@@ -809,7 +806,7 @@ def RIFEMerge(
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
-    model: typing.Literal[40, 42, 43, 44, 45, 46] = 44,
+    model: RIFEModel = RIFEModel.v4_4,
     backend: backendT = Backend.OV_CPU(),
     ensemble: bool = False,
     _implementation: typing.Optional[typing.Literal[1, 2]] = None
@@ -968,7 +965,7 @@ def RIFE(
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
-    model: typing.Literal[40, 42, 43, 44, 45, 46] = 44,
+    model: RIFEModel = RIFEModel.v4_4,
     backend: backendT = Backend.OV_CPU(),
     ensemble: bool = False,
     _implementation: typing.Optional[typing.Literal[1, 2]] = None
@@ -1729,11 +1726,11 @@ def fmtc_resample(clip: vs.VideoNode, **kwargs) -> vs.VideoNode:
 
     if clip.format.sample_type == vs.FLOAT and clip.format.bits_per_sample != 32:
         format = clip.format.replace(core=core, bits_per_sample=32)
-        clip = core.resize.Point(clip, format=format)
+        clip = core.resize.Point(clip, format=format.id)
 
     clip = core.fmtc.resample(clip, **kwargs)
 
     if clip.format.bits_per_sample != clip_org.format.bits_per_sample:
-        clip = core.resize.Point(clip, format=clip_org.format)
+        clip = core.resize.Point(clip, format=clip_org.format.id)
 
     return clip
