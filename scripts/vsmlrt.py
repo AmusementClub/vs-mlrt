@@ -138,6 +138,7 @@ class Backend:
         force_fp16: bool = False
         builder_optimization_level: int = 3
         max_aux_streams: typing.Optional[int] = None
+        short_path: typing.Optional[bool] = None # True on Windows by default, False otherwise
 
         # internal backend attributes
         supports_onnx_serialization: bool = False
@@ -1067,7 +1068,8 @@ def get_engine_path(
     input_format: int,
     output_format: int,
     builder_optimization_level: int,
-    max_aux_streams: typing.Optional[int]
+    max_aux_streams: typing.Optional[int],
+    short_path: typing.Optional[bool]
 ) -> str:
 
     with open(network_path, "rb") as file:
@@ -1106,7 +1108,7 @@ def get_engine_path(
         f"_{checksum:x}"
     )
 
-    if platform.system() == "Windows" and len(network_path) + len(identity) >= 235:
+    if short_path or (short_path is None and platform.system() == "Windows"):
         dirname, basename = os.path.split(network_path)
         return os.path.join(dirname, f"{zlib.crc32((basename + identity).encode())}.engine")
     else:
@@ -1138,7 +1140,8 @@ def trtexec(
     faster_dynamic_shapes: bool = True,
     force_fp16: bool = False,
     builder_optimization_level: int = 3,
-    max_aux_streams: typing.Optional[int] = None
+    max_aux_streams: typing.Optional[int] = None,
+    short_path: typing.Optional[bool] = None
 ) -> str:
 
     # tensort runtime version, e.g. 8401 => 8.4.1
@@ -1169,7 +1172,8 @@ def trtexec(
         input_format=input_format,
         output_format=output_format,
         builder_optimization_level=builder_optimization_level,
-        max_aux_streams=max_aux_streams
+        max_aux_streams=max_aux_streams,
+        short_path=short_path
     )
 
     if os.access(engine_path, mode=os.R_OK):
@@ -1495,7 +1499,8 @@ def _inference(
             faster_dynamic_shapes=backend.faster_dynamic_shapes,
             force_fp16=backend.force_fp16,
             builder_optimization_level=backend.builder_optimization_level,
-            max_aux_streams=backend.max_aux_streams
+            max_aux_streams=backend.max_aux_streams,
+            short_path=backend.short_path
         )
         clip = core.trt.Model(
             clips, engine_path,
