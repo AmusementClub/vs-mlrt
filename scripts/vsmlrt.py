@@ -1,4 +1,4 @@
-__version__ = "3.17.2"
+__version__ = "3.17.3"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1107,7 +1107,7 @@ def get_engine_path(
 
     if short_path or (short_path is None and platform.system() == "Windows"):
         dirname, basename = os.path.split(network_path)
-        return os.path.join(dirname, f"{zlib.crc32((basename + identity).encode())}.engine")
+        return os.path.join(dirname, f"{zlib.crc32((basename + identity).encode()):x}.engine")
     else:
         return f"{network_path}.{identity}.engine"
 
