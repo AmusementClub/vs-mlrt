@@ -1,4 +1,4 @@
-__version__ = "3.17.3"
+__version__ = "3.17.4"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1226,17 +1226,38 @@ def trtexec(
     if verbose:
         args.append("--verbose")
 
-    disabled_tactic_sources = []
-    if not use_cublas:
-        disabled_tactic_sources.extend(["-CUBLAS", "-CUBLAS_LT"])
-    if not use_cudnn:
-        disabled_tactic_sources.append("-CUDNN")
-    if not use_edge_mask_convolutions and trt_version >= 8401:
-        disabled_tactic_sources.append("-EDGE_MASK_CONVOLUTIONS")
-    if not use_jit_convolutions and trt_version >= 8500:
-        disabled_tactic_sources.append("-JIT_CONVOLUTIONS")
-    if disabled_tactic_sources:
-        args.append(f"--tacticSources={','.join(disabled_tactic_sources)}")
+    preview_features = []
+    if (use_cublas or use_cudnn) and trt_version >= 8600:
+        preview_features.append("-disableExternalTacticSourcesForCore0805")
+
+    if preview_features and trt_version >= 8500:
+        args.append(f"--preview={','.join(preview_features)}")
+
+    tactic_sources = []
+
+    if use_cublas:
+        tactic_sources.extend(["+CUBLAS", "+CUBLAS_LT"])
+    else:
+        tactic_sources.extend(["-CUBLAS", "-CUBLAS_LT"])
+
+    if use_cudnn:
+        tactic_sources.append("+CUDNN")
+    else:
+        tactic_sources.append("-CUDNN")
+
+    if trt_version >= 8401:
+        if use_edge_mask_convolutions:
+            tactic_sources.append("+EDGE_MASK_CONVOLUTIONS")
+        else:
+            tactic_sources.append("-EDGE_MASK_CONVOLUTIONS")
+
+    if trt_version >= 8500:
+        if use_jit_convolutions:
+            tactic_sources.append("+JIT_CONVOLUTIONS")
+        else:
+            tactic_sources.append("-JIT_CONVOLUTIONS")
+
+    args.append(f"--tacticSources={','.join(tactic_sources)}")
 
     if use_cuda_graph:
         args.extend((
