@@ -1,4 +1,4 @@
-__version__ = "3.15.22"
+__version__ = "3.15.23"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -198,6 +198,7 @@ class Waifu2xModel(enum.IntEnum):
     swin_unet_art = 7
     swin_unet_photo = 8 # 20230329
     swin_unet_photo_v2 = 9 # 20230407
+    swin_unet_art_scan = 10 # 20230504
 
 
 def Waifu2x(
@@ -245,7 +246,7 @@ def Waifu2x(
         raise ValueError(f'{func_name}: "clip" must be of RGB color family')
 
     if overlap is None:
-        overlap_w = overlap_h = [8, 8, 8, 8, 8, 4, 4, 4, 4, 4][model]
+        overlap_w = overlap_h = [8, 8, 8, 8, 8, 4, 4, 4, 4, 4, 4][model]
     elif isinstance(overlap, int):
         overlap_w = overlap_h = overlap
     else:
@@ -326,7 +327,7 @@ def Waifu2x(
                 model_name = f"noise{noise}.onnx"
             else:
                 model_name = f"noise{noise}_{scale_name}.onnx"
-    elif model in (8, 9):
+    elif model in (8, 9, 10):
         scale_name = "scale4x"
         if noise == -1:
             model_name = f"{scale_name}.onnx"
@@ -353,7 +354,7 @@ def Waifu2x(
             kovrspl=2
         )
 
-    elif model in (8, 9) and scale != 4:
+    elif model in (8, 9, 10) and scale != 4:
         clip = core.resize.Bicubic(
             clip, clip.width * scale // 4, clip.height * scale // 4,
             filter_param_a=0, filter_param_b=0.5
