@@ -491,7 +491,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     }
 #endif
     if (ver != NV_TENSORRT_VERSION) {
-        std::fprintf(stderr, "vstrt: TensorRT version mismatch, built with %x but loaded with %x; continue but fingers crossed...\n", NV_TENSORRT_VERSION, ver);
+        std::fprintf(stderr, "vstrt: TensorRT version mismatch, built with %d but loaded with %d; continue but fingers crossed...\n", NV_TENSORRT_VERSION, ver);
     }
 
     myself = plugin;
