@@ -7,6 +7,7 @@ set(ONNX_RUNTIME_API_DIRECTORY "" CACHE PATH "Path to ONNX API headers")
 set(ONNX_RUNTIME_LIB_DIRECTORY "" CACHE PATH "Path to ONNX Runtime libraries")
 
 set(ENABLE_CUDA OFF CACHE BOOL "Enable CUDA backend")
+set(ENABLE_DML OFF CACHE BOOL "Enable DirectML backend")
 
 find_package(protobuf REQUIRED CONFIG)
 find_package(ONNX REQUIRED CONFIG)
@@ -50,6 +51,10 @@ if (ENABLE_CUDA)
     if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
         target_link_options(vsort PRIVATE "/DELAYLOAD:onnxruntime.dll" "delayimp.lib")
     endif()
+endif()
+
+if (ENABLE_DML)
+    add_compile_definitions(ENABLE_DML)
 endif()
 
 target_include_directories(vsort PUBLIC

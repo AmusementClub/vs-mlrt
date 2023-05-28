@@ -1,4 +1,4 @@
-__version__ = "3.17.6"
+__version__ = "3.17.7"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -176,6 +176,19 @@ class Backend:
         # internal backend attributes
         supports_onnx_serialization: bool = True
 
+    @dataclass(frozen=False)
+    class ORT_DML:
+        """ backend for directml (d3d12) devices """
+
+        device_id: int = 0
+        num_streams: int = 1
+        verbosity: int = 2
+        fp16: bool = False
+        fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
+
+        # internal backend attributes
+        supports_onnx_serialization: bool = True
+
 
 backendT = typing.Union[
     Backend.OV_CPU,
@@ -183,7 +196,8 @@ backendT = typing.Union[
     Backend.ORT_CUDA,
     Backend.TRT,
     Backend.OV_GPU,
-    Backend.NCNN_VK
+    Backend.NCNN_VK,
+    Backend.ORT_DML,
 ]
 
 
@@ -1393,6 +1407,8 @@ def init_backend(
         backend = Backend.OV_GPU()
     elif backend is Backend.NCNN_VK: # type: ignore
         backend = Backend.NCNN_VK()
+    elif backend is Backend.ORT_DML: # type: ignore
+        backend = Backend.ORT_DML()
 
     backend = copy.deepcopy(backend)
 
@@ -1432,6 +1448,18 @@ def _inference(
             clips, network_path,
             overlap=overlap, tilesize=tilesize,
             provider="CPU", builtin=False,
+            num_streams=backend.num_streams,
+            verbosity=backend.verbosity,
+            fp16=backend.fp16,
+            path_is_serialization=path_is_serialization,
+            fp16_blacklist_ops=backend.fp16_blacklist_ops
+        )
+    elif isinstance(backend, Backend.ORT_DML):
+        clip = core.ort.Model(
+            clips, network_path,
+            overlap=overlap, tilesize=tilesize,
+            provider="DML", builtin=False,
+            device_id=backend.device_id,
             num_streams=backend.num_streams,
             verbosity=backend.verbosity,
             fp16=backend.fp16,
@@ -1739,6 +1767,20 @@ class BackendV2:
             num_streams=num_streams,
             fp16=fp16,
             device_id=device_id,
+            **kwargs
+        )
+
+    @staticmethod
+    def ORT_DML(*,
+        device_id: int = 0,
+        num_streams: int = 1,
+        fp16: bool = False,
+        **kwargs
+    ) -> Backend.ORT_DML:
+        return Backend.ORT_DML(
+            device_id=device_id,
+            num_streams=num_streams,
+            fp16=fp16,
             **kwargs
         )
 
