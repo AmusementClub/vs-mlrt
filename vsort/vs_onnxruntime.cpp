@@ -24,11 +24,18 @@ using namespace std::chrono_literals;
 #include <onnx/common/version.h>
 #include <onnx/onnx_pb.h>
 
+#define NOMINMAX
+
 #include <onnxruntime_c_api.h>
 
 #ifdef ENABLE_CUDA
 #include <cuda_runtime.h>
 #endif // ENABLE_CUDA
+
+#ifdef ENABLE_DML
+// include/onnxruntime/core/providers/dml/dml_provider_factory.h
+#include <../providers/dml/dml_provider_factory.h>
+#endif // ENABLE_DML
 
 #include "config.h"
 
@@ -387,7 +394,8 @@ struct TicketSemaphore {
 enum class Backend {
     CPU = 0,
     CUDA = 1,
-    COREML = 2
+    COREML = 2,
+    DML = 3
 };
 
 #ifdef ENABLE_CUDA
@@ -404,6 +412,8 @@ struct Resource {
     OrtValue * input_tensor;
     OrtValue * output_tensor;
     OrtIoBinding * binding;
+    char * input_name;
+    char * output_name;
 
 #ifdef ENABLE_CUDA
     cudaStream_t stream;
@@ -637,11 +647,21 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
                     checkError(ortapi->RunWithBinding(resource.session, nullptr, resource.binding));
 
                     // onnxruntime replays the graph itself in CUDAExecutionProvider::OnRunEnd
-                } else {
-#else // ENABLE_CUDA
-                {
+                } else
 #endif // ENABLE_CUDA
+                if (d->backend == Backend::CPU || d->backend == Backend::CUDA) {
                     checkError(ortapi->RunWithBinding(resource.session, nullptr, resource.binding));
+                } else {
+                    checkError(ortapi->Run(
+                        resource.session,
+                        nullptr,
+                        &resource.input_name,
+                        &resource.input_tensor,
+                        1,
+                        &resource.output_name,
+                        1,
+                        &resource.output_tensor
+                    ));
                 }
 
 #ifdef ENABLE_CUDA
@@ -867,6 +887,10 @@ static void VS_CC vsOrtCreate(
     } else if (strcmp(provider, "COREML") == 0) {
         d->backend = Backend::COREML;
 #endif // ENABLE_COREML
+#ifdef ENABLE_DML
+    } else if (strcmp(provider, "DML") == 0) {
+        d->backend = Backend::DML;
+#endif // ENABLE_DML
     } else {
         return set_error("unknwon provider "s + provider);
     }
@@ -1071,6 +1095,13 @@ static void VS_CC vsOrtCreate(
             ));
         }
 #endif // ENABLE_COREML
+#ifdef ENABLE_DML
+        else if (d->backend == Backend::DML) {
+            const OrtDmlApi * ortdmlapi {};
+            checkError(ortapi->GetExecutionProviderApi("DML", ORT_API_VERSION, (const void **) &ortdmlapi));
+            checkError(ortdmlapi->SessionOptionsAppendExecutionProvider_DML(session_options, d->device_id));
+        }
+#endif // ENABLE_DML
 
         checkError(ortapi->CreateSessionFromArray(
             d->environment,
@@ -1158,18 +1189,17 @@ static void VS_CC vsOrtCreate(
 
         checkError(ortapi->CreateIoBinding(resource.session, &resource.binding));
 
-        char * input_name;
         checkError(ortapi->SessionGetInputName(
-            resource.session, 0, cpu_allocator, &input_name
+            resource.session, 0, cpu_allocator, &resource.input_name
         ));
 
         char * output_name;
         checkError(ortapi->SessionGetOutputName(
-            resource.session, 0, cpu_allocator, &output_name
+            resource.session, 0, cpu_allocator, &resource.output_name
         ));
 
-        checkError(ortapi->BindInput(resource.binding, input_name, resource.input_tensor));
-        checkError(ortapi->BindOutput(resource.binding, output_name, resource.output_tensor));
+        checkError(ortapi->BindInput(resource.binding, resource.input_name, resource.input_tensor));
+        checkError(ortapi->BindOutput(resource.binding, resource.output_name, resource.output_tensor));
 
         if (auto err = checkNodesAndNetwork(resource.session, in_vis); err.has_value()) {
             return set_error(err.value());
@@ -1247,6 +1277,16 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         );
 
         vsapi->propSetData(out, "path", vsapi->getPluginPath(myself), -1, paReplace);
+
+#ifdef ENABLE_CUDA
+        vsapi->propSetData(out, "providers", "CUDA", -1, paAppend);
+#endif
+#ifdef ENABLE_COREML
+        vsapi->propSetData(out, "providers", "COREML", -1, paAppend);
+#endif
+#ifdef ENABLE_DML
+        vsapi->propSetData(out, "providers", "DML", -1, paAppend);
+#endif
     };
     registerFunc("Version", "", getVersion, nullptr, plugin);
 }

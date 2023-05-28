@@ -44,22 +44,22 @@ jobs:
       uses: actions/cache@v3
       with:
         path: vsort/protobuf/install
-        key: ${{ runner.os }}-vsort-protobuf-v3
+        key: ${{ runner.os }}-vsort-protobuf-v4
 
     - name: Checkout protobuf
       uses: actions/checkout@v3
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
       with:
         repository: protocolbuffers/protobuf
-        # follows protobuf in https://github.com/AmusementClub/onnxruntime/tree/master/cmake/external
+        # follows protobuf in https://github.com/AmusementClub/onnxruntime/blob/master/cmake/external/onnxruntime_external_deps.cmake#L161
         # if you change this, remember to bump the version of the cache key.
-        ref: a902b39270841beafc307dfa709610aa1cac2f06
+        ref: v3.21.12
         fetch-depth: 1
         path: vsort/protobuf
 
     - name: Configure protobuf
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
-      run: cmake -S protobuf\cmake -B protobuf\build_rel -G Ninja -LA
+      run: cmake -S protobuf -B protobuf\build_rel -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
         -D protobuf_BUILD_SHARED_LIBS=OFF  -D protobuf_BUILD_TESTS=OFF
 
@@ -76,7 +76,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: vsort/onnx/install
-        key: ${{ runner.os }}-vsort-onnx-v3
+        key: ${{ runner.os }}-vsort-onnx-v4
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
@@ -85,7 +85,7 @@ jobs:
         repository: onnx/onnx
         # follows onnx in https://github.com/AmusementClub/onnxruntime/tree/master/cmake/external
         # if you change this, remember to bump the version of the cache key.
-        ref: 5a5f8a5935762397aa68429b5493084ff970f774
+        ref: a0d77f18516d2da7468a96b0de3b737266f23176
         fetch-depth: 1
         path: vsort/onnx
 
@@ -116,7 +116,7 @@ jobs:
 
     - name: Download ONNX Runtime Precompilation
       run: |
-        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/latest/download/onnxruntime-gpu-win64.zip
+        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-5943-g73584f936-230528-0922/onnxruntime-gpu-win64.zip
         unzip -q ortgpu.zip
 
     - name: Cache CUDA
@@ -143,6 +143,7 @@ jobs:
         -D ONNX_RUNTIME_LIB_DIRECTORY=onnxruntime-gpu\lib
         -D ENABLE_CUDA=1
         -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8"
+        -D ENABLE_DML=1
         -D CMAKE_CXX_STANDARD=20
 
     - name: Build
@@ -156,6 +157,13 @@ jobs:
         copy install\bin\vsort.dll artifact\
         copy onnxruntime-gpu\bin\*.dll artifact\vsort\
         copy onnxruntime-gpu\lib\*.dll artifact\vsort\
+
+    - name: Download DirectML Library
+      # follows DirectML in https://github.com/AmusementClub/onnxruntime/blob/master/cmake/external/dml.cmake#L44
+      run: |
+        curl -s -o directml.nupkg -LJO https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/1.12.0
+        unzip -q directml.nupkg -d dml
+        copy dml\bin\x64-win\DirectML.dll artifact\vsort\
 
     - name: Upload
       uses: actions/upload-artifact@v3

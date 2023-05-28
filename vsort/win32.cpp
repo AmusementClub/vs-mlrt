@@ -14,6 +14,7 @@
 namespace {
 std::vector<std::wstring> dlls = {
     // This list must be sorted by dependency.
+    L"DirectML.dll",
     L"onnxruntime.dll", // must be the last
 };
 

@@ -71,7 +71,7 @@ jobs:
     - name: Compress scirpts.7z
       run: |
         cd scripts
-        7za a -t7z -bb3 -mx=3 ../scripts.${{ github.event.inputs.tag }}.7z .
+        7za a -t7z -bb3 -mx=9 ../scripts.${{ github.event.inputs.tag }}.7z .
 
     - name: Upload scripts release
       uses: actions/upload-artifact@v3
@@ -113,7 +113,7 @@ jobs:
         popd
         ls -lR
         du -sh
-        7za a -t7z -bb3 -mx=3 ../models.7z .
+        7za a -t7z -bb3 -mx=9 ../models.7z .
 
     - name: Upload model release
       uses: actions/upload-artifact@v3
@@ -144,7 +144,7 @@ jobs:
         popd
         ls -lR
         du -sh
-        7za a -t7z -bb3 -mx=3 ../ext-models.7z .
+        7za a -t7z -bb3 -mx=9 ../ext-models.7z .
 
     - name: Upload external model release
       uses: actions/upload-artifact@v3
@@ -175,7 +175,7 @@ jobs:
         popd
         ls -lR
         du -sh
-        7za a -t7z -bb3 -mx=3 ../contrib-models.7z .
+        7za a -t7z -bb3 -mx=9 ../contrib-models.7z .
 
     - name: Upload contrib model release
       uses: actions/upload-artifact@v3
@@ -264,7 +264,7 @@ jobs:
         cp scripts-release/*.py release-cpu/
         cd release-cpu
         ls -lR
-        7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-cpu.7z .
+        7za a -t7z -bb3 -mx=9 ../vsmlrt-windows-x64-cpu.7z .
 
     - name: Upload CPU-only release
       uses: actions/upload-artifact@v3
@@ -286,36 +286,36 @@ jobs:
         generate_release_notes: false
         prerelease: true
 
-    - name: Build non-CUDA GPU release
+    - name: Build generic GPU release
       shell: bash
       run: |
-        mkdir release-vk
-        cp -r models-release/models release-vk/
-        cp -r vsov-release/* release-vk/
-        cp -r vsort-release/* release-vk/
-        rm -f release-vk/vsort/onnxruntime_providers_*.dll
-        cp -r vsncnn-release/* release-vk/
-        cp scripts-release/*.py release-vk/
-        cd release-vk
+        mkdir release-generic-gpu
+        cp -r models-release/models release-generic-gpu/
+        cp -r vsov-release/* release-generic-gpu/
+        cp -r vsort-release/* release-generic-gpu/
+        rm -f release-generic-gpu/vsort/onnxruntime_providers_*.dll
+        cp -r vsncnn-release/* release-generic-gpu/
+        cp scripts-release/*.py release-generic-gpu/
+        cd release-generic-gpu
         ls -lR
-        7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-vk.7z .
+        7za a -t7z -bb3 -mx=9 ../vsmlrt-windows-x64-generic-gpu.7z .
 
     - name: Upload non-CUDA GPU release
       uses: actions/upload-artifact@v3
       if: false
       with:
-        name: vsmlrt-vk-release
-        path: vsmlrt-windows-x64-vk.7z
+        name: vsmlrt-generic-gpu-release
+        path: vsmlrt-windows-x64-generic-gpu.7z
         retention-days: 1
 
     - name: Rename release asset for non-CUDA GPU release
-      run: mv vsmlrt-windows-x64-vk.7z vsmlrt-windows-x64-vk.${{ github.event.inputs.tag }}.7z
+      run: mv vsmlrt-windows-x64-generic-gpu.7z vsmlrt-windows-x64-generic-gpu.${{ github.event.inputs.tag }}.7z
 
     - name: Release non-CUDA GPU
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.event.inputs.tag }}
-        files: vsmlrt-windows-x64-vk.${{ github.event.inputs.tag }}.7z
+        files: vsmlrt-windows-x64-generic-gpu.${{ github.event.inputs.tag }}.7z
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true
@@ -339,7 +339,7 @@ jobs:
         cp scripts-release/*.py release-cuda/
         cd release-cuda
         ls -lR
-        7za a -t7z -bb3 -mx=3 ../vsmlrt-windows-x64-cuda.7z .
+        7za a -t7z -bb3 -mx=9 ../vsmlrt-windows-x64-cuda.7z .
 
     - name: Upload CUDA release
       uses: actions/upload-artifact@v3
