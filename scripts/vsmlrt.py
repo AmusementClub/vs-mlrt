@@ -1368,6 +1368,8 @@ def init_backend(
         backend = Backend.OV_GPU()
     elif backend is Backend.NCNN_VK: # type: ignore
         backend = Backend.NCNN_VK()
+    elif backend is Backend.ORT_DML: # type: ignore
+        backend = Backend.ORT_DML()
 
     backend = copy.deepcopy(backend)
 
