@@ -116,7 +116,7 @@ jobs:
 
     - name: Download ONNX Runtime Precompilation
       run: |
-        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-5943-g73584f936-230528-0922/onnxruntime-gpu-win64.zip
+        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-5943-g73584f936-230604-0647/onnxruntime-gpu-win64.zip
         unzip -q ortgpu.zip
 
     - name: Cache CUDA
@@ -124,13 +124,13 @@ jobs:
       uses: actions/cache@v3
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-cuda-11.8.0
+        key: ${{ runner.os }}-cuda-12.1.1
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.8.0/network_installers/cuda_11.8.0_windows_network.exe
-        cuda_installer.exe -s nvcc_11.8 cudart_11.8
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.1.1/network_installers/cuda_12.1.1_windows_network.exe
+        cuda_installer.exe -s nvcc_12.1 cudart_12.1
 
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
@@ -142,7 +142,7 @@ jobs:
         -D ONNX_RUNTIME_API_DIRECTORY=onnxruntime-gpu\include\onnxruntime\core\session
         -D ONNX_RUNTIME_LIB_DIRECTORY=onnxruntime-gpu\lib
         -D ENABLE_CUDA=1
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.1"
         -D ENABLE_DML=1
         -D CMAKE_CXX_STANDARD=20
 
