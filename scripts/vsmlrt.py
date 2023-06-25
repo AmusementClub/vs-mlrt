@@ -486,12 +486,10 @@ class RealESRGANModel(enum.IntEnum):
     animevideo_xsx4 = 1
     # v3
     animevideov3 = 2 # 4x
-    # contributed: janai(2x) https://github.com/the-database/mpv-upscale-2x_animejanai/releases/tag/1.0.0 maintainer: hooke007 
-    animejanaiL1_sharp = 5000
-    animejanaiL2_std = 5001
-    animejanaiL2_sharp = 5002
-    animejanaiL3_std = 5003
-    animejanaiL3_sharp = 5004
+    # contributed: janaiV2(2x) https://github.com/the-database/mpv-upscale-2x_animejanai/releases/tag/2.0.0 maintainer: hooke007 
+    animejanaiV2L1 = 5005
+    animejanaiV2L2 = 5006
+    animejanaiV2L3 = 5007
 
 RealESRGANv2Model = RealESRGANModel
 
@@ -553,7 +551,7 @@ def RealESRGAN(
             "RealESRGANv2",
             "realesr-animevideov3.onnx"
         )
-    elif model in [5000, 5001, 5002, 5003, 5004]:
+    elif model in [5005, 5006, 5007]:
         network_path = os.path.join(
             models_path,
             "RealESRGANv2",
