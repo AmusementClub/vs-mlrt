@@ -447,7 +447,17 @@ static void VS_CC vsTrtCreate(
     auto input_type = d->engines[0]->getBindingDataType(0);
 #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
 
-    auto input_sample_type = getSampleType(input_type) == 0 ? stInteger : stFloat;
+    VSSampleType input_sample_type;
+    {
+        auto sample_type = getSampleType(input_type);
+        if (sample_type == 0) {
+            input_sample_type = stInteger;
+        } else if (sample_type == 1) {
+            input_sample_type = stFloat;
+        } else {
+            return set_error("unknown input sample type");
+        }
+    }
     auto input_bits_per_sample = getBytesPerSample(input_type) * 8;
 
     if (auto err = checkNodes(in_vis, input_sample_type, input_bits_per_sample); err.has_value()) {
@@ -463,7 +473,17 @@ static void VS_CC vsTrtCreate(
     auto output_type = d->engines[0]->getBindingDataType(1);
 #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
 
-    auto output_sample_type = getSampleType(output_type) == 0 ? stInteger : stFloat;
+    VSSampleType output_sample_type;
+    {
+        auto sample_type = getSampleType(output_type);
+        if (sample_type == 0) {
+            output_sample_type = stInteger;
+        } else if (sample_type == 1) {
+            output_sample_type = stFloat;
+        } else {
+            return set_error("unknown output sample type");
+        }
+    }
     auto output_bits_per_sample = getBytesPerSample(output_type) * 8;
 
     setDimensions(
