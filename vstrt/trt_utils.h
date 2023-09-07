@@ -7,7 +7,6 @@
 #include <optional>
 #include <string>
 #include <variant>
-#include <vector>
 
 #include <cuda_runtime.h>
 #include <NvInferRuntime.h>
@@ -251,6 +250,16 @@ size_t getBytesPerSample(nvinfer1::DataType type) noexcept {
             return 1;
         case nvinfer1::DataType::kUINT8:
             return 1;
+#if (NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR) * 10 + NV_TENSORRT_PATCH >= 861
+        case nvinfer1::DataType::kFP8:
+            return 1;
+#endif // (NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR) * 10 + NV_TENSORRT_PATCH >= 861
+#if NV_TENSORRT_MAJOR >= 9
+        case nvinfer1::DataType::kBF16:
+            return 2;
+        case nvinfer1::DataType::kINT64:
+            return 8;
+#endif
         default:
             return 0;
     }
@@ -543,11 +552,20 @@ int getSampleType(nvinfer1::DataType type) noexcept {
     switch (type) {
         case nvinfer1::DataType::kFLOAT:
         case nvinfer1::DataType::kHALF:
+#if (NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR) * 10 + NV_TENSORRT_PATCH >= 861
+        case nvinfer1::DataType::kFP8:
+#endif // (NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR) * 10 + NV_TENSORRT_PATCH >= 861
+#if NV_TENSORRT_MAJOR >= 9
+        case nvinfer1::DataType::kBF16:
+#endif // NV_TENSORRT_MAJOR >= 9
             return 1;
         case nvinfer1::DataType::kINT8:
         case nvinfer1::DataType::kINT32:
         case nvinfer1::DataType::kBOOL:
         case nvinfer1::DataType::kUINT8:
+#if NV_TENSORRT_MAJOR >= 9
+        case nvinfer1::DataType::kINT64:
+#endif // NV_TENSORRT_MAJOR >= 9
             return 0;
         default:
             return -1;
