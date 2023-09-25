@@ -1,4 +1,4 @@
-__version__ = "3.17.7"
+__version__ = "3.17.8"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -809,6 +809,7 @@ class RIFEModel(enum.IntEnum):
     v4_4 = 44
     v4_5 = 45
     v4_6 = 46
+    v4_7 = 47
 
 
 def RIFEMerge(
@@ -870,6 +871,9 @@ def RIFEMerge(
         raise ValueError(f'{func_name}: (32 / Fraction(scale)) must be an integer')
     multiple = int(multiple_frac.numerator)
     scale = float(Fraction(scale))
+
+    if model >= 47 and (ensemble or scale != 1.0 or _implementation == 2):
+        raise ValueError("not supported")
 
     network_path = os.path.join(
         models_path,
