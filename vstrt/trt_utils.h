@@ -259,7 +259,7 @@ size_t getBytesPerSample(nvinfer1::DataType type) noexcept {
             return 2;
         case nvinfer1::DataType::kINT64:
             return 8;
-#endif
+#endif // NV_TENSORRT_MAJOR >= 9
         default:
             return 0;
     }
