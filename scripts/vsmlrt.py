@@ -1,4 +1,4 @@
-__version__ = "3.17.8"
+__version__ = "3.18.0"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -139,6 +139,9 @@ class Backend:
         builder_optimization_level: int = 3
         max_aux_streams: typing.Optional[int] = None
         short_path: typing.Optional[bool] = None # True on Windows by default, False otherwise
+        int8: bool = False
+        bf16: bool = False
+        fp8: bool = False
 
         # internal backend attributes
         supports_onnx_serialization: bool = False
@@ -1083,7 +1086,10 @@ def get_engine_path(
     output_format: int,
     builder_optimization_level: int,
     max_aux_streams: typing.Optional[int],
-    short_path: typing.Optional[bool]
+    short_path: typing.Optional[bool],
+    int8: bool,
+    bf16: bool,
+    fp8: bool
 ) -> str:
 
     with open(network_path, "rb") as file:
@@ -1110,6 +1116,9 @@ def get_engine_path(
         shape_str +
         ("_fp16" if fp16 else "") +
         ("_tf32" if tf32 else "") +
+        ("_int8" if int8 else "") +
+        ("_bf16" if bf16 else "") +
+        ("_fp8" if fp8 else "") +
         (f"_workspace{workspace}" if workspace is not None else "") +
         f"_opt{builder_optimization_level}" +
         (f"_max-aux-streams{max_aux_streams}" if max_aux_streams is not None else "") +
@@ -1155,7 +1164,10 @@ def trtexec(
     force_fp16: bool = False,
     builder_optimization_level: int = 3,
     max_aux_streams: typing.Optional[int] = None,
-    short_path: typing.Optional[bool] = None
+    short_path: typing.Optional[bool] = None,
+    int8: bool = False,
+    bf16: bool = False,
+    fp8: bool = False
 ) -> str:
 
     # tensort runtime version, e.g. 8401 => 8.4.1
@@ -1170,6 +1182,9 @@ def trtexec(
     if force_fp16:
         fp16 = True
         tf32 = False
+        int8 = False
+        bf16 = False
+        fp8 = False
 
     engine_path = get_engine_path(
         network_path=network_path,
@@ -1187,7 +1202,10 @@ def trtexec(
         output_format=output_format,
         builder_optimization_level=builder_optimization_level,
         max_aux_streams=max_aux_streams,
-        short_path=short_path
+        short_path=short_path,
+        int8=int8,
+        bf16=bf16,
+        fp8=fp8
     )
 
     if os.access(engine_path, mode=os.R_OK):
@@ -1319,6 +1337,16 @@ def trtexec(
 
         if max_aux_streams is not None:
             args.append(f"--maxAuxStreams={max_aux_streams}")
+
+    if int8:
+        args.append("--int8")
+
+    if trt_version >= 9000:
+        if bf16:
+            args.append("--bf16")
+        
+        if fp8:
+            args.append("--fp8")
 
     if log:
         env_key = "TRTEXEC_LOG_FILE"
@@ -1549,7 +1577,10 @@ def _inference(
             force_fp16=backend.force_fp16,
             builder_optimization_level=backend.builder_optimization_level,
             max_aux_streams=backend.max_aux_streams,
-            short_path=backend.short_path
+            short_path=backend.short_path,
+            int8=backend.int8,
+            bf16=backend.bf16,
+            fp8=backend.fp8
         )
         clip = core.trt.Model(
             clips, engine_path,
