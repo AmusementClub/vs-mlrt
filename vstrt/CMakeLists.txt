@@ -39,7 +39,7 @@ endif()
 
 if (USE_NVINFER_PLUGIN)
     add_definitions(-DUSE_NVINFER_PLUGIN)
-    find_library(CUDNN_LIB cudnn HINTS ${CUDNN_ROOT_DIR} PATH_SUFFIXES lib)
+    find_library(CUDNN_LIB cudnn HINTS ${CUDNN_HOME} PATH_SUFFIXES lib lib/x64)
     if (USE_NVINFER_PLUGIN_STATIC)
         target_link_libraries(vstrt PRIVATE nvinfer_plugin_static ${CUDNN_LIB} CUDA::cublas)
 

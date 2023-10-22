@@ -29,7 +29,7 @@ target_link_directories(trtexec PRIVATE
     ${TENSORRT_HOME}/lib
 )
 
-find_library(CUDNN_LIB cudnn HINTS ${CUDNN_ROOT_DIR} PATH_SUFFIXES lib)
+find_library(CUDNN_LIB cudnn HINTS ${CUDNN_HOME} PATH_SUFFIXES lib lib/x64)
 
 target_link_libraries(trtexec PRIVATE
     CUDA::cudart_static
