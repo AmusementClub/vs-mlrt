@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(trtexec LANGUAGES CXX)
 
 set(TENSORRT_HOME "" CACHE PATH "Path to TensorRT")
+set(CUDNN_HOME "" CACHE PATH "Path to cuDNN")
 
 find_package(CUDAToolkit REQUIRED)
 
@@ -28,6 +29,8 @@ target_link_directories(trtexec PRIVATE
     ${TENSORRT_HOME}/lib
 )
 
+find_library(CUDNN_LIB cudnn HINTS ${CUDNN_ROOT_DIR} PATH_SUFFIXES lib)
+
 target_link_libraries(trtexec PRIVATE
     CUDA::cudart_static
     nvinfer
@@ -35,6 +38,7 @@ target_link_libraries(trtexec PRIVATE
     nvparsers
     nvonnxparser
     CUDA::cublas
+    ${CUDNN_LIB}
 )
 
 install(TARGETS trtexec RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

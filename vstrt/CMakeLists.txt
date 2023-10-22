@@ -39,17 +39,15 @@ endif()
 
 if (USE_NVINFER_PLUGIN)
     add_definitions(-DUSE_NVINFER_PLUGIN)
+    find_library(CUDNN_LIB cudnn HINTS ${CUDNN_ROOT_DIR} PATH_SUFFIXES lib)
     if (USE_NVINFER_PLUGIN_STATIC)
-        target_link_libraries(vstrt PRIVATE nvinfer_plugin_static)
-
-        find_library(CUDNN_LIB cudnn HINTS ${CUDNN_ROOT_DIR} PATH_SUFFIXES lib)
-        target_link_libraries(vstrt PRIVATE ${CUDNN_LIB} CUDA::cublas)
+        target_link_libraries(vstrt PRIVATE nvinfer_plugin_static ${CUDNN_LIB} CUDA::cublas)
 
         if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
             target_link_options(vstrt PRIVATE "/DELAYLOAD:cublas64_12.dll" "/DELAYLOAD:cudnn64_8.dll")
         endif()
     else()
-        target_link_libraries(vstrt PRIVATE nvinfer_plugin CUDA::cublas)
+        target_link_libraries(vstrt PRIVATE nvinfer_plugin ${CUDNN_LIB} CUDA::cublas)
 
         if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
             target_link_options(vstrt PRIVATE "/DELAYLOAD:nvinfer_plugin.dll" "/DELAYLOAD:cublas64_12.dll")
