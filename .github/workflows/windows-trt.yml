@@ -62,6 +62,14 @@ jobs:
         ref: tensorrt-9.1.0
         path: tensorrt
 
+    - name: Checkout cudnn
+      uses: actions/checkout@v3
+      with:
+        repository: AmusementClub/cuda
+        token: ${{ secrets.REPO_TOKEN }}
+        ref: cudnn-8.9.5
+        path: cudnn
+
     - name: Download VapourSynth headers
       run: |
         curl -s -o vs.zip -L https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R54.zip
@@ -76,6 +84,7 @@ jobs:
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
         -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
         -D USE_NVINFER_PLUGIN=ON
+        -D CUDNN_HOME="%cd%\..\cudnn\cudnn"
 
     - name: Build
       run: cmake --build build --config Release --verbose
@@ -102,6 +111,7 @@ jobs:
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.2"
         -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
+        -D CUDNN_HOME="%cd%\..\cudnn\cudnn"
 
     - name: Build trtexec
       run: cmake --build build_trtexec --verbose
