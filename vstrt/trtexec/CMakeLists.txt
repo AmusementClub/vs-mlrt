@@ -34,6 +34,7 @@ target_link_libraries(trtexec PRIVATE
     nvinfer_plugin
     nvparsers
     nvonnxparser
+    CUDA::cublas
 )
 
 install(TARGETS trtexec RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
