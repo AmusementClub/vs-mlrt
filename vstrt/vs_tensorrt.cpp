@@ -503,15 +503,21 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     VSRegisterFunction registerFunc,
     VSPlugin *plugin
 ) noexcept {
-    int ver = getInferLibVersion(); // must ensure this is the first nvinfer function called
-#ifdef _WIN32
-    if (ver == 0) { // a sentinel value, see dummy function in win32.cpp.
+//     TRT 9.1.0.4 for windows does not export getInferLibVersion()
+//     int ver = getInferLibVersion(); // must ensure this is the first nvinfer function called
+// #ifdef _WIN32
+//     if (ver == 0) { // a sentinel value, see dummy function in win32.cpp.
+//         std::fprintf(stderr, "vstrt: TensorRT failed to load.\n");
+//         return;
+//     }
+// #endif
+//     if (ver != NV_TENSORRT_VERSION) {
+//         std::fprintf(stderr, "vstrt: TensorRT version mismatch, built with %d but loaded with %d; continue but fingers crossed...\n", NV_TENSORRT_VERSION, ver);
+//     }
+    auto test = getPluginRegistry();
+    if (test == nullptr) {
         std::fprintf(stderr, "vstrt: TensorRT failed to load.\n");
         return;
-    }
-#endif
-    if (ver != NV_TENSORRT_VERSION) {
-        std::fprintf(stderr, "vstrt: TensorRT version mismatch, built with %d but loaded with %d; continue but fingers crossed...\n", NV_TENSORRT_VERSION, ver);
     }
 
     myself = plugin;
@@ -539,10 +545,10 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     auto getVersion = [](const VSMap *, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
         vsapi->propSetData(out, "version", VERSION, -1, paReplace);
 
-        vsapi->propSetData(
-            out, "tensorrt_version",
-            std::to_string(getInferLibVersion()).c_str(), -1, paReplace
-        );
+        // vsapi->propSetData(
+        //     out, "tensorrt_version",
+        //     std::to_string(getInferLibVersion()).c_str(), -1, paReplace
+        // );
 
         vsapi->propSetData(
             out, "tensorrt_version_build",
