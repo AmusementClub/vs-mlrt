@@ -114,11 +114,9 @@ jobs:
         -D CUDNN_HOME="%cd%\..\cudnn\cudnn"
 
     - name: Build trtexec
-      if: false
       run: cmake --build build_trtexec --verbose
 
     - name: Install trtexec
-      if: false
       run: cmake --install build_trtexec --prefix trtexec
 
     - name: Prepare for upload
@@ -126,6 +124,7 @@ jobs:
         mkdir artifact
         copy install\bin\vstrt.dll artifact\
         mkdir artifact\vsmlrt-cuda
+        copy trtexec\bin\trtexec.exe artifact\vsmlrt-cuda
 
     - name: Describe
       run: git describe --tags --long
