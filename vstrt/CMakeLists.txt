@@ -50,7 +50,7 @@ if (USE_NVINFER_PLUGIN)
         target_link_libraries(vstrt PRIVATE nvinfer_plugin ${CUDNN_LIB} CUDA::cublas)
 
         if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-            target_link_options(vstrt PRIVATE "/DELAYLOAD:nvinfer_plugin.dll" "/DELAYLOAD:cublas64_12.dll")
+            target_link_options(vstrt PRIVATE "/DELAYLOAD:nvinfer_plugin.dll" "/DELAYLOAD:cublas64_12.dll" "/DELAYLOAD:cudnn64_8.dll")
         endif()
     endif()
 endif()
