@@ -8,9 +8,9 @@ To build, you will need [OpenVINO](https://docs.openvino.ai/latest/get_started.h
 Only `Model Optimizer` and `Inference Engine` are required.
 
 You can download official Intel releases:
-- [Linux](https://docs.openvino.ai/latest/openvino_docs_install_guides_installing_openvino_linux.html)
-- [Windows](https://docs.openvino.ai/latest/openvino_docs_install_guides_installing_openvino_windows.html)
-- [macOS](https://docs.openvino.ai/latest/openvino_docs_install_guides_installing_openvino_macos.html)
+- [Linux](https://docs.openvino.ai/latest/openvino_docs_install_guides_installing_openvino_linux_header.html)
+- [Windows](https://docs.openvino.ai/latest/openvino_docs_install_guides_installing_openvino_windows_header.html)
+- [macOS](https://docs.openvino.ai/latest/openvino_docs_install_guides_installing_openvino_macos_header.html)
 
 Or, you can use our prebuilt Windows binary releases from [AmusementClub](https://github.com/AmusementClub/openvino/releases/latest/), our release has the benefit of static linking support.
 
