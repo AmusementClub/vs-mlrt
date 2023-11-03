@@ -923,8 +923,7 @@ def RIFEMerge(
                 "/Cast_2:fp32,/Cast_3:fp32,/Cast_5:fp32,/Cast_7:fp32,"
                 "/Reciprocal:fp32,/Reciprocal_1:fp32,"
                 "/Mul:fp32,/Mul_1:fp32,/Mul_8:fp32,/Mul_10:fp32,"
-                "/Sub_5:fp32,/Sub_6:fp32,"
-                "ONNXTRT_Broadcast_236:fp32,ONNXTRT_Broadcast_238:fp32,ONNXTRT_Broadcast_275:fp32"
+                "/Sub_5:fp32,/Sub_6:fp32"
             )
         ])
 
