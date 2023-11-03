@@ -875,7 +875,7 @@ def RIFEMerge(
     multiple = int(multiple_frac.numerator)
     scale = float(Fraction(scale))
 
-    if ensemble or scale != 1.0 or _implementation == 2:
+    if model >= 47 and (ensemble or scale != 1.0):
         raise ValueError("not supported")
 
     network_path = os.path.join(
