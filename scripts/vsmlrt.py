@@ -917,17 +917,31 @@ def RIFEMerge(
         trt_opt_shapes=(tile_w, tile_h)
     )
 
-    # https://github.com/AmusementClub/vs-mlrt/issues/66#issuecomment-1791986979
-    if _implementation == 2 and model in [47, 48, 49]:
-        backend.custom_args.extend([
-            "--precisionConstraints=obey", 
-            "--layerPrecisions=" + (
-                "/Cast_2:fp32,/Cast_3:fp32,/Cast_5:fp32,/Cast_7:fp32,"
-                "/Reciprocal:fp32,/Reciprocal_1:fp32,"
-                "/Mul:fp32,/Mul_1:fp32,/Mul_8:fp32,/Mul_10:fp32,"
-                "/Sub_5:fp32,/Sub_6:fp32"
-            )
-        ])
+    if _implementation == 2:
+        if isinstance(backend, Backend.TRT):
+            if 40 <= model <= 46:
+                backend.custom_args.extend([
+                    "--precisionConstraints=obey", 
+                    "--layerPrecisions=" + (
+                        "/Cast_2:fp32,/Cast_3:fp32,/Cast_5:fp32,/Cast_7:fp32,"
+                        "/Reciprocal:fp32,/Reciprocal_1:fp32,"
+                        "/Mul:fp32,/Mul_1:fp32,/Mul_2:fp32,/Mul_5:fp32,/Mul_8:fp32,/Mul_10:fp32,"
+                        "/Sub_5:fp32,/Sub_6:fp32"
+                    )
+                ])
+            # https://github.com/AmusementClub/vs-mlrt/issues/66#issuecomment-1791986979
+            elif 47 <= model <= 49:
+                backend.custom_args.extend([
+                    "--precisionConstraints=obey", 
+                    "--layerPrecisions=" + (
+                        "/Cast_2:fp32,/Cast_3:fp32,/Cast_5:fp32,/Cast_7:fp32,"
+                        "/Reciprocal:fp32,/Reciprocal_1:fp32,"
+                        "/Mul:fp32,/Mul_1:fp32,/Mul_8:fp32,/Mul_10:fp32,"
+                        "/Sub_5:fp32,/Sub_6:fp32,"
+                        "ONNXTRT_Broadcast_236:fp32,ONNXTRT_Broadcast_238:fp32,"
+                        "ONNXTRT_Broadcast_273:fp32,ONNXTRT_Broadcast_275:fp32"
+                    )
+                ])
 
     if scale == 1.0:
         return inference_with_fallback(
