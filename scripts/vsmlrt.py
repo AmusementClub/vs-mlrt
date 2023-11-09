@@ -1,4 +1,4 @@
-__version__ = "3.15.29"
+__version__ = "3.15.30"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -813,6 +813,7 @@ class RIFEModel(enum.IntEnum):
     v4_7 = 47
     v4_8 = 48
     v4_9 = 49
+    v4_10 = 410
 
 
 def RIFEMerge(
@@ -875,13 +876,16 @@ def RIFEMerge(
     multiple = int(multiple_frac.numerator)
     scale = float(Fraction(scale))
 
-    if model >= 47 and (ensemble or scale != 1.0):
+    model_major = int(str(int(model))[0])
+    model_minor = int(str(int(model))[1:])
+
+    if (model_major, model_minor) >= (4, 7) and (ensemble or scale != 1.0):
         raise ValueError("not supported")
 
     network_path = os.path.join(
         models_path,
         "rife_v2",
-        f"rife_v{model // 10}.{model % 10}{'_ensemble' if ensemble else ''}.onnx"
+        f"rife_v{model_major}.{model_minor}{'_ensemble' if ensemble else ''}.onnx"
     )
     if _implementation == 2 and os.path.exists(network_path) and scale == 1.0:
         implementation_version = 2
@@ -893,7 +897,7 @@ def RIFEMerge(
         network_path = os.path.join(
             models_path,
             "rife",
-            f"rife_v{model // 10}.{model % 10}{'_ensemble' if ensemble else ''}.onnx"
+            f"rife_v{model_major}.{model_minor}{'_ensemble' if ensemble else ''}.onnx"
         )
 
         clips = [clipa, clipb, mask, *get_rife_input(clipa)]
@@ -917,18 +921,8 @@ def RIFEMerge(
 
     if _implementation == 2:
         if isinstance(backend, Backend.TRT):
-            if 40 <= model <= 46:
-                backend.custom_args.extend([
-                    "--precisionConstraints=obey", 
-                    "--layerPrecisions=" + (
-                        "/Cast_2:fp32,/Cast_3:fp32,/Cast_5:fp32,/Cast_7:fp32,"
-                        "/Reciprocal:fp32,/Reciprocal_1:fp32,"
-                        "/Mul:fp32,/Mul_1:fp32,/Mul_2:fp32,/Mul_5:fp32,/Mul_8:fp32,/Mul_10:fp32,"
-                        "/Sub_5:fp32,/Sub_6:fp32"
-                    )
-                ])
             # https://github.com/AmusementClub/vs-mlrt/issues/66#issuecomment-1791986979
-            elif 47 <= model <= 49:
+            if (4, 0) <= (model_major, model_minor) <= (4, 10):
                 backend.custom_args.extend([
                     "--precisionConstraints=obey", 
                     "--layerPrecisions=" + (
