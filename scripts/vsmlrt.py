@@ -1,4 +1,4 @@
-__version__ = "3.15.30"
+__version__ = "3.15.31"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -814,6 +814,7 @@ class RIFEModel(enum.IntEnum):
     v4_8 = 48
     v4_9 = 49
     v4_10 = 410
+    v4_11 = 411
 
 
 def RIFEMerge(
@@ -922,7 +923,7 @@ def RIFEMerge(
     if _implementation == 2:
         if isinstance(backend, Backend.TRT):
             # https://github.com/AmusementClub/vs-mlrt/issues/66#issuecomment-1791986979
-            if (4, 0) <= (model_major, model_minor) <= (4, 10):
+            if (4, 0) <= (model_major, model_minor):
                 backend.custom_args.extend([
                     "--precisionConstraints=obey", 
                     "--layerPrecisions=" + (
