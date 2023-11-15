@@ -1,4 +1,4 @@
-__version__ = "3.15.32"
+__version__ = "3.15.33"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -881,7 +881,7 @@ def RIFEMerge(
     model_major = int(str(int(model))[0])
     model_minor = int(str(int(model))[1:])
 
-    if (model_major, model_minor) >= (4, 7) and (ensemble or scale != 1.0):
+    if (model_major, model_minor) >= (4, 7) and (scale != 1.0):
         raise ValueError("not supported")
 
     network_path = os.path.join(
