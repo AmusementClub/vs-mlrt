@@ -1,4 +1,4 @@
-__version__ = "3.18.9"
+__version__ = "3.18.10"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -818,6 +818,7 @@ class RIFEModel(enum.IntEnum):
     v4_10 = 410
     v4_11 = 411
     v4_12 = 412
+    v4_12_lite = 4121
 
 
 def RIFEMerge(
@@ -881,7 +882,9 @@ def RIFEMerge(
     scale = float(Fraction(scale))
 
     model_major = int(str(int(model))[0])
-    model_minor = int(str(int(model))[1:])
+    model_minor = int(str(int(model))[1:3])
+    lite = "_lite" if len(str(int(model))) >= 4 else ""
+    version = f"v{model_major}.{model_minor}{lite}{'_ensemble' if ensemble else ''}"
 
     if (model_major, model_minor) >= (4, 7) and scale != 1.0:
         raise ValueError("not supported")
@@ -889,7 +892,7 @@ def RIFEMerge(
     network_path = os.path.join(
         models_path,
         "rife_v2",
-        f"rife_v{model_major}.{model_minor}{'_ensemble' if ensemble else ''}.onnx"
+        f"rife_{version}.onnx"
     )
     if _implementation == 2 and os.path.exists(network_path) and scale == 1.0:
         implementation_version = 2
@@ -901,7 +904,7 @@ def RIFEMerge(
         network_path = os.path.join(
             models_path,
             "rife",
-            f"rife_v{model_major}.{model_minor}{'_ensemble' if ensemble else ''}.onnx"
+            f"rife_{version}.onnx"
         )
 
         clips = [clipa, clipb, mask, *get_rife_input(clipa)]
