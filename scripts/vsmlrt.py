@@ -806,6 +806,10 @@ def get_rife_input(clip: vs.VideoNode) -> typing.List[vs.VideoNode]:
 
 @enum.unique
 class RIFEModel(enum.IntEnum):
+    """
+    Starting from RIFE v4.12 lite, this interface does not provide forward compatiblity in enum values.
+    """
+
     v4_0 = 40
     v4_2 = 42
     v4_3 = 43
