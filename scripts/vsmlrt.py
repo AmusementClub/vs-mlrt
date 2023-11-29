@@ -1,4 +1,4 @@
-__version__ = "3.15.35"
+__version__ = "3.15.36"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -8,6 +8,7 @@ __all__ = [
     "RealESRGANv2", "RealESRGANv2Model",
     "CUGAN",
     "RIFE", "RIFEModel", "RIFEMerge",
+    "SAFA", "SAFAModel",
     "inference"
 ]
 
@@ -484,7 +485,7 @@ class RealESRGANModel(enum.IntEnum):
     animevideo_xsx4 = 1
     # v3
     animevideov3 = 2 # 4x
-    # contributed: janaiV2(2x) https://github.com/the-database/mpv-upscale-2x_animejanai/releases/tag/2.0.0 maintainer: hooke007 
+    # contributed: janaiV2(2x) https://github.com/the-database/mpv-upscale-2x_animejanai/releases/tag/2.0.0 maintainer: hooke007
     animejanaiV2L1 = 5005
     animejanaiV2L2 = 5006
     animejanaiV2L3 = 5007
@@ -934,7 +935,7 @@ def RIFEMerge(
             # https://github.com/AmusementClub/vs-mlrt/issues/66#issuecomment-1791986979
             if (4, 0) <= (model_major, model_minor):
                 backend.custom_args.extend([
-                    "--precisionConstraints=obey", 
+                    "--precisionConstraints=obey",
                     "--layerPrecisions=" + (
                         "/Cast_2:fp32,/Cast_3:fp32,/Cast_5:fp32,/Cast_7:fp32,"
                         "/Reciprocal:fp32,/Reciprocal_1:fp32,"
@@ -1098,6 +1099,87 @@ def RIFE(
             clip,
             *(output.std.SelectEvery(cycle=multi-1, offsets=i) for i in range(multi - 1))
         ])
+
+
+@enum.unique
+class SAFAModel(enum.IntEnum):
+    v0_1 = 1
+
+
+def SAFA(
+    clip: vs.VideoNode,
+    tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    model: SAFAModel = SAFAModel.v0_1,
+    backend: backendT = Backend.OV_CPU(),
+) -> vs.VideoNode:
+    """ SAFA: Scale-Adaptive Feature Aggregation for Efficient Space-Time Video Super-Resolution
+    """
+
+    func_name = "vsmlrt.SAFA"
+
+    if not isinstance(clip, vs.VideoNode):
+        raise TypeError(f'{func_name}: "clip" must be a clip!')
+
+    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample not in [16, 32]:
+        raise ValueError(f"{func_name}: only constant format 16/32 bit float input supported")
+
+    if clip.format.color_family != vs.RGB:
+        raise ValueError(f'{func_name}: "clip" must be of RGB color family')
+
+    if clip.num_frames == 1:
+        raise ValueError(f'{func_name}: "clip" too short!')
+
+    if overlap is None:
+        overlap_w = overlap_h = 16
+    elif isinstance(overlap, int):
+        overlap_w = overlap_h = overlap
+    else:
+        overlap_w, overlap_h = overlap
+
+    multiple = 1
+
+    (tile_w, tile_h), (overlap_w, overlap_h) = calc_tilesize(
+        tiles=tiles, tilesize=tilesize,
+        width=clip.width, height=clip.height,
+        multiple=multiple,
+        overlap_w=overlap_w, overlap_h=overlap_h
+    )
+
+    backend = init_backend(
+        backend=backend,
+        trt_opt_shapes=(tile_w, tile_h)
+    )
+
+    model_version = SAFAModel(model).name.replace('_', '.')
+
+    network_path = os.path.join(
+        models_path,
+        "safa",
+        f"safa_{model_version}.onnx"
+    )
+
+    clip_org = clip
+
+    clips = [clip[::2], clip[1::2]]
+    if clips[0].num_frames != clips[1].num_frames:
+        clips[1] = core.std.Splice([clips[1], clip[-1]])
+
+    clip2x = inference_with_fallback(
+        clips=clips, network_path=network_path,
+        overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
+        backend=backend
+    )
+
+    up = core.std.Crop(clip2x, bottom=clip2x.height // 2)
+    down = core.std.Crop(clip2x, top=clip2x.height // 2)
+    clip = core.std.Interleave([up, down])
+
+    if clip.num_frames != clip_org.num_frames:
+        clip = clip[:-1]
+
+    return clip
 
 
 def get_engine_path(
