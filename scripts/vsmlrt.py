@@ -1,4 +1,4 @@
-__version__ = "3.18.12"
+__version__ = "3.18.13"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -936,6 +936,10 @@ def RIFEMerge(
         if isinstance(backend, Backend.TRT):
             # https://github.com/AmusementClub/vs-mlrt/issues/66#issuecomment-1791986979
             if (4, 0) <= (model_major, model_minor):
+                if backend.force_fp16:
+                    backend.force_fp16 = False
+                    backend.fp16 = True
+
                 backend.custom_args.extend([
                     "--precisionConstraints=obey",
                     "--layerPrecisions=" + (
@@ -1156,6 +1160,23 @@ def SAFA(
         backend=backend,
         trt_opt_shapes=(tile_w, tile_h)
     )
+
+    if isinstance(backend, Backend.TRT):
+        if backend.force_fp16:
+            backend.force_fp16 = False
+            backend.fp16 = True
+
+        backend.custom_args.extend([
+            "--precisionConstraints=obey",
+            "--layerPrecisions=" + (
+                "/Div_2:fp32,/Div_3:fp32,/Div_4:fp32,/Div_5:fp32,/Div_6:fp32,/Div_7:fp32,"
+                "/Cast_7:fp32,/Cast_8:fp32,/Cast_10:fp32,/Cast_11:fp32,/Cast_218:fp32,/Cast_255:fp32,"
+                "/Mul:fp32,/Mul_1:fp32,/Mul_8:fp32,/Mul_10:fp32,"
+                "/Sub_3:fp32,/Sub_4:fp32,"
+                # TensorRT 9.0 or later
+                "ONNXTRT_Broadcast_*:fp32"
+            )
+        ])
 
     model_version = SAFAModel(model).name.replace('_', '.')
 
