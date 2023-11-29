@@ -1,4 +1,4 @@
-__version__ = "3.15.37"
+__version__ = "3.15.38"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -8,7 +8,7 @@ __all__ = [
     "RealESRGANv2", "RealESRGANv2Model",
     "CUGAN",
     "RIFE", "RIFEModel", "RIFEMerge",
-    "SAFA", "SAFAModel",
+    "SAFA", "SAFAModel", "SAFAAdaptiveMode",
     "inference"
 ]
 
@@ -1110,12 +1110,20 @@ class SAFAModel(enum.IntEnum):
     v0_1 = 1
 
 
+@enum.unique
+class SAFAAdaptiveMode(enum.IntEnum):
+    non_adaptive = 0 # non-adaptive
+    adaptive1x = 1 # use adaptive path only at 1x scale
+    adaptive = 2 # use adaptive path at 1x, 1/2x and 1/4x scales, proposed algorithm
+
+
 def SAFA(
     clip: vs.VideoNode,
     tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
     model: SAFAModel = SAFAModel.v0_1,
+    adaptive: SAFAAdaptiveMode = SAFAAdaptiveMode.non_adaptive,
     backend: backendT = Backend.OV_CPU(),
 ) -> vs.VideoNode:
     """ SAFA: Scale-Adaptive Feature Aggregation for Efficient Space-Time Video Super-Resolution
@@ -1156,17 +1164,21 @@ def SAFA(
         trt_opt_shapes=(tile_w, tile_h)
     )
 
+    _adaptive = SAFAAdaptiveMode(adaptive)
+
     if isinstance(backend, Backend.TRT):
         if backend.force_fp16:
             backend.force_fp16 = False
             backend.fp16 = True
 
+        cast1, cast2 = [(218, 255), (236, 273), (256, 293)][_adaptive]
+
         backend.custom_args.extend([
             "--precisionConstraints=obey",
             "--layerPrecisions=" + (
                 "/Div_2:fp32,/Div_3:fp32,/Div_4:fp32,/Div_5:fp32,/Div_6:fp32,/Div_7:fp32,"
-                "/Cast_7:fp32,/Cast_8:fp32,/Cast_10:fp32,/Cast_11:fp32,/Cast_218:fp32,/Cast_255:fp32,"
-                "/Mul:fp32,/Mul_1:fp32,/Mul_8:fp32,/Mul_10:fp32,"
+                "/Cast_7:fp32,/Cast_8:fp32,/Cast_10:fp32,/Cast_11:fp32,"
+                f"/Cast_{cast1}:fp32,/Cast_{cast2}:fp32,"
                 "/Sub_3:fp32,/Sub_4:fp32,"
                 # TensorRT 9.0 or later
                 "ONNXTRT_Broadcast_*:fp32"
@@ -1174,11 +1186,12 @@ def SAFA(
         ])
 
     model_version = SAFAModel(model).name.replace('_', '.')
+    adaptive_string = _adaptive.name
 
     network_path = os.path.join(
         models_path,
         "safa",
-        f"safa_{model_version}.onnx"
+        f"safa_{model_version}_{adaptive_string}.onnx"
     )
 
     clip_org = clip
