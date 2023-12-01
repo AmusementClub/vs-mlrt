@@ -1,4 +1,4 @@
-__version__ = "3.18.14"
+__version__ = "3.18.15"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1176,17 +1176,15 @@ def SAFA(
             backend.force_fp16 = False
             backend.fp16 = True
 
-        cast1, cast2 = [(218, 255), (236, 273), (256, 293)][_adaptive]
+        cast1, cast2 = [(218, 255), (266, 303), (254, 291)][_adaptive]
 
         backend.custom_args.extend([
             "--precisionConstraints=obey",
             "--layerPrecisions=" + (
                 "/Div_2:fp32,/Div_3:fp32,/Div_4:fp32,/Div_5:fp32,/Div_6:fp32,/Div_7:fp32,"
                 "/Cast_7:fp32,/Cast_8:fp32,/Cast_10:fp32,/Cast_11:fp32,"
-                f"/Cast_{cast1}:fp32,/Cast_{cast2}:fp32,"
-                "/Sub_3:fp32,/Sub_4:fp32,"
-                # TensorRT 9.0 or later
-                "ONNXTRT_Broadcast_*:fp32"
+                f"Cast_{cast1}:fp32,Cast_{cast2}:fp32,"
+                "/Sub_3:fp32,/Sub_4:fp32"
             )
         ])
 
