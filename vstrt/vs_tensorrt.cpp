@@ -507,15 +507,15 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     VSPlugin *plugin
 ) noexcept {
 
-    // TRT 9.1.0.4 for windows does not export getInferLibVersion()
-#if ((NV_TENSORRT_MAJOR * 1000) + (NV_TENSORRT_MINOR * 100) + NV_TENSORRT_PATCH) == 9100 && defined(_WIN32)
+    // TRT 9 for windows does not export getInferLibVersion()
+#if NV_TENSORRT_MAJOR == 9 && defined(_WIN32)
     auto test = getPluginRegistry();
 
     if (test == nullptr) {
         std::fprintf(stderr, "vstrt: TensorRT failed to load.\n");
         return;
     }
-#else // ((NV_TENSORRT_MAJOR * 1000) + (NV_TENSORRT_MINOR * 100) + NV_TENSORRT_PATCH) == 9100 && defined(_WIN32)
+#else
     int ver = getInferLibVersion(); // must ensure this is the first nvinfer function called
 #ifdef _WIN32
     if (ver == 0) { // a sentinel value, see dummy function in win32.cpp.
@@ -526,7 +526,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     if (ver != NV_TENSORRT_VERSION) {
         std::fprintf(stderr, "vstrt: TensorRT version mismatch, built with %d but loaded with %d; continue but fingers crossed...\n", NV_TENSORRT_VERSION, ver);
     }
-#endif // ((NV_TENSORRT_MAJOR * 1000) + (NV_TENSORRT_MINOR * 100) + NV_TENSORRT_PATCH) == 9100 && defined(_WIN32)
+#endif
 
     myself = plugin;
 
@@ -555,8 +555,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
 
         vsapi->propSetData(
             out, "tensorrt_version",
-#if ((NV_TENSORRT_MAJOR * 1000) + (NV_TENSORRT_MINOR * 100) + NV_TENSORRT_PATCH) == 9100 && defined(_WIN32)
-            "9100", 
+#if NV_TENSORRT_MAJOR == 9 && defined(_WIN32)
+            std::to_string(NV_TENSORRT_VERSION).c_str(), 
 #else
             std::to_string(getInferLibVersion()).c_str(), 
 #endif
