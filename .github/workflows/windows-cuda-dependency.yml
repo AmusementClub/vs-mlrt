@@ -35,7 +35,7 @@ jobs:
       run: |
         # https://stackoverflow.com/questions/20396329/how-to-download-github-release-from-private-repo-using-command-line/35688093#35688093
 
-        tag=cudnn-8.9.5-bin
+        tag=cudnn-8.9.6-bin
         name=cudnn.7z
 
         AUTH="Authorization: token ${{ secrets.REPO_TOKEN }}"
@@ -56,7 +56,7 @@ jobs:
       run: |
         # https://stackoverflow.com/questions/20396329/how-to-download-github-release-from-private-repo-using-command-line/35688093#35688093
 
-        tag=tensorrt-9.1.0-bin
+        tag=tensorrt-9.2.0-bin
         name=TensorRT.7z
 
         AUTH="Authorization: token ${{ secrets.REPO_TOKEN }}"
@@ -77,14 +77,14 @@ jobs:
     - name: Download CUDA Libraries
       shell: cmd
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.2.2/network_installers/cuda_12.2.2_windows_network.exe
-        cuda_installer.exe -s cudart_12.2 cublas_12.2 cufft_12.2 cupti_12.2 nvrtc_12.2
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.3.1/network_installers/cuda_12.3.1_windows_network.exe
+        cuda_installer.exe -s cudart_12.3 cublas_12.3 cufft_12.3 cupti_12.3 nvrtc_12.3
 
     - name: Move CUDA Libraries
       shell: cmd
       run: |
-        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.2\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
-        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.2\bin\*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.3\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.3\bin\*.dll" vsmlrt-cuda
         del vsmlrt-cuda\cudart32*.dll
 
     - name: Setup VC commands
