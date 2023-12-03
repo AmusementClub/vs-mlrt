@@ -65,7 +65,7 @@ FARPROC loadDLLs() {
 	return (FARPROC)h;
 }
 
-#if ((NV_TENSORRT_MAJOR * 1000) + (NV_TENSORRT_MINOR * 100) + NV_TENSORRT_PATCH) == 9100 && defined(_WIN32)
+#if NV_TENSORRT_MAJOR == 9 && defined(_WIN32)
 static void * dummy() { // mimic getPluginRegistry
 #else
 static int dummy() { // mimic getInferLibVersion
