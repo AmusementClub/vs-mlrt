@@ -1,0 +1,75 @@
+name: Build (Linux-TRT)
+
+on:
+  push:
+    paths:
+      - 'vstrt/**'
+      - '.github/workflows/linux-trt.yml'
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    
+    defaults:
+      run:
+        working-directory: vstrt
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Setup Ninja
+      run: pip install ninja
+
+    - name: Download VapourSynth headers
+      run: |
+        wget -q -O vs.zip https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R57.zip
+        unzip -q vs.zip
+        mv vapoursynth*/ vapoursynth
+
+    - name: Setup CUDA
+      run: |
+        wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+        sudo dpkg -i cuda-keyring_1.1-1_all.deb
+        sudo apt-get update
+        sudo apt-get install -y cuda-nvcc-12-3 cuda-cudart-dev-12-3
+        echo "PATH=/usr/local/cuda/bin${PATH:+:${PATH}}" >> $GITHUB_ENV
+        echo "CUDA_PATH=/usr/local/cuda" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=/usr/local/cuda/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" >> $GITHUB_ENV
+
+    - name: Setup tensorrt
+      run: |
+        curl -L -o trt.tar.gz https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/9.2.0/tensorrt-9.2.0.5.linux.x86_64-gnu.cuda-12.2.tar.gz
+        tar -xf trt.tar.gz
+
+    - name: Configure
+      run: cmake -S . -B build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D VAPOURSYNTH_INCLUDE_DIRECTORY="`pwd`/vapoursynth/include"
+        -D CMAKE_CXX_COMPILER=g++-12
+        -D CMAKE_CXX_FLAGS="-Wall -ffast-math -march=x86-64-v3"
+        -D TENSORRT_HOME="`pwd`/TensorRT-9.2.0.5"
+
+    - name: Build
+      run: cmake --build build --verbose
+
+    - name: Install
+      run: cmake --install build --prefix install
+
+    - name: Prepare for upload
+      run: |
+        mkdir artifact
+        cp -v install/lib/*.so artifact
+
+    - name: Describe
+      run: git describe --tags --long
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: VSTRT-Linux-x64
+        path: vstrt/artifact
+
