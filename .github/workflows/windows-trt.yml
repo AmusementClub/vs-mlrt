@@ -46,20 +46,20 @@ jobs:
       uses: actions/cache@v3
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-vstrt-cuda-12.2.2
+        key: ${{ runner.os }}-vstrt-cuda-12.3.1
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.2.2/network_installers/cuda_12.2.2_windows_network.exe
-        cuda_installer.exe -s nvcc_12.2 cudart_12.2 nvprof_12.2 cuda_profiler_api_12.2 thrust_12.2 cublas_dev_12.2
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.3.1/network_installers/cuda_12.3.1_windows_network.exe
+        cuda_installer.exe -s nvcc_12.3 cudart_12.3 nvprof_12.3 cuda_profiler_api_12.3 thrust_12.3 cublas_dev_12.3
 
     - name: Checkout tensorrt
       uses: actions/checkout@v3
       with:
         repository: AmusementClub/cuda
         token: ${{ secrets.REPO_TOKEN }}
-        ref: tensorrt-9.1.0
+        ref: tensorrt-9.2.0
         path: tensorrt
 
     - name: Checkout cudnn
@@ -67,7 +67,7 @@ jobs:
       with:
         repository: AmusementClub/cuda
         token: ${{ secrets.REPO_TOKEN }}
-        ref: cudnn-8.9.5
+        ref: cudnn-8.9.6
         path: cudnn
 
     - name: Download VapourSynth headers
@@ -80,7 +80,7 @@ jobs:
       run: cmake -S . -B build -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.2"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.3"
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
         -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
         -D USE_NVINFER_PLUGIN=ON
@@ -109,7 +109,7 @@ jobs:
       run: cmake -S ../tensorrt-oss/samples/trtexec -B build_trtexec -G Ninja
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.2"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.3"
         -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
         -D CUDNN_HOME="%cd%\..\cudnn\cudnn"
 
