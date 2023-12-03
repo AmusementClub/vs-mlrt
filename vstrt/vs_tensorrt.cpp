@@ -368,7 +368,7 @@ static void VS_CC vsTrtCreate(
 
 #ifdef USE_NVINFER_PLUGIN
     // related to https://github.com/AmusementClub/vs-mlrt/discussions/65, for unknown reason
-#if !(((NV_TENSORRT_MAJOR * 1000) + (NV_TENSORRT_MINOR * 100) + NV_TENSORRT_PATCH) == 9100 && defined(_WIN32))
+#if !(NV_TENSORRT_MAJOR == 9 && defined(_WIN32))
     if (!initLibNvInferPlugins(&d->logger, "")) {
         vsapi->logMessage(mtWarning, "vsTrt: Initialize TensorRT plugins failed");
     }
