@@ -692,7 +692,7 @@ static void VS_CC vsOvCreate(
         auto function = network.getFunction(); // mutable
 
         try {
-            ov::pass::ConstantFolding().run_on_function(function);
+            ov::pass::ConstantFolding().run_on_model(function);
         } catch (const ov::Exception & e) {
             return set_error(e.what());
         }
@@ -701,7 +701,7 @@ static void VS_CC vsOvCreate(
         const char * dot_path = vsapi->propGetData(in, "dot_path", 0, &error);
         if (!error) {
             try {
-                ov::pass::VisualizeTree(dot_path, nullptr, true).run_on_function(function);
+                ov::pass::VisualizeTree(dot_path, nullptr, true).run_on_model(function);
             } catch (const ov::Exception & e) {
                 return set_error(e.what());
             }
