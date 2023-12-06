@@ -1,4 +1,4 @@
-__version__ = "3.15.41"
+__version__ = "3.15.42"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1023,6 +1023,7 @@ def RIFE(
     model: RIFEModel = RIFEModel.v4_4,
     backend: backendT = Backend.OV_CPU(),
     ensemble: bool = False,
+    video_player: bool = False,
     _implementation: typing.Optional[typing.Literal[1, 2]] = None
 ) -> vs.VideoNode:
     """ RIFE: Real-Time Intermediate Flow Estimation for Video Frame Interpolation
@@ -1118,14 +1119,6 @@ def RIFE(
         else:
             return res
     else:
-        if not hasattr(core, 'akarin') or \
-            not hasattr(core.akarin, 'PropExpr') or \
-            not hasattr(core.akarin, 'PickFrames'):
-            raise RuntimeError(
-                'fractional multi requires plugin akarin '
-                '(https://github.com/AkarinVS/vapoursynth-plugin/releases)'
-                ', version v0.96g or later.')
-
         if clip.fps_num == 0 or clip.fps_den == 0:
             src_fps = Fraction(1)
         else:
@@ -1133,50 +1126,102 @@ def RIFE(
 
         dst_fps = src_fps * multi
         src_frames = clip.num_frames
-        dst_frames = int(src_frames * multi)
+        dst_frames = min(int(src_frames * multi), 2 ** 31 - 1)
 
         duration_rel = src_fps / dst_fps
         dst_duration = duration_rel.numerator
         src_duration = duration_rel.denominator
 
-        left_indices = []
-        right_indices = []
-        timepoints = []
-        output_indices = []
+        # https://github.com/AmusementClub/vs-mlrt/issues/59#issuecomment-1842649342
+        if video_player:
+            temp = core.std.BlankClip(clip, length=dst_frames, keep=True)
 
-        for i in range(dst_frames):
-            current_time = dst_duration * i
-            if current_time % src_duration == 0:
-                output_indices.append(current_time // src_duration)
-            else:
+            def left_func(n: int) -> vs.VideoNode:
+                return clip[dst_duration * n // src_duration]
+            left_clip = core.std.FrameEval(temp, left_func)
+
+            def right_func(n: int) -> vs.VideoNode:
+                return clip[dst_duration * n // src_duration + 1]
+            right_clip = core.std.FrameEval(temp, right_func)
+
+            temp_gray = core.std.BlankClip(temp, format=gray_format, keep=True)
+            def timepoint_func(n: int) -> vs.VideoNode:
+                current_time = dst_duration * n
                 left_index = current_time // src_duration
-                if left_index + 1 >= src_frames:
-                    # approximate last frame with last frame of source
-                    output_indices.append(src_frames - 1)
-                    break
-                output_indices.append(src_frames + len(timepoints))
-                left_indices.append(left_index)
-                right_indices.append(left_index + 1)
                 left_time = src_duration * left_index
                 tp = (current_time - left_time) / src_duration
-                timepoints.append(tp)
+                return temp_gray.std.BlankClip(color=tp, keep=True)
+            tp_clip = core.std.FrameEval(temp_gray, timepoint_func)
 
-        left_clip = core.akarin.PickFrames(clip, left_indices)
-        right_clip = core.akarin.PickFrames(clip, right_indices)
-        tp_clip = core.std.BlankClip(clip, format=gray_format, length=len(timepoints))
-        tp_clip = tp_clip.akarin.PropExpr(lambda: dict(_tp=timepoints)).akarin.Expr('x._tp')
+            output = RIFEMerge(
+                clipa=left_clip, clipb=right_clip, mask=tp_clip,
+                scale=scale, tiles=tiles, tilesize=tilesize, overlap=overlap,
+                model=model, backend=backend, ensemble=ensemble,
+                _implementation=_implementation
+            )
 
-        output0 = RIFEMerge(
-            clipa=left_clip, clipb=right_clip, mask=tp_clip,
-            scale=scale, tiles=tiles, tilesize=tilesize, overlap=overlap,
-            model=model, backend=backend, ensemble=ensemble,
-            _implementation=_implementation
-        )
+            left0 = bits_as(left_clip, output)
 
-        clip0 = bits_as(clip, output0)
-        left0 = bits_as(left_clip, output0)
-        output = core.akarin.Select([output0, left0], left0, 'x._SceneChangeNext 1 0 ?')
-        res = core.akarin.PickFrames(clip0 + output, output_indices)
+            def filter_sc(n: int, f: vs.VideoFrame) -> vs.VideoNode:
+                current_time = dst_duration * n
+                left_index = current_time // src_duration
+                if (
+                    current_time % src_duration == 0 or
+                    left_index + 1 >= src_frames or
+                    f.props.get("_SceneChangeNext", False)
+                ):
+                    return left0
+                else:
+                    return output
+
+            res = core.std.FrameEval(output, filter_sc, left0)
+        else:
+            if not hasattr(core, 'akarin') or \
+                not hasattr(core.akarin, 'PropExpr') or \
+                not hasattr(core.akarin, 'PickFrames'):
+                raise RuntimeError(
+                    'fractional multi requires plugin akarin '
+                    '(https://github.com/AkarinVS/vapoursynth-plugin/releases)'
+                    ', version v0.96g or later.')
+
+            left_indices = []
+            right_indices = []
+            timepoints = []
+            output_indices = []
+
+            for i in range(dst_frames):
+                current_time = dst_duration * i
+                if current_time % src_duration == 0:
+                    output_indices.append(current_time // src_duration)
+                else:
+                    left_index = current_time // src_duration
+                    if left_index + 1 >= src_frames:
+                        # approximate last frame with last frame of source
+                        output_indices.append(src_frames - 1)
+                        break
+                    output_indices.append(src_frames + len(timepoints))
+                    left_indices.append(left_index)
+                    right_indices.append(left_index + 1)
+                    left_time = src_duration * left_index
+                    tp = (current_time - left_time) / src_duration
+                    timepoints.append(tp)
+
+            left_clip = core.akarin.PickFrames(clip, left_indices)
+            right_clip = core.akarin.PickFrames(clip, right_indices)
+            tp_clip = core.std.BlankClip(clip, format=gray_format, length=len(timepoints))
+            tp_clip = tp_clip.akarin.PropExpr(lambda: dict(_tp=timepoints)).akarin.Expr('x._tp')
+
+            output0 = RIFEMerge(
+                clipa=left_clip, clipb=right_clip, mask=tp_clip,
+                scale=scale, tiles=tiles, tilesize=tilesize, overlap=overlap,
+                model=model, backend=backend, ensemble=ensemble,
+                _implementation=_implementation
+            )
+
+            clip0 = bits_as(clip, output0)
+            left0 = bits_as(left_clip, output0)
+            output = core.akarin.Select([output0, left0], left0, 'x._SceneChangeNext 1 0 ?')
+            res = core.akarin.PickFrames(clip0 + output, output_indices)
 
         if clip.fps_num != 0 and clip.fps_den != 0:
             return res.std.AssumeFPS(fpsnum = dst_fps.numerator, fpsden = dst_fps.denominator)
