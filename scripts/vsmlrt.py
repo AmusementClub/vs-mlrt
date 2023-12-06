@@ -1154,6 +1154,7 @@ def RIFE(
             left_clip = core.std.FrameEval(temp, left_func)
 
             def right_func(n: int) -> vs.VideoNode:
+                # no out of range access because of function filter_sc
                 return clip[dst_duration * n // src_duration + 1]
             right_clip = core.std.FrameEval(temp, right_func)
 
@@ -1166,14 +1167,14 @@ def RIFE(
                 return temp_gray.std.BlankClip(color=tp, keep=True)
             tp_clip = core.std.FrameEval(temp_gray, timepoint_func)
 
-            output = RIFEMerge(
+            output0 = RIFEMerge(
                 clipa=left_clip, clipb=right_clip, mask=tp_clip,
                 scale=scale, tiles=tiles, tilesize=tilesize, overlap=overlap,
                 model=model, backend=backend, ensemble=ensemble,
                 _implementation=_implementation
             )
 
-            left0 = bits_as(left_clip, output)
+            left0 = bits_as(left_clip, output0)
 
             def filter_sc(n: int, f: vs.VideoFrame) -> vs.VideoNode:
                 current_time = dst_duration * n
@@ -1185,9 +1186,9 @@ def RIFE(
                 ):
                     return left0
                 else:
-                    return output
+                    return output0
 
-            res = core.std.FrameEval(output, filter_sc, left0)
+            res = core.std.FrameEval(output0, filter_sc, left0)
         else:
             if not hasattr(core, 'akarin') or \
                 not hasattr(core.akarin, 'PropExpr') or \
