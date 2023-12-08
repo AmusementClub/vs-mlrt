@@ -1,4 +1,4 @@
-__version__ = "3.18.18"
+__version__ = "3.18.19"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1067,9 +1067,6 @@ def RIFE(
 
     if not isinstance(multi, (int, Fraction)):
         raise TypeError(f'{func_name}: "multi" must be an integer or a fractions.Fraction!')
-
-    if multi < 2:
-        raise ValueError(f'{func_name}: RIFE: multi must be at least 2')
 
     if tiles is not None or tilesize is not None or overlap is not None:
         raise ValueError(f'{func_name}: tiling is not supported')
