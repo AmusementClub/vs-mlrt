@@ -1,4 +1,4 @@
-__version__ = "3.15.45"
+__version__ = "3.15.46"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -826,6 +826,7 @@ class RIFEModel(enum.IntEnum):
     v4_13 = 413
     v4_13_lite = 4131
     v4_14 = 414
+    v4_14_lite = 4141
 
 
 def RIFEMerge(
