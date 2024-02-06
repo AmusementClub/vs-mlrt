@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Compress scirpts.7z
       run: |
@@ -74,7 +74,7 @@ jobs:
         7za a -t7z -bb3 -mx=9 ../scripts.${{ github.event.inputs.tag }}.7z .
 
     - name: Upload scripts release
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Scripts
         path: scripts
@@ -116,7 +116,7 @@ jobs:
         7za a -t7z -bb3 -mx=9 ../models.7z .
 
     - name: Upload model release
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Models
         path: release
@@ -147,7 +147,7 @@ jobs:
         7za a -t7z -bb3 -mx=9 ../ext-models.7z .
 
     - name: Upload external model release
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: External-Models
         path: release
@@ -178,7 +178,7 @@ jobs:
         7za a -t7z -bb3 -mx=9 ../contrib-models.7z .
 
     - name: Upload contrib model release
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Contrib-Models
         path: release
@@ -212,43 +212,43 @@ jobs:
 
     steps:
     - name: Download artifact for scripts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: Scripts
         path: scripts-release
 
     - name: Download artifact for models
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: Models
         path: models-release
 
     - name: Download artifact for vsov
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: VSOV-Windows-x64
         path: vsov-release
 
     - name: Download artifact for vsort
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: VSORT-Windows-x64
         path: vsort-release
 
     - name: Download artifact for vstrt
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: VSTRT-Windows-x64
         path: vstrt-release
 
     - name: Download artifact for vsncnn
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: VSNCNN-GPU-Windows-x64
         path: vsncnn-release
 
     - name: Download artifact for cuda dependencies
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: vsmlrt-cuda
         path: cuda-release
@@ -267,7 +267,7 @@ jobs:
         7za a -t7z -bb3 -mx=9 ../vsmlrt-windows-x64-cpu.7z .
 
     - name: Upload CPU-only release
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: false
       with:
         name: vsmlrt-cpu-release
@@ -301,7 +301,7 @@ jobs:
         7za a -t7z -bb3 -mx=9 ../vsmlrt-windows-x64-generic-gpu.7z .
 
     - name: Upload generic GPU release
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: false
       with:
         name: vsmlrt-generic-gpu-release
@@ -342,7 +342,7 @@ jobs:
         7za a -t7z -bb3 -mx=9 ../vsmlrt-windows-x64-cuda.7z .
 
     - name: Upload CUDA release
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: false
       with:
         name: vsmlrt-cuda-release
@@ -364,7 +364,7 @@ jobs:
     # Update nightly tag.
     - name: Checkout repo
       if: github.event.inputs.tag == 'nightly'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - name: Overwrite tag

@@ -109,7 +109,7 @@ jobs:
         7z a -t7z -mx=3 vsmlrt-cuda.7z vsmlrt-cuda
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: vsmlrt-cuda
         path: vsmlrt-cuda.7z

@@ -39,7 +39,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -51,13 +51,13 @@ jobs:
 
     - name: Cache protobuf
       id: cache-protobuf
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: vsov/protobuf/install
         key: ${{ runner.os }}-vsov-protobuf-v1
 
     - name: Checkout protobuf
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
       with:
         repository: protocolbuffers/protobuf
@@ -83,14 +83,14 @@ jobs:
 
     - name: Cache onnx
       id: cache-onnx
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: vsov/onnx/install
         key: ${{ runner.os }}-vsov-onnx-v2
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: onnx/onnx
         # follows onnx in https://github.com/AmusementClub/openvino/tree/master/thirdparty/onnx
@@ -161,7 +161,7 @@ jobs:
         xcopy openvino\runtime\bin\intel64\Release\* artifact\vsov\ /s
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: VSOV-Windows-x64
         path: vsov/artifact
