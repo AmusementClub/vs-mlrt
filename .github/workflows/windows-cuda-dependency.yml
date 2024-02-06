@@ -114,6 +114,7 @@ jobs:
         name: vsmlrt-cuda
         path: vsmlrt-cuda.7z
         retention-days: 1
+        compression-level: 0
 
     - name: Rename release asset
       run: |

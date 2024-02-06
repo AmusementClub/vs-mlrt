@@ -121,6 +121,7 @@ jobs:
         name: Models
         path: release
         retention-days: 1
+        compression-level: 0
 
     - name: Download External Models
       run: |
@@ -152,6 +153,7 @@ jobs:
         name: External-Models
         path: release
         retention-days: 1
+        compression-level: 0
 
     - name: Download Contributed Models
       run: |
@@ -183,6 +185,7 @@ jobs:
         name: Contrib-Models
         path: release
         retention-days: 1
+        compression-level: 0
 
     - name: Rename release asset
       run: |
@@ -273,6 +276,7 @@ jobs:
         name: vsmlrt-cpu-release
         path: vsmlrt-windows-x64-cpu.7z
         retention-days: 1
+        compression-level: 0
 
     - name: Rename release asset
       run: mv vsmlrt-windows-x64-cpu.7z vsmlrt-windows-x64-cpu.${{ github.event.inputs.tag }}.7z
@@ -307,6 +311,7 @@ jobs:
         name: vsmlrt-generic-gpu-release
         path: vsmlrt-windows-x64-generic-gpu.7z
         retention-days: 1
+        compression-level: 0
 
     - name: Rename release asset for generic GPU release
       run: mv vsmlrt-windows-x64-generic-gpu.7z vsmlrt-windows-x64-generic-gpu.${{ github.event.inputs.tag }}.7z
@@ -348,6 +353,7 @@ jobs:
         name: vsmlrt-cuda-release
         path: vsmlrt-windows-x64-cuda.7z
         retention-days: 1
+        compression-level: 0
 
     - name: Rename release asset
       run: mv vsmlrt-windows-x64-cuda.7z vsmlrt-windows-x64-cuda.${{ github.event.inputs.tag }}.7z
