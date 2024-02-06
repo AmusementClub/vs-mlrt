@@ -31,7 +31,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -43,10 +43,11 @@ jobs:
 
     - name: Cache CUDA
       id: cache-cuda
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
         key: ${{ runner.os }}-vstrt-cuda-12.3.1
+        save-always: true
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
@@ -55,20 +56,21 @@ jobs:
         cuda_installer.exe -s nvcc_12.3 cudart_12.3 nvprof_12.3 cuda_profiler_api_12.3 thrust_12.3 cublas_dev_12.3
 
     - name: Checkout tensorrt
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: AmusementClub/cuda
         token: ${{ secrets.REPO_TOKEN }}
         ref: tensorrt-9.2.0
         path: tensorrt
 
-    - name: Checkout cudnn
-      uses: actions/checkout@v3
-      with:
-        repository: AmusementClub/cuda
-        token: ${{ secrets.REPO_TOKEN }}
-        ref: cudnn-8.9.6
-        path: cudnn
+    - name: Download cuDNN
+      run: |
+        curl -LJ https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-8.9.6.50_cuda12-archive.zip -o cudnn.zip
+        unzip cudnn.zip
+        mkdir -p cudnn
+        mv cudnn-windows-*/include -t cudnn
+        mv cudnn-windows-*/lib -t cudnn
+        ls -R cudnn
 
     - name: Download VapourSynth headers
       run: |
@@ -84,7 +86,7 @@ jobs:
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
         -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
         -D USE_NVINFER_PLUGIN=ON
-        -D CUDNN_HOME="%cd%\..\cudnn\cudnn"
+        -D CUDNN_HOME="cudnn"
 
     - name: Build
       run: cmake --build build --config Release --verbose
@@ -93,7 +95,7 @@ jobs:
       run: cmake --install build --prefix install
 
     - name: Checkout TensorRT OSS
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: NVIDIA/TensorRT
         ref: release/9.2
@@ -111,7 +113,7 @@ jobs:
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.3"
         -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
-        -D CUDNN_HOME="%cd%\..\cudnn\cudnn"
+        -D CUDNN_HOME="cudnn"
 
     - name: Build trtexec
       run: cmake --build build_trtexec --verbose
@@ -130,7 +132,7 @@ jobs:
       run: git describe --tags --long
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: VSTRT-Windows-x64
         path: vstrt/artifact

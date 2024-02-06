@@ -28,30 +28,21 @@ jobs:
         shell: bash
 
     steps:
-    # Note: unfortunately, cuDNN download requires registration and according to its license
-    # agreements, we can only redistribute it along with an application that uses it, so we
-    # have to use a private repository to hold a copy of the library.
     - name: Download cuDNN inference library
-      run: |
-        # https://stackoverflow.com/questions/20396329/how-to-download-github-release-from-private-repo-using-command-line/35688093#35688093
-
-        tag=cudnn-8.9.6-bin
-        name=cudnn.7z
-
-        AUTH="Authorization: token ${{ secrets.REPO_TOKEN }}"
-        response=$(curl -sH "$AUTH" https://api.github.com/repos/AmusementClub/cuda/releases/tags/$tag)
-        eval $(echo "$response" | grep -C3 "name.:.\+$NAME" | grep -w id | tr : = | tr -cd '[[:alnum:]]=')
-        [ "$id" ] || { echo "Error: Failed to get asset id, response: $response" | awk 'length($0)<100' >&2; exit 1; }
-        ASSET="https://api.github.com/repos/AmusementClub/cuda/releases/assets/$id"
-        curl -LJO -H "$AUTH" -H 'Accept: application/octet-stream' "$ASSET"
+      run: curl -LJ https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-8.9.6.50_cuda12-archive.zip -o cudnn.zip
 
     - name: Extract cuDNN library
-      run: 7z x cudnn.7z
+      run: unzip cudnn.zip
 
     - name: Move cuDNN library
-      run: mv cudnn/bin vsmlrt-cuda -v
+      run: |
+        mkdir -p vsmlrt-cuda
+        mv cudnn-windows-*/bin/*.dll vsmlrt-cuda/ -v
+        rm vsmlrt-cuda/cudnn_*_train*.dll -v
 
-    # Same licensing issue with the tensorrt libraries.
+    # Note: unfortunately, TensorRT download requires registration and according to its license
+    # agreements, we can only redistribute it along with an application that uses it, so we
+    # have to use a private repository to hold a copy of the library.
     - name: Download TensorRT library
       run: |
         # https://stackoverflow.com/questions/20396329/how-to-download-github-release-from-private-repo-using-command-line/35688093#35688093
