@@ -483,6 +483,13 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     VSRegisterFunction registerFunc,
     VSPlugin *plugin
 ) noexcept {
+
+    configFunc(
+        "io.github.amusementclub.vs_tensorrt", "trt",
+        "TensorRT ML Filter Runtime",
+        VAPOURSYNTH_API_VERSION, 1, plugin
+    );
+
     int ver = getInferLibVersion(); // must ensure this is the first nvinfer function called
 #ifdef _WIN32
     if (ver == 0) { // a sentinel value, see dummy function in win32.cpp.
@@ -495,12 +502,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     }
 
     myself = plugin;
-
-    configFunc(
-        "io.github.amusementclub.vs_tensorrt", "trt",
-        "TensorRT ML Filter Runtime",
-        VAPOURSYNTH_API_VERSION, 1, plugin
-    );
 
     registerFunc("Model",
         "clips:clip[];"
