@@ -507,6 +507,12 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     VSPlugin *plugin
 ) noexcept {
 
+    configFunc(
+        "io.github.amusementclub.vs_tensorrt", "trt",
+        "TensorRT ML Filter Runtime",
+        VAPOURSYNTH_API_VERSION, 1, plugin
+    );
+
     // TRT 9 for windows does not export getInferLibVersion()
 #if NV_TENSORRT_MAJOR == 9 && defined(_WIN32)
     auto test = getPluginRegistry();
@@ -529,12 +535,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
 #endif
 
     myself = plugin;
-
-    configFunc(
-        "io.github.amusementclub.vs_tensorrt", "trt",
-        "TensorRT ML Filter Runtime",
-        VAPOURSYNTH_API_VERSION, 1, plugin
-    );
 
     registerFunc("Model",
         "clips:clip[];"
