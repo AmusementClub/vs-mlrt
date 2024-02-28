@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(VAPOURSYNTH_INCLUDE_DIRECTORY "" CACHE PATH "Path to VapourSynth headers")
 
 find_package(migraphx REQUIRED CONFIG)
-find_package(HIP REQUIRED CONFIG)
+find_package(hip REQUIRED CONFIG)
 
 add_library(vsmigraphx SHARED vs_migraphx.cpp)
 
