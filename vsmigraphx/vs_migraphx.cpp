@@ -59,8 +59,8 @@ static inline const char * getErrorString(migraphx_status status) {
 
 static void setDimensions(
     std::unique_ptr<VSVideoInfo> & vi,
-    const std::array<size_t, 4> & input_shape,
-    const std::array<size_t, 4> & output_shape,
+    const std::array<int, 4> & input_shape,
+    const std::array<int, 4> & output_shape,
     VSCore * core,
     const VSAPI * vsapi
 ) noexcept {
@@ -122,6 +122,134 @@ int numPlanes(
 
     return num_planes;
 }
+
+static inline void VS_CC getDeviceProp(
+    const VSMap *in, VSMap *out, void *userData,
+    VSCore *core, const VSAPI *vsapi
+) {
+
+    int err;
+    int device_id = static_cast<int>(vsapi->propGetInt(in, "device_id", 0, &err));
+    if (err) {
+        device_id = 0;
+    }
+
+    hipDeviceProp_t prop;
+    if (auto err = hipGetDeviceProperties(&prop, device_id); err != hipSuccess) {
+        vsapi->setError(out, hipGetErrorString(err));
+        return ;
+    }
+
+    auto setProp = [&](const char * name, auto value, int data_length = -1) {
+        using T = std::decay_t<decltype(value)>;
+        if constexpr (std::is_same_v<T, int>) {
+            vsapi->propSetInt(out, name, value, paReplace);
+        } else if constexpr (std::is_same_v<T, size_t>) {
+            vsapi->propSetInt(out, name, static_cast<int64_t>(value), paReplace);
+        } else if constexpr (std::is_same_v<T, char *>) {
+            vsapi->propSetData(out, name, value, data_length, paReplace);
+        }
+    };
+
+    int driver_version;
+    if (auto err = hipDriverGetVersion(&driver_version); err != hipSuccess) {
+        vsapi->setError(out, hipGetErrorString(err));
+        return ;
+    }
+    setProp("driver_version", driver_version);
+
+    setProp("name", prop.name);
+    {
+        std::array<int64_t, 16> uuid;
+        for (int i = 0; i < 16; ++i) {
+            uuid[i] = prop.uuid.bytes[i];
+        }
+        vsapi->propSetIntArray(out, "uuid", std::data(uuid), std::size(uuid));
+    }
+    setProp("total_global_memory", prop.totalGlobalMem);
+    setProp("shared_memory_per_block", prop.sharedMemPerBlock);
+    setProp("regs_per_block", prop.regsPerBlock);
+    setProp("warp_size", prop.warpSize);
+    setProp("mem_pitch", prop.memPitch);
+    setProp("max_threads_per_block", prop.maxThreadsPerBlock);
+    setProp("clock_rate", prop.clockRate);
+    setProp("total_const_mem", prop.totalConstMem);
+    setProp("major", prop.major);
+    setProp("minor", prop.minor);
+    setProp("texture_alignment", prop.textureAlignment);
+    setProp("texture_pitch_alignment", prop.texturePitchAlignment);
+    setProp("device_overlap", prop.deviceOverlap);
+    setProp("multi_processor_count", prop.multiProcessorCount);
+    setProp("kernel_exec_timeout_enabled", prop.kernelExecTimeoutEnabled);
+    setProp("integrated", prop.integrated);
+    setProp("can_map_host_memory", prop.canMapHostMemory);
+    setProp("compute_mode", prop.computeMode);
+    setProp("concurrent_kernels", prop.concurrentKernels);
+    setProp("ecc_enabled", prop.ECCEnabled);
+    setProp("pci_bus_id", prop.pciBusID);
+    setProp("pci_device_id", prop.pciDeviceID);
+    setProp("pci_domain_id", prop.pciDomainID);
+    setProp("tcc_driver", prop.tccDriver);
+    setProp("async_engine_count", prop.asyncEngineCount);
+    setProp("unified_addressing", prop.unifiedAddressing);
+    setProp("memory_clock_rate", prop.memoryClockRate);
+    setProp("memory_bus_width", prop.memoryBusWidth);
+    setProp("l2_cache_size", prop.l2CacheSize);
+    setProp("persisting_l2_cache_max_size", prop.persistingL2CacheMaxSize);
+    setProp("max_threads_per_multiprocessor", prop.maxThreadsPerMultiProcessor);
+    setProp("stream_priorities_supported", prop.streamPrioritiesSupported);
+    setProp("global_l1_cache_supported", prop.globalL1CacheSupported);
+    setProp("local_l1_cache_supported", prop.localL1CacheSupported);
+    setProp("shared_mem_per_multiprocessor", prop.sharedMemPerMultiprocessor);
+    setProp("regs_per_multiprocessor", prop.regsPerMultiprocessor);
+    setProp("managed_memory", prop.managedMemory);
+    setProp("is_multi_gpu_board", prop.isMultiGpuBoard);
+    setProp("multi_gpu_board_group_id", prop.multiGpuBoardGroupID);
+    setProp("host_native_atomic_supported", prop.hostNativeAtomicSupported);
+    setProp("single_to_double_precision_perf_ratio", prop.singleToDoublePrecisionPerfRatio);
+    setProp("pageable_memory_access", prop.pageableMemoryAccess);
+    setProp("conccurrent_managed_access", prop.concurrentManagedAccess);
+    setProp("compute_preemption_supported", prop.computePreemptionSupported);
+    setProp(
+        "can_use_host_pointer_for_registered_mem",
+        prop.canUseHostPointerForRegisteredMem
+    );
+    setProp("cooperative_launch", prop.cooperativeLaunch);
+    setProp("cooperative_multi_device_launch", prop.cooperativeMultiDeviceLaunch);
+    setProp("shared_mem_per_block_optin", prop.sharedMemPerBlockOptin);
+    setProp(
+        "pageable_memory_access_uses_host_page_tables",
+        prop.pageableMemoryAccessUsesHostPageTables
+    );
+    setProp("direct_managed_mem_access_from_host", prop.directManagedMemAccessFromHost);
+    setProp("max_blocks_per_multi_processor", prop.maxBlocksPerMultiProcessor);
+    setProp("access_policy_max_window_size", prop.accessPolicyMaxWindowSize);
+    setProp("reserved_shared_mem_per_block", prop.reservedSharedMemPerBlock);
+    setProp("host_register_supported", prop.hostRegisterSupported);
+    setProp("sparse_hip_array_supported", prop.sparseHipArraySupported);
+    setProp("host_register_read_only_supported", prop.hostRegisterReadOnlySupported);
+    setProp("timeline_semaphore_interop_supported", prop.timelineSemaphoreInteropSupported);
+    setProp("memory_pools_supported", prop.memoryPoolsSupported);
+    setProp("gpu_direct_rdma_supported", prop.gpuDirectRDMASupported);
+    setProp("gpu_direct_rdma_flush_writes_options", prop.gpuDirectRDMAFlushWritesOptions);
+    setProp("gpu_direct_rdma_writes_ordering", prop.gpuDirectRDMAWritesOrdering);
+    setProp("memory_pool_supported_handle_types", prop.memoryPoolSupportedHandleTypes);
+    setProp("deferred_mapping_hip_array_supported", prop.deferredMappingHipArraySupported);
+    setProp("ipc_event_supported", prop.ipcEventSupported);
+    setProp("cluster_launch", prop.clusterLaunch);
+    setProp("unified_function_pointers", prop.unifiedFunctionPointers);
+    setProp("gcn_arch_name", prop.gcnArchName);
+    setProp("max_shared_memory_per_multi_processor", prop.maxSharedMemoryPerMultiProcessor);
+    setProp("clock_instruction_rate", prop.clockInstructionRate);
+    setProp("arch", prop.arch);
+    setProp("cooperative_multi_device_unmatched_func", prop.cooperativeMultiDeviceUnmatchedFunc);
+    setProp("cooperative_multi_device_unmatced_grid_dim", prop.cooperativeMultiDeviceUnmatchedGridDim);
+    setProp("cooperative_multi_device_unmatced_block_dim", prop.cooperativeMultiDeviceUnmatchedBlockDim);
+    setProp("cooperative_multi_device_unmatced_shared_mem", prop.cooperativeMultiDeviceUnmatchedSharedMem);
+    setProp("is_large_bar", prop.isLargeBar);
+    setProp("asic_revision", prop.asicRevision);
+};
+
 
 struct TicketSemaphore {
     std::atomic<intptr_t> ticket {};
@@ -220,7 +348,7 @@ struct vsMIGraphXData {
     std::vector<VSNodeRef *> nodes;
     std::unique_ptr<VSVideoInfo> out_vi;
 
-    std::array<size_t, 4> src_tile_shape, dst_tile_shape;
+    std::array<int, 4> src_tile_shape, dst_tile_shape;
     int overlap_w, overlap_h;
 
     int device_id;
@@ -385,27 +513,27 @@ static const VSFrameRef *VS_CC vsMIGraphXGetFrame(
                 }
 
                 checkHIPError(hipMemcpyAsync(
-                    instance.src.d_data.data, 
-                    instance.src.h_data.data, 
-                    instance.src.size, 
-                    hipMemcpyHostToDevice, 
+                    instance.src.d_data.data,
+                    instance.src.h_data.data,
+                    instance.src.size,
+                    hipMemcpyHostToDevice,
                     instance.stream
                 ));
 
                 migraphx_arguments_t outputs;
                 checkError(migraphx_program_run_async(
-                    &outputs, 
-                    d->program, 
-                    instance.params, 
-                    instance.stream.data, 
+                    &outputs,
+                    d->program,
+                    instance.params,
+                    instance.stream.data,
                     "ihipStream_t"
                 ));
 
                 checkHIPError(hipMemcpyAsync(
-                    instance.dst.h_data.data, 
-                    instance.dst.d_data.data, 
-                    instance.dst.size, 
-                    hipMemcpyDeviceToHost, 
+                    instance.dst.h_data.data,
+                    instance.dst.d_data.data,
+                    instance.dst.size,
+                    hipMemcpyDeviceToHost,
                     instance.stream
                 ));
 
@@ -414,9 +542,10 @@ static const VSFrameRef *VS_CC vsMIGraphXGetFrame(
                 {
                     const uint8_t * h_data = instance.dst.h_data.data;
                     auto bytes_per_sample = vsapi->getFrameFormat(dst_frame)->bytesPerSample;
-                    for (uint8_t * _dst_ptr : dst_ptrs) {
-                        uint8_t * dst_ptr { _dst_ptr +
-                            h_scale * y * dst_stride + w_scale * x * bytes_per_sample
+                    for (int plane = 0; plane < dst_planes; ++plane) {
+                        uint8_t * dst_ptr {
+                            dst_ptrs[plane] +
+                            h_scale * y * dst_stride + w_scale * x * dst_bytes
                         };
 
                         vs_bitblt(
@@ -604,16 +733,35 @@ static void VS_CC vsMIGraphXCreate(
         if (lengths[0] != 1) {
             return set_error("batch size must be 1");
         }
-        if (auto num_planes = numPlanes(in_vis); lengths[1] != num_planes) {
+        if (auto num_planes = numPlanes(in_vis); static_cast<int>(lengths[1]) != num_planes) {
             return set_error("expects " + std::to_string(lengths[1]) + " input planes");
         }
         // TODO: select
         if (lengths[2] != tile_h || lengths[3] != tile_w) {
-            return set_error("invalid tile size, must be " + std::to_string(lengths[3]) + 'x' + std::to_string(lengths[2]));
+            return set_error(
+                "invalid tile size, must be " +
+                std::to_string(lengths[3]) + 'x' + std::to_string(lengths[2])
+            );
+        }
+        const size_t * strides;
+        checkError(migraphx_shape_strides(&strides, &ndim, input_shape));
+        {
+            size_t target = 1; // MIGraphX uses elements to measure strides
+            for (int i = static_cast<int>(ndim) - 1; i >= 0; i--) {
+                if (strides[i] != target) {
+                    return set_error(
+                        "invalid stride for NCHW, expects " +
+                        std::to_string(target) +
+                        " instead of " +
+                        std::to_string(strides[i])
+                    );
+                }
+                target *= lengths[i];
+            }
         }
         checkError(migraphx_shape_bytes(&input_size, input_shape));
         for (int i = 0; i < 4; i++) {
-            d->src_tile_shape[i] = lengths[i];
+            d->src_tile_shape[i] = static_cast<int>(lengths[i]);
         }
     }
 
@@ -648,9 +796,31 @@ static void VS_CC vsMIGraphXCreate(
         if (lengths[0] != 1) {
             return set_error("batch size must be 1");
         }
+        if (lengths[1] != 1 && lengths[1] != 3) {
+            return set_error("output should have 1 or 3 channels");
+        }
+        if (lengths[2] % tile_h != 0 && lengths[3] % tile_w != 0) {
+            return set_error("output dimensions should be integer multiple of input dimensions");
+        }
+        const size_t * strides;
+        checkError(migraphx_shape_strides(&strides, &ndim, output_shape));
+        {
+            size_t target = 1; // MIGraphX uses elements to measure strides
+            for (int i = static_cast<int>(ndim) - 1; i >= 0; i--) {
+                if (strides[i] != target) {
+                    return set_error(
+                        "invalid stride for NCHW, expects " +
+                        std::to_string(target) +
+                        " instead of " +
+                        std::to_string(strides[i])
+                    );
+                }
+                target *= lengths[i];
+            }
+        }
         checkError(migraphx_shape_bytes(&output_size, output_shape));
         for (int i = 0; i < 4; i++) {
-            d->dst_tile_shape[i] = lengths[i];
+            d->dst_tile_shape[i] = static_cast<int>(lengths[i]);
         }
     }
 
@@ -674,7 +844,11 @@ static void VS_CC vsMIGraphXCreate(
         InferenceInstance instance;
 
         checkHIPError(hipMalloc(&instance.src.d_data.data, input_size));
-        checkHIPError(hipHostMalloc(&instance.src.h_data.data, input_size, hipHostMallocWriteCombined | hipHostMallocNonCoherent));
+        checkHIPError(hipHostMalloc(
+            &instance.src.h_data.data,
+            input_size,
+            hipHostMallocWriteCombined | hipHostMallocNonCoherent
+        ));
         instance.src.size = input_size;
 
         checkHIPError(hipMalloc(&instance.dst.d_data.data, output_size));
@@ -734,7 +908,12 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     auto getVersion = [](const VSMap *, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
         vsapi->propSetData(
             out, "migraphx_version_build",
-            (std::to_string(MIGRAPHX_VERSION_MAJOR) + "_" + std::to_string(MIGRAPHX_VERSION_MINOR) + "_" + std::to_string(MIGRAPHX_VERSION_PATCH)).c_str(), -1, paReplace
+            (std::to_string(MIGRAPHX_VERSION_MAJOR) +
+             "." +
+             std::to_string(MIGRAPHX_VERSION_MINOR) +
+             "." +
+             std::to_string(MIGRAPHX_VERSION_PATCH)
+            ).c_str(), -1, paReplace
         );
 
         int runtime_version;
@@ -749,4 +928,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         vsapi->propSetData(out, "path", vsapi->getPluginPath(myself), -1, paReplace);
     };
     registerFunc("Version", "", getVersion, nullptr, plugin);
+
+    registerFunc("DeviceProperties", "device_id:int:opt;", getDeviceProp, nullptr, plugin);
 }
