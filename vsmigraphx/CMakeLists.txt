@@ -24,6 +24,16 @@ set_target_properties(vsmigraphx PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
+find_package(Git REQUIRED)
+execute_process(
+    COMMAND ${GIT_EXECUTABLE} describe --tags --long --always
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    OUTPUT_VARIABLE VCS_TAG
+)
+string(STRIP ${VCS_TAG} VCS_TAG)
+configure_file(config.h.in config.h)
+target_include_directories(vsmigraphx PUBLIC "${PROJECT_BINARY_DIR}")
+
 install(TARGETS vsmigraphx
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}

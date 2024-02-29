@@ -20,6 +20,8 @@
 #include <migraphx/migraphx.h>
 #include <migraphx/version.h>
 
+#include "config.h"
+
 using namespace std::string_literals;
 
 #define checkError(expr) do {                                                  \
@@ -906,6 +908,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     );
 
     auto getVersion = [](const VSMap *, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
+        vsapi->propSetData(out, "version", VERSION, -1, paReplace);
+
         vsapi->propSetData(
             out, "migraphx_version_build",
             (std::to_string(MIGRAPHX_VERSION_MAJOR) +
