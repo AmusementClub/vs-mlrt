@@ -1,4 +1,4 @@
-__version__ = "3.15.48"
+__version__ = "3.15.49"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -33,15 +33,18 @@ def get_plugins_path() -> str:
     path = b""
 
     try:
-        path = core.trt.Version()["path"]
+        path = core.ov.Version()["path"]
     except AttributeError:
         try:
             path = core.ort.Version()["path"]
         except AttributeError:
             try:
-                path = core.ov.Version()["path"]
-            except AttributeError:
                 path = core.ncnn.Version()["path"]
+            except AttributeError:
+                try:
+                    path = core.trt.Version()["path"]
+                except AttributeError:
+                    path = core.migraphx.Version()["path"]
 
     assert path != b""
 
@@ -49,6 +52,7 @@ def get_plugins_path() -> str:
 
 plugins_path: str = get_plugins_path()
 trtexec_path: str = os.path.join(plugins_path, "vsmlrt-cuda", "trtexec")
+migraphx_driver_path: str = os.path.join(plugins_path, "vsmlrt-hip", "migraphx-driver")
 models_path: str = os.path.join(plugins_path, "models")
 
 
@@ -189,6 +193,26 @@ class Backend:
         # internal backend attributes
         supports_onnx_serialization: bool = True
 
+    @dataclass(frozen=False)
+    class MIGraphX:
+        """ backend for amd gpus
+
+        basic performance tuning:
+        set fp16 = True
+        """
+
+        device_id: int = 0
+        fp16: bool = False
+        opt_shapes: typing.Optional[typing.Tuple[int, int]] = None
+        fast_math: bool = True
+        exhaustive_tune: bool = False
+
+        custom_env: typing.Dict[str, str] = field(default_factory=lambda: {})
+        custom_args: typing.List[str] = field(default_factory=lambda: [])
+
+        # internal backend attributes
+        supports_onnx_serialization: bool = False
+
 
 backendT = typing.Union[
     Backend.OV_CPU,
@@ -198,6 +222,7 @@ backendT = typing.Union[
     Backend.OV_GPU,
     Backend.NCNN_VK,
     Backend.ORT_DML,
+    Backend.MIGraphX,
 ]
 
 
@@ -1605,6 +1630,120 @@ def trtexec(
     return engine_path
 
 
+def get_program_path(
+    network_path: str,
+    opt_shapes: typing.Tuple[int, int],
+    fp16: bool,
+    fast_math: bool,
+    exhaustive_tune: bool,
+    device_id: int
+) -> str:
+
+    with open(network_path, "rb") as file:
+        checksum = zlib.adler32(file.read())
+
+    migraphx_version = core.migraphx.Version()["migraphx_version_build"].decode()
+
+    try:
+        device_name = core.migraphx.DeviceProperties(device_id)["name"].decode()
+        device_name = device_name.replace(' ', '-')
+    except AttributeError:
+        device_name = f"device{device_id}"
+
+    shape_str = f"{opt_shapes[0]}x{opt_shapes[1]}"
+
+    identity = (
+        shape_str +
+        ("_fp16" if fp16 else "") +
+        ("_fast" if fast_math else "") +
+        ("_exhaustive" if exhaustive_tune else "") +
+        f"_migraphx-{migraphx_version}" +
+        f"_{device_name}" +
+        f"_{checksum:x}"
+    )
+
+    return f"{network_path}.{identity}.program"
+
+
+def migraphx_driver(
+    network_path: str,
+    channels: int,
+    opt_shapes: typing.Tuple[int, int],
+    fp16: bool,
+    fast_math: bool,
+    exhaustive_tune: bool,
+    device_id: int,
+    input_name: str = "input",
+    custom_env: typing.Dict[str, str] = {},
+    custom_args: typing.List[str] = []
+) -> str:
+
+    if isinstance(opt_shapes, int):
+        opt_shapes = (opt_shapes, opt_shapes)
+
+    program_path = get_program_path(
+        network_path=network_path,
+        opt_shapes=opt_shapes,
+        fp16=fp16,
+        fast_math=fast_math,
+        exhaustive_tune=exhaustive_tune,
+        device_id=device_id
+    )
+
+    if os.access(program_path, mode=os.R_OK):
+        return program_path
+
+    alter_program_path = os.path.join(
+        tempfile.gettempdir(),
+        os.path.splitdrive(program_path)[1][1:]
+    )
+
+    if os.access(alter_program_path, mode=os.R_OK):
+        return alter_program_path
+
+    try:
+        # test writability
+        with open(program_path, "w") as f:
+            pass
+        os.remove(program_path)
+    except PermissionError:
+        print(f"{program_path} not writable", file=sys.stderr)
+        program_path = alter_program_path
+        dirname = os.path.dirname(program_path)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+        print(f"change program path to {program_path}", file=sys.stderr)
+
+    if device_id != 0:
+        raise ValueError('"device_id" must be 0')
+
+    args = [
+        migraphx_driver_path,
+        "compile",
+        "--onnx", f"{network_path}",
+        "--gpu",
+        # f"--device={device_id}",
+        "--output", f"{program_path}"
+    ]
+
+    args.extend(["--input-dim", f"@{input_name}", "1", f"{channels}", f"{opt_shapes[1]}", f"{opt_shapes[0]}"])
+
+    if fp16:
+        args.append("--fp16")
+
+    if not fast_math:
+        args.append("--disable-fast-math")
+
+    if exhaustive_tune:
+        args.append("--exhaustive-tune")
+
+    args.extend(custom_args)
+
+    subprocess.run(args, env=custom_env, check=True, stdout=sys.stderr)
+
+    return program_path
+
+
 def calc_size(width: int, tiles: int, overlap: int, multiple: int = 1) -> int:
     return math.ceil((width + 2 * overlap * (tiles - 1)) / (tiles * multiple)) * multiple
 
@@ -1659,6 +1798,8 @@ def init_backend(
         backend = Backend.NCNN_VK()
     elif backend is Backend.ORT_DML: # type: ignore
         backend = Backend.ORT_DML()
+    elif backend is Backend.MIGraphX: # type: ignore
+        backend = Backend.MIGraphX()
 
     backend = copy.deepcopy(backend)
 
@@ -1668,6 +1809,9 @@ def init_backend(
 
         if backend.max_shapes is None:
             backend.max_shapes = backend.opt_shapes
+    elif isinstance(backend, Backend.MIGraphX):
+        if backend.opt_shapes is None:
+            backend.opt_shapes = trt_opt_shapes
 
     return backend
 
@@ -1817,6 +1961,34 @@ def _inference(
             builtin=False,
             fp16=backend.fp16,
             path_is_serialization=path_is_serialization,
+        )
+    elif isinstance(backend, Backend.MIGraphX):
+        if path_is_serialization:
+            raise ValueError('"path_is_serialization" must be False for migraphx backend')
+
+        network_path = typing.cast(str, network_path)
+
+        channels = sum(clip.format.num_planes for clip in clips)
+
+        opt_shapes = backend.opt_shapes if backend.opt_shapes is not None else tilesize
+
+        program_path = migraphx_driver(
+            network_path,
+            channels=channels,
+            opt_shapes=opt_shapes,
+            fp16=backend.fp16,
+            fast_math=backend.fast_math,
+            exhaustive_tune=backend.exhaustive_tune,
+            device_id=backend.device_id,
+            input_name=input_name,
+            custom_env=backend.custom_env,
+            custom_args=backend.custom_args
+        )
+        clip = core.migraphx.Model(
+            clips, program_path,
+            overlap=overlap,
+            tilesize=tilesize,
+            device_id=backend.device_id
         )
     else:
         raise TypeError(f'unknown backend {backend}')
@@ -2031,6 +2203,19 @@ class BackendV2:
             device_id=device_id,
             num_streams=num_streams,
             fp16=fp16,
+            **kwargs
+        )
+
+    @staticmethod
+    def MIGraphX(*,
+        fp16: bool = False,
+        opt_shapes: typing.Optional[typing.Tuple[int, int]] = None,
+        **kwargs
+    ) -> Backend.MIGraphX:
+
+        return Backend.MIGraphX(
+            fp16=fp16,
+            opt_shapes=opt_shapes
             **kwargs
         )
 
