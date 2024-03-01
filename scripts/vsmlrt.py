@@ -44,7 +44,7 @@ def get_plugins_path() -> str:
                 try:
                     path = core.trt.Version()["path"]
                 except AttributeError:
-                    path = core.migraphx.Version()["path"]
+                    path = core.migx.Version()["path"]
 
     assert path != b""
 
@@ -194,7 +194,7 @@ class Backend:
         supports_onnx_serialization: bool = True
 
     @dataclass(frozen=False)
-    class MIGraphX:
+    class MIGX:
         """ backend for amd gpus
 
         basic performance tuning:
@@ -222,7 +222,7 @@ backendT = typing.Union[
     Backend.OV_GPU,
     Backend.NCNN_VK,
     Backend.ORT_DML,
-    Backend.MIGraphX,
+    Backend.MIGX
 ]
 
 
@@ -1642,10 +1642,10 @@ def get_program_path(
     with open(network_path, "rb") as file:
         checksum = zlib.adler32(file.read())
 
-    migraphx_version = core.migraphx.Version()["migraphx_version_build"].decode()
+    migx_version = core.migx.Version()["migraphx_version_build"].decode()
 
     try:
-        device_name = core.migraphx.DeviceProperties(device_id)["name"].decode()
+        device_name = core.migx.DeviceProperties(device_id)["name"].decode()
         device_name = device_name.replace(' ', '-')
     except AttributeError:
         device_name = f"device{device_id}"
@@ -1657,7 +1657,7 @@ def get_program_path(
         ("_fp16" if fp16 else "") +
         ("_fast" if fast_math else "") +
         ("_exhaustive" if exhaustive_tune else "") +
-        f"_migraphx-{migraphx_version}" +
+        f"_migx-{migx_version}" +
         f"_{device_name}" +
         f"_{checksum:x}"
     )
@@ -1798,8 +1798,8 @@ def init_backend(
         backend = Backend.NCNN_VK()
     elif backend is Backend.ORT_DML: # type: ignore
         backend = Backend.ORT_DML()
-    elif backend is Backend.MIGraphX: # type: ignore
-        backend = Backend.MIGraphX()
+    elif backend is Backend.MIGX: # type: ignore
+        backend = Backend.MIGX()
 
     backend = copy.deepcopy(backend)
 
@@ -1809,7 +1809,7 @@ def init_backend(
 
         if backend.max_shapes is None:
             backend.max_shapes = backend.opt_shapes
-    elif isinstance(backend, Backend.MIGraphX):
+    elif isinstance(backend, Backend.MIGX):
         if backend.opt_shapes is None:
             backend.opt_shapes = trt_opt_shapes
 
@@ -1962,9 +1962,9 @@ def _inference(
             fp16=backend.fp16,
             path_is_serialization=path_is_serialization,
         )
-    elif isinstance(backend, Backend.MIGraphX):
+    elif isinstance(backend, Backend.MIGX):
         if path_is_serialization:
-            raise ValueError('"path_is_serialization" must be False for migraphx backend')
+            raise ValueError('"path_is_serialization" must be False for migx backend')
 
         network_path = typing.cast(str, network_path)
 
@@ -1984,7 +1984,7 @@ def _inference(
             custom_env=backend.custom_env,
             custom_args=backend.custom_args
         )
-        clip = core.migraphx.Model(
+        clip = core.migx.Model(
             clips, program_path,
             overlap=overlap,
             tilesize=tilesize,
@@ -2207,13 +2207,13 @@ class BackendV2:
         )
 
     @staticmethod
-    def MIGraphX(*,
+    def MIGX(*,
         fp16: bool = False,
         opt_shapes: typing.Optional[typing.Tuple[int, int]] = None,
         **kwargs
-    ) -> Backend.MIGraphX:
+    ) -> Backend.MIGX:
 
-        return Backend.MIGraphX(
+        return Backend.MIGX(
             fp16=fp16,
             opt_shapes=opt_shapes
             **kwargs
