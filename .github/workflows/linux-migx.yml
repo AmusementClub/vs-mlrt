@@ -1,10 +1,10 @@
-name: Build (Linux-MIGraphX)
+name: Build (Linux-MIGX)
 
 on:
   push:
     paths:
-      - 'vsmigraphx/**'
-      - '.github/workflows/linux-migraphx.yml'
+      - 'vsmigx/**'
+      - '.github/workflows/linux-migx.yml'
   workflow_dispatch:
 
 jobs:
@@ -13,7 +13,7 @@ jobs:
     
     defaults:
       run:
-        working-directory: vsmigraphx
+        working-directory: vsmigx
 
     steps:
     - name: Checkout repo
@@ -69,7 +69,7 @@ jobs:
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
-        name: VSMIGRAPHX-Linux-x64
-        path: vsmigraphx/artifact
+        name: VSMIGX-Linux-x64
+        path: vsmigx/artifact
         overwrite: true
 

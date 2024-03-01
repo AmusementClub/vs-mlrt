@@ -4,10 +4,10 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
-#include <optional>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -346,7 +346,7 @@ struct InferenceInstance {
     Resource<hipStream_t, hipStreamDestroy> stream;
 };
 
-struct vsMIGraphXData {
+struct vsMIGXData {
     std::vector<VSNodeRef *> nodes;
     std::unique_ptr<VSVideoInfo> out_vi;
 
@@ -381,7 +381,7 @@ struct vsMIGraphXData {
 };
 
 
-static void VS_CC vsMIGraphXInit(
+static void VS_CC vsMIGXInit(
     VSMap *in,
     VSMap *out,
     void **instanceData,
@@ -390,12 +390,12 @@ static void VS_CC vsMIGraphXInit(
     const VSAPI *vsapi
 ) noexcept {
 
-    auto d = static_cast<vsMIGraphXData *>(*instanceData);
+    auto d = static_cast<vsMIGXData *>(*instanceData);
     vsapi->setVideoInfo(d->out_vi.get(), 1, node);
 }
 
 
-static const VSFrameRef *VS_CC vsMIGraphXGetFrame(
+static const VSFrameRef *VS_CC vsMIGXGetFrame(
     int n,
     int activationReason,
     void **instanceData,
@@ -405,7 +405,7 @@ static const VSFrameRef *VS_CC vsMIGraphXGetFrame(
     const VSAPI *vsapi
 ) noexcept {
 
-    auto d = static_cast<vsMIGraphXData *>(*instanceData);
+    auto d = static_cast<vsMIGXData *>(*instanceData);
 
     if (activationReason == arInitial) {
         for (const auto & node : d->nodes) {
@@ -590,13 +590,13 @@ static const VSFrameRef *VS_CC vsMIGraphXGetFrame(
 }
 
 
-static void VS_CC vsMIGraphXFree(
+static void VS_CC vsMIGXFree(
     void *instanceData,
     VSCore *core,
     const VSAPI *vsapi
 ) noexcept {
 
-    auto d = static_cast<vsMIGraphXData *>(instanceData);
+    auto d = static_cast<vsMIGXData *>(instanceData);
 
     for (const auto & node : d->nodes) {
         vsapi->freeNode(node);
@@ -612,7 +612,7 @@ static void VS_CC vsMIGraphXFree(
 }
 
 
-static void VS_CC vsMIGraphXCreate(
+static void VS_CC vsMIGXCreate(
     const VSMap *in,
     VSMap *out,
     void *userData,
@@ -620,7 +620,7 @@ static void VS_CC vsMIGraphXCreate(
     const VSAPI *vsapi
 ) noexcept {
 
-    auto d { std::make_unique<vsMIGraphXData>() };
+    auto d { std::make_unique<vsMIGXData>() };
 
     int num_nodes = vsapi->propNumElements(in, "clips");
     d->nodes.reserve(num_nodes);
@@ -748,7 +748,7 @@ static void VS_CC vsMIGraphXCreate(
         const size_t * strides;
         checkError(migraphx_shape_strides(&strides, &ndim, input_shape));
         {
-            size_t target = 1; // MIGraphX uses elements to measure strides
+            size_t target = 1; // MIGX uses elements to measure strides
             for (int i = static_cast<int>(ndim) - 1; i >= 0; i--) {
                 if (strides[i] != target) {
                     return set_error(
@@ -807,7 +807,7 @@ static void VS_CC vsMIGraphXCreate(
         const size_t * strides;
         checkError(migraphx_shape_strides(&strides, &ndim, output_shape));
         {
-            size_t target = 1; // MIGraphX uses elements to measure strides
+            size_t target = 1; // MIGX uses elements to measure strides
             for (int i = static_cast<int>(ndim) - 1; i >= 0; i--) {
                 if (strides[i] != target) {
                     return set_error(
@@ -876,7 +876,7 @@ static void VS_CC vsMIGraphXCreate(
 
     vsapi->createFilter(
         in, out, "Model",
-        vsMIGraphXInit, vsMIGraphXGetFrame, vsMIGraphXFree,
+        vsMIGXInit, vsMIGXGetFrame, vsMIGXFree,
         fmParallel, 0, d.release(), core
     );
 }
@@ -890,7 +890,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     myself = plugin;
 
     configFunc(
-        "io.github.amusementclub.vs_migraphx", "migraphx",
+        "io.github.amusementclub.vs_migraphx", "migx",
         "MIGraphX ML Filter Runtime",
         VAPOURSYNTH_API_VERSION, 1, plugin
     );
@@ -902,7 +902,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "tilesize:int[]:opt;"
         "device_id:int:opt;"
         "num_streams:int:opt;"
-        , vsMIGraphXCreate,
+        , vsMIGXCreate,
         nullptr,
         plugin
     );
