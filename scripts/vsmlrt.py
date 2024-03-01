@@ -1,4 +1,4 @@
-__version__ = "3.19.0"
+__version__ = "3.19.1"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1695,7 +1695,7 @@ def trtexec(
     return engine_path
 
 
-def get_program_path(
+def get_mxr_path(
     network_path: str,
     opt_shapes: typing.Tuple[int, int],
     fp16: bool,
@@ -1730,9 +1730,9 @@ def get_program_path(
 
     if short_path or (short_path is None and platform.system() == "Windows"):
         dirname, basename = os.path.split(network_path)
-        return os.path.join(dirname, f"{zlib.crc32((basename + identity).encode()):x}.program")
+        return os.path.join(dirname, f"{zlib.crc32((basename + identity).encode()):x}.mxr")
     else:
-        return f"{network_path}.{identity}.program"
+        return f"{network_path}.{identity}.mxr"
 
 
 def migraphx_driver(
@@ -1752,7 +1752,7 @@ def migraphx_driver(
     if isinstance(opt_shapes, int):
         opt_shapes = (opt_shapes, opt_shapes)
 
-    program_path = get_program_path(
+    mxr_path = get_mxr_path(
         network_path=network_path,
         opt_shapes=opt_shapes,
         fp16=fp16,
@@ -1762,29 +1762,29 @@ def migraphx_driver(
         short_path=short_path
     )
 
-    if os.access(program_path, mode=os.R_OK):
-        return program_path
+    if os.access(mxr_path, mode=os.R_OK):
+        return mxr_path
 
-    alter_program_path = os.path.join(
+    alter_mxr_path = os.path.join(
         tempfile.gettempdir(),
-        os.path.splitdrive(program_path)[1][1:]
+        os.path.splitdrive(mxr_path)[1][1:]
     )
 
-    if os.access(alter_program_path, mode=os.R_OK):
-        return alter_program_path
+    if os.access(alter_mxr_path, mode=os.R_OK):
+        return alter_mxr_path
 
     try:
         # test writability
-        with open(program_path, "w") as f:
+        with open(mxr_path, "w") as f:
             pass
-        os.remove(program_path)
+        os.remove(mxr_path)
     except PermissionError:
-        print(f"{program_path} not writable", file=sys.stderr)
-        program_path = alter_program_path
-        dirname = os.path.dirname(program_path)
+        print(f"{mxr_path} not writable", file=sys.stderr)
+        mxr_path = alter_mxr_path
+        dirname = os.path.dirname(mxr_path)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
-        print(f"change program path to {program_path}", file=sys.stderr)
+        print(f"change mxr path to {mxr_path}", file=sys.stderr)
 
     if device_id != 0:
         raise ValueError('"device_id" must be 0')
@@ -1795,7 +1795,8 @@ def migraphx_driver(
         "--onnx", f"{network_path}",
         "--gpu",
         # f"--device={device_id}",
-        "--output", f"{program_path}"
+        "--binary",
+        "--output", f"{mxr_path}"
     ]
 
     args.extend(["--input-dim", f"@{input_name}", "1", f"{channels}", f"{opt_shapes[1]}", f"{opt_shapes[0]}"])
@@ -1813,7 +1814,7 @@ def migraphx_driver(
 
     subprocess.run(args, env=custom_env, check=True, stdout=sys.stderr)
 
-    return program_path
+    return mxr_path
 
 
 def calc_size(width: int, tiles: int, overlap: int, multiple: int = 1) -> int:
@@ -2047,7 +2048,7 @@ def _inference(
 
         opt_shapes = backend.opt_shapes if backend.opt_shapes is not None else tilesize
 
-        program_path = migraphx_driver(
+        mxr_path = migraphx_driver(
             network_path,
             channels=channels,
             opt_shapes=opt_shapes,
@@ -2061,7 +2062,7 @@ def _inference(
             custom_args=backend.custom_args
         )
         clip = core.migx.Model(
-            clips, program_path,
+            clips, mxr_path,
             overlap=overlap,
             tilesize=tilesize,
             device_id=backend.device_id
