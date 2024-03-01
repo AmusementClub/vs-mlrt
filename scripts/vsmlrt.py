@@ -1,4 +1,4 @@
-__version__ = "3.15.50"
+__version__ = "3.15.51"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1723,6 +1723,7 @@ def migraphx_driver(
         "--onnx", f"{network_path}",
         "--gpu",
         # f"--device={device_id}",
+        "--optimize",
         "--binary",
         "--output", f"{mxr_path}"
     ]
