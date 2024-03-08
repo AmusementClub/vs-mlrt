@@ -36,7 +36,7 @@ jobs:
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
       with:
         repository: protocolbuffers/protobuf
-        # follows protobuf in https://github.com/openvinotoolkit/openvino/tree/2023.2.0/thirdparty/protobuf
+        # follows protobuf in https://github.com/openvinotoolkit/openvino/tree/2024.0.0/thirdparty/protobuf
         # if you change this, remember to bump the version of the cache key.
         ref: fe271ab76f2ad2b2b28c10443865d2af21e27e0e
         fetch-depth: 1
@@ -69,9 +69,9 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: onnx/onnx
-        # follows onnx in https://github.com/openvinotoolkit/openvino/tree/2023.2.0/thirdparty/onnx
+        # follows onnx in https://github.com/openvinotoolkit/openvino/tree/2024.0.0/thirdparty/onnx
         # if you change this, remember to bump the version of the cache key.
-        ref: 1014f41f17ecc778d63e760a994579d96ba471ff
+        ref: b86cc54efce19530fb953e4b21f57e6b3888534c
         fetch-depth: 1
         path: vsov/onnx
 
@@ -103,7 +103,7 @@ jobs:
 
     - name: Setup OpenVINO
       run: |
-        curl -L -o ov.tgz https://storage.openvinotoolkit.org/repositories/openvino/packages/2023.2/linux/l_openvino_toolkit_ubuntu22_2023.2.0.13089.cfd42bd2cb0_x86_64.tgz
+        curl -L -o ov.tgz https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.0/linux/l_openvino_toolkit_ubuntu22_2024.0.0.14509.34caeefd078_x86_64.tgz
         tar -xf ov.tgz
         mv l_openvino_* openvino -v
 
@@ -112,7 +112,6 @@ jobs:
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_CXX_FLAGS="-Wall -ffast-math -march=x86-64-v3"
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="`pwd`/vapoursynth/include"
-        -D InferenceEngine_DIR=openvino/runtime/cmake
         -D OpenVINO_DIR=openvino/runtime/cmake
         -D ENABLE_VISUALIZATION=ON
         -D WIN32_SHARED_OPENVINO=ON
