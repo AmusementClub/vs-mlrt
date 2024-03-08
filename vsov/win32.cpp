@@ -14,10 +14,10 @@ namespace {
 std::vector<std::wstring> dlls = {
     // This list must be sorted by dependency.
 #ifdef WIN32_SHARED_OPENVINO
-    L"tbb.dll",
+    L"tbb12.dll",
     L"openvino.dll", // must be the last
 #else // WIN32_SHARED_OPENVINO
-    L"tbb.dll", // must be the last
+    L"tbb12.dll", // must be the last
 #endif // WIN32_SHARED_OPENVINO
 };
 
