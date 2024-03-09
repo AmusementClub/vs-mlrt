@@ -1,4 +1,4 @@
-__version__ = "3.20.0"
+__version__ = "3.20.1"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1960,7 +1960,7 @@ def _inference(
             fp16_blacklist_ops=backend.fp16_blacklist_ops
         )
     elif isinstance(backend, Backend.OV_CPU):
-        version = tuple(map(int, core.ov.Version().get("openvino_version", "0.0.0").split('-')[0].split('.')))
+        version = tuple(map(int, core.ov.Version().get("openvino_version", b"0.0.0").split(b'-')[0].split(b'.')))
 
         if version >= (2024, 0, 0):
             config_dict = dict(
@@ -1994,7 +1994,7 @@ def _inference(
             fp16_blacklist_ops=backend.fp16_blacklist_ops # disabled since fp16 = False
         )
     elif isinstance(backend, Backend.OV_GPU):
-        version = tuple(map(int, core.ov.Version().get("openvino_version", "0.0.0").split('-')[0].split('.')))
+        version = tuple(map(int, core.ov.Version().get("openvino_version", b"0.0.0").split(b'-')[0].split(b'.')))
 
         if version >= (2024, 0, 0):
             config_dict = dict(
