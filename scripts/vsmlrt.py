@@ -1,4 +1,4 @@
-__version__ = "3.19.2"
+__version__ = "3.19.3"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1949,31 +1949,62 @@ def _inference(
             fp16_blacklist_ops=backend.fp16_blacklist_ops
         )
     elif isinstance(backend, Backend.OV_CPU):
-        config = lambda: dict(
-            CPU_THROUGHPUT_STREAMS=backend.num_streams,
-            CPU_BIND_THREAD="YES" if backend.bind_thread else "NO",
-            CPU_THREADS_NUM=backend.num_threads,
-            ENFORCE_BF16="YES" if backend.bf16 else "NO"
-        )
+        version = tuple(map(int, core.ov.Version().get("openvino_version", "0.0.0").split('-')[0].split('.')))
+
+        if version >= (2024, 0, 0):
+            config_dict = dict(
+                NUM_STREAMS=backend.num_streams,
+                INFERENCE_NUM_THREADS=backend.num_threads,
+                ENABLE_CPU_PINNING="YES" if backend.bind_thread else "NO"
+            )
+            if backend.fp16:
+                config_dict["INFERENCE_PRECISION_HINT"] = "f16"
+            elif backend.bf16:
+                config_dict["INFERENCE_PRECISION_HINT"] = "bf16"
+            else:
+                config_dict["INFERENCE_PRECISION_HINT"] = "f32"
+
+            config = lambda: config_dict
+        else:
+            config = lambda: dict(
+                CPU_THROUGHPUT_STREAMS=backend.num_streams,
+                CPU_BIND_THREAD="YES" if backend.bind_thread else "NO",
+                CPU_THREADS_NUM=backend.num_threads,
+                ENFORCE_BF16="YES" if backend.bf16 else "NO"
+            )
 
         clip = core.ov.Model(
             clips, network_path,
             overlap=overlap, tilesize=tilesize,
             device="CPU", builtin=False,
-            fp16=backend.fp16,
+            fp16=False, # use ov's internal quantization
             config=config,
             path_is_serialization=path_is_serialization,
-            fp16_blacklist_ops=backend.fp16_blacklist_ops
+            fp16_blacklist_ops=backend.fp16_blacklist_ops # disabled since fp16 = False
         )
     elif isinstance(backend, Backend.OV_GPU):
-        config = lambda: dict(
-            GPU_THROUGHPUT_STREAMS=backend.num_streams
-        )
+        version = tuple(map(int, core.ov.Version().get("openvino_version", "0.0.0").split('-')[0].split('.')))
+
+        if version >= (2024, 0, 0):
+            config_dict = dict(
+                NUM_STREAMS=backend.num_streams,
+            )
+            if backend.fp16:
+                config_dict["INFERENCE_PRECISION_HINT"] = "f16"
+            else:
+                config_dict["INFERENCE_PRECISION_HINT"] = "f32"
+
+            config = lambda: config_dict
+        else:
+            config = lambda: dict(
+                GPU_THROUGHPUT_STREAMS=backend.num_streams
+            )
+
         clip = core.ov.Model(
             clips, network_path,
             overlap=overlap, tilesize=tilesize,
             device=f"GPU.{backend.device_id}", builtin=False,
-            fp16=backend.fp16,
+            fp16=False, # use ov's internal quantization
             config=config,
             path_is_serialization=path_is_serialization,
             fp16_blacklist_ops=backend.fp16_blacklist_ops
