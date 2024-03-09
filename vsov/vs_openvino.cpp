@@ -112,10 +112,9 @@ static std::optional<std::string> checkNodes(
 }
 
 
-template <typename T>
 [[nodiscard]]
 static std::optional<std::string> checkIOInfo(
-    const T & info,
+    const ov::Output<ov::Node> & info,
     bool is_output
 ) {
 
@@ -285,9 +284,6 @@ struct OVData {
     ov::CompiledModel executable_network;
     std::unordered_map<std::thread::id, ov::InferRequest> infer_requests;
     std::shared_mutex infer_requests_lock;
-
-    std::string input_name;
-    std::string output_name;
 };
 
 
@@ -713,9 +709,6 @@ static void VS_CC vsOvCreate(
 
         setDimensions(d->out_vi, d->executable_network, core, vsapi);
 
-        d->input_name = d->executable_network.input().get_names().cbegin()->front();
-        d->output_name = d->executable_network.output().get_names().cbegin()->front();
-
         VSCoreInfo core_info;
         vsapi->getCoreInfo2(core, &core_info);
         d->infer_requests.reserve(core_info.numThreads);
@@ -766,11 +759,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
 
         std::ostringstream ostream;
         ostream << OPENVINO_VERSION_MAJOR << '.' << OPENVINO_VERSION_MINOR << '.' << OPENVINO_VERSION_PATCH;
-        vsapi->propSetData(out, "inference_engine_version_build", ostream.str().c_str(), -1, paReplace);
+        vsapi->propSetData(out, "openvino_version_build", ostream.str().c_str(), -1, paReplace);
 
-        ostream.clear();
-        ostream << ov::get_openvino_version();
-        vsapi->propSetData(out, "inference_engine_version", ostream.str().c_str(), -1, paReplace);
+        vsapi->propSetData(out, "openvino_version", ov::get_openvino_version().buildNumber, -1, paReplace);
 
         vsapi->propSetData(
             out, "onnx_version",
