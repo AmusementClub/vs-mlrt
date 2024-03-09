@@ -1,4 +1,4 @@
-__version__ = "3.19.3"
+__version__ = "3.20.0"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -219,6 +219,14 @@ class Backend:
         # internal backend attributes
         supports_onnx_serialization: bool = False
 
+    @dataclass(frozen=False)
+    class OV_NPU:
+        """ backend for intel npus
+        """
+
+        # internal backend attributes
+        supports_onnx_serialization: bool = True
+
 
 backendT = typing.Union[
     Backend.OV_CPU,
@@ -228,7 +236,8 @@ backendT = typing.Union[
     Backend.OV_GPU,
     Backend.NCNN_VK,
     Backend.ORT_DML,
-    Backend.MIGX
+    Backend.MIGX,
+    Backend.OV_NPU,
 ]
 
 
@@ -1874,6 +1883,8 @@ def init_backend(
         backend = Backend.ORT_DML()
     elif backend is Backend.MIGX: # type: ignore
         backend = Backend.MIGX()
+    elif backend is Backend.OV_NPU:
+        backend = Backend.OV_NPU()
 
     backend = copy.deepcopy(backend)
 
@@ -2098,6 +2109,14 @@ def _inference(
             overlap=overlap,
             tilesize=tilesize,
             device_id=backend.device_id
+        )
+    elif isinstance(backend, Backend.OV_NPU):
+        clip = core.ov.Model(
+            clips, network_path,
+            overlap=overlap, tilesize=tilesize,
+            device="NPU", builtin=False,
+            fp16=False, # use ov's internal quantization
+            path_is_serialization=path_is_serialization,
         )
     else:
         raise TypeError(f'unknown backend {backend}')
@@ -2327,6 +2346,14 @@ class BackendV2:
             opt_shapes=opt_shapes
             **kwargs
         )
+
+    @staticmethod
+    def OV_NPU(**kwargs
+    ) -> Backend.OV_NPU:
+        return Backend.OV_NPU(
+            **kwargs
+        )
+
 
 def fmtc_resample(clip: vs.VideoNode, **kwargs) -> vs.VideoNode:
     clip_org = clip
