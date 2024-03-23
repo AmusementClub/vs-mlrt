@@ -989,7 +989,7 @@ static void VS_CC vsOrtCreate(
     // onnxruntime related code
 
     // environment per filter instance
-    auto logger_id_str = "vs-ort" + std::to_string(logger_id.fetch_add(1, std::memory_order::relaxed));
+    auto logger_id_str = "vs-ort" + std::to_string(logger_id.fetch_add(1, std::memory_order_relaxed));
     checkError(ortapi->CreateEnv(verbosity, logger_id_str.c_str(), &d->environment));
 
     OrtMemoryInfo * memory_info;
@@ -1192,8 +1192,6 @@ static void VS_CC vsOrtCreate(
         checkError(ortapi->SessionGetInputName(
             resource.session, 0, cpu_allocator, &resource.input_name
         ));
-
-        char * output_name;
         checkError(ortapi->SessionGetOutputName(
             resource.session, 0, cpu_allocator, &resource.output_name
         ));
