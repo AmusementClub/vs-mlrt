@@ -3,6 +3,7 @@ name: Build (Linux-OV)
 on:
   push:
     paths:
+      - 'common/**'
       - 'vsov/**'
       - '.github/workflows/linux-ov.yml'
   workflow_dispatch:
