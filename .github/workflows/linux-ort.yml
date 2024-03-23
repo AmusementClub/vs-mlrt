@@ -1,0 +1,151 @@
+name: Build (Linux-ORT)
+
+on:
+  push:
+    paths:
+      - 'common/**'
+      - 'vsort/**'
+      - '.github/workflows/linux-ort.yml'
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    
+    defaults:
+      run:
+        working-directory: vsort
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Ninja
+      run: pip install ninja
+
+    - name: Cache protobuf
+      id: cache-protobuf
+      uses: actions/cache@v4
+      with:
+        path: vsort/protobuf/install
+        key: ${{ runner.os }}-vsort-protobuf-v1
+
+    - name: Checkout protobuf
+      uses: actions/checkout@v4
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      with:
+        repository: protocolbuffers/protobuf
+        # follows protobuf in https://github.com/microsoft/onnxruntime/blob/v1.17.1/cmake/external/onnxruntime_external_deps.cmake#L183
+        # if you change this, remember to bump the version of the cache key.
+        ref: v3.21.12
+        fetch-depth: 1
+        path: vsort/protobuf
+
+    - name: Configure protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake -S protobuf/cmake -B protobuf/build_rel -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_POSITION_INDEPENDENT_CODE=ON
+        -D protobuf_BUILD_SHARED_LIBS=OFF  -D protobuf_BUILD_TESTS=OFF
+
+    - name: Build protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake --build protobuf/build_rel --verbose
+
+    - name: Install protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake --install protobuf/build_rel --prefix protobuf/install
+
+    - name: Cache onnx
+      id: cache-onnx
+      uses: actions/cache@v4
+      with:
+        path: vsort/onnx/install
+        key: ${{ runner.os }}-vsort-onnx-v1
+
+    - name: Checkout onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        repository: onnx/onnx
+        # follows onnx in https://github.com/microsoft/onnxruntime/tree/v1.17.1/cmake/external
+        # if you change this, remember to bump the version of the cache key.
+        ref: b86cc54efce19530fb953e4b21f57e6b3888534c
+        fetch-depth: 1
+        path: vsort/onnx
+
+    - name: Configure onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake -S onnx -B onnx/build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_POSITION_INDEPENDENT_CODE=ON
+        -D Protobuf_PROTOC_EXECUTABLE=protobuf/install/bin/protoc
+        -D Protobuf_LITE_LIBRARY=protobuf/install/lib
+        -D Protobuf_LIBRARIES=protobuf/install/lib
+        -D ONNX_USE_LITE_PROTO=ON -D ONNX_USE_PROTOBUF_SHARED_LIBS=OFF
+        -D ONNX_GEN_PB_TYPE_STUBS=OFF -D ONNX_ML=0
+
+    - name: Build onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --build onnx/build --verbose
+
+    - name: Install onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --install onnx/build --prefix onnx/install
+
+    - name: Download VapourSynth headers
+      run: |
+        wget -q -O vs.zip https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R57.zip
+        unzip -q vs.zip
+        mv vapoursynth*/ vapoursynth
+
+    - name: Setup ONNX Runtime
+      run: |
+        curl -L -o ort.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.17.1/onnxruntime-linux-x64-cuda12-1.17.1.tgz
+        tar -xf ort.tgz
+        mv onnxruntime-* onnxruntime -v
+
+    - name: Setup CUDA
+      run: |
+        wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+        sudo dpkg -i cuda-keyring_1.1-1_all.deb
+        sudo apt-get update
+        sudo apt-get install -y cuda-nvcc-12-1 cuda-cudart-dev-12-1
+        echo "PATH=/usr/local/cuda/bin${PATH:+:${PATH}}" >> $GITHUB_ENV
+        echo "CUDA_PATH=/usr/local/cuda" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=/usr/local/cuda/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" >> $GITHUB_ENV
+
+    - name: Configure
+      run: cmake -S . -B build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_CXX_FLAGS="-Wall -ffast-math -march=x86-64-v3"
+        -D VAPOURSYNTH_INCLUDE_DIRECTORY="`pwd`/vapoursynth/include"
+        -D ONNX_RUNTIME_API_DIRECTORY=onnxruntime/include
+        -D ONNX_RUNTIME_LIB_DIRECTORY=onnxruntime/lib
+        -D ENABLE_CUDA=1
+        -D CUDAToolkit_ROOT=/usr/local/cuda
+        -D protobuf_DIR=protobuf/install/lib/cmake/protobuf
+        -D ONNX_DIR=onnx/install/lib/cmake/ONNX
+        -D CMAKE_CXX_STANDARD=20
+
+    - name: Build
+      run: cmake --build build --verbose
+
+    - name: Install
+      run: cmake --install build --prefix install
+
+    - name: Prepare for upload
+      run: |
+        mkdir artifact
+        cp -v install/lib/*.so artifact
+
+    - name: Describe
+      run: git describe --tags --long
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: vsort-linux-x64-cuda12.1
+        path: vsort/artifact
