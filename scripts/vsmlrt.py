@@ -1,4 +1,4 @@
-__version__ = "3.20.3"
+__version__ = "3.20.4"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -869,6 +869,7 @@ class RIFEModel(enum.IntEnum):
     v4_14 = 414
     v4_14_lite = 4141
     v4_15 = 415
+    v4_15_lite = 4151
     v4_16_lite = 4161
 
 
