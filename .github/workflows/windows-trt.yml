@@ -53,13 +53,13 @@ jobs:
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
         curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.4.0/network_installers/cuda_12.4.0_windows_network.exe
-        cuda_installer.exe -s nvcc_12.4 cudart_12.4
+        cuda_installer.exe -s nvcc_12.4 cudart_12.4 cuda_profiler_api_12.4
 
     - name: Download TensorRT
       run: |
         curl -L -o trt.zip https://developer.download.nvidia.com/compute/machine-learning/tensorrt/10.0.0/zip/TensorRT-10.0.0.6.Windows10.win10.cuda-12.4.zip
         unzip trt.zip
-        move "TensorRT-*" tensorrt
+        mv TensorRT-*/ tensorrt/
 
     - name: Download VapourSynth headers
       run: |
@@ -92,6 +92,8 @@ jobs:
 
     - name: Override trtexec CMake file
       run: |
+        cp -f -r -v tensorrt/samples ../tensorrt-oss
+
         mv trtexec/CMakeLists.txt ../tensorrt-oss/samples/trtexec
         mv trtexec/*.cpp ../tensorrt-oss/samples/trtexec
 
