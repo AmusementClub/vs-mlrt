@@ -1,4 +1,4 @@
-__version__ = "3.20.4"
+__version__ = "3.20.5"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1496,8 +1496,8 @@ def trtexec(
     custom_args: typing.List[str] = []
 ) -> str:
 
-    # tensort runtime version, e.g. 8401 => 8.4.1
-    trt_version = int(core.trt.Version()["tensorrt_version"])
+    # tensort runtime version
+    trt_version = parse_trt_version(int(core.trt.Version()["tensorrt_version"]))
 
     if isinstance(opt_shapes, int):
         opt_shapes = (opt_shapes, opt_shapes)
@@ -1563,7 +1563,7 @@ def trtexec(
     ]
 
     if workspace is not None:
-        if trt_version >= 8400:
+        if trt_version >= (8, 4, 0):
             args.append(f"--memPoolSize=workspace:{workspace}")
         else:
             args.append(f"--workspace{workspace}")
@@ -1584,10 +1584,10 @@ def trtexec(
         args.append("--verbose")
 
     preview_features = []
-    if (use_cublas or use_cudnn) and trt_version >= 8600:
+    if (use_cublas or use_cudnn) and (8, 6, 0) <= trt_version < (10, 0, 0):
         preview_features.append("-disableExternalTacticSourcesForCore0805")
 
-    if preview_features and trt_version >= 8500:
+    if preview_features and trt_version >= (8, 5, 0):
         args.append(f"--preview={','.join(preview_features)}")
 
     tactic_sources = []
@@ -1602,13 +1602,13 @@ def trtexec(
     else:
         tactic_sources.append("-CUDNN")
 
-    if trt_version >= 8401:
+    if trt_version >= (8, 4, 1):
         if use_edge_mask_convolutions:
             tactic_sources.append("+EDGE_MASK_CONVOLUTIONS")
         else:
             tactic_sources.append("-EDGE_MASK_CONVOLUTIONS")
 
-    if trt_version >= 8500:
+    if trt_version >= (8, 5, 0):
         if use_jit_convolutions:
             tactic_sources.append("+JIT_CONVOLUTIONS")
         else:
@@ -1622,7 +1622,7 @@ def trtexec(
             "--noDataTransfers"
         ))
     else:
-        if trt_version >= 8600:
+        if trt_version >= (8, 6, 0):
             args.append("--skipInference")
         else:
             args.append("--buildOnly")
@@ -1630,8 +1630,8 @@ def trtexec(
     if not tf32:
         args.append("--noTF32")
 
-    if heuristic and trt_version >= 8500 and core.trt.DeviceProperties(device_id)["major"] >= 8:
-        if trt_version < 8600:
+    if heuristic and trt_version >= (8, 5, 0) and core.trt.DeviceProperties(device_id)["major"] >= 8:
+        if trt_version < (8, 6, 0):
             args.append("--heuristic")
         else:
             builder_optimization_level = 2
@@ -1641,11 +1641,11 @@ def trtexec(
         "--outputIOFormats=fp32:chw" if output_format == 0 else "--outputIOFormats=fp16:chw"
     ])
 
-    if faster_dynamic_shapes and not static_shape and 8500 <= trt_version < 8600:
+    if faster_dynamic_shapes and not static_shape and (8, 5, 0) <= trt_version < (8, 6, 0):
         args.append("--preview=+fasterDynamicShapes0805")
 
     if force_fp16:
-        if trt_version >= 8401:
+        if trt_version >= (8, 4, 1):
             args.extend([
                 "--layerPrecisions=*:fp16",
                 "--layerOutputTypes=*:fp16",
@@ -1654,13 +1654,13 @@ def trtexec(
         else:
             raise ValueError('"force_fp16" is not available')
 
-    if trt_version >= 8600:
+    if trt_version >= (8, 6, 0):
         args.append(f"--builderOptimizationLevel={builder_optimization_level}")
 
         if max_aux_streams is not None:
             args.append(f"--maxAuxStreams={max_aux_streams}")
 
-    if trt_version >= 9000:
+    if trt_version >= (9, 0, 0):
         if bf16:
             args.append("--bf16")
 
@@ -2371,3 +2371,11 @@ def fmtc_resample(clip: vs.VideoNode, **kwargs) -> vs.VideoNode:
         clip = core.resize.Point(clip, format=clip_org.format.id)
 
     return clip
+
+
+def parse_trt_version(version: int) -> typing.Tuple[int, int, int]:
+    # before trt 10
+    if version < 10000:
+        return version // 1000, (version // 100) % 10, version % 100
+    else:
+        return version // 10000, (version // 100) % 100, version % 100
