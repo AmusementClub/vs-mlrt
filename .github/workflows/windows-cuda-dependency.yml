@@ -29,7 +29,7 @@ jobs:
 
     steps:
     - name: Download cuDNN inference library
-      run: curl -LJ https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-8.9.6.50_cuda12-archive.zip -o cudnn.zip
+      run: curl -LJ https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-8.9.7.29_cuda12-archive.zip -o cudnn.zip
 
     - name: Extract cuDNN library
       run: unzip cudnn.zip
@@ -40,42 +40,29 @@ jobs:
         mv cudnn-windows-*/bin/*.dll vsmlrt-cuda/ -v
         rm vsmlrt-cuda/cudnn_*_train*.dll -v
 
-    # Note: unfortunately, TensorRT download requires registration and according to its license
-    # agreements, we can only redistribute it along with an application that uses it, so we
-    # have to use a private repository to hold a copy of the library.
     - name: Download TensorRT library
       run: |
-        # https://stackoverflow.com/questions/20396329/how-to-download-github-release-from-private-repo-using-command-line/35688093#35688093
-
-        tag=tensorrt-9.2.0-bin
-        name=TensorRT.7z
-
-        AUTH="Authorization: token ${{ secrets.REPO_TOKEN }}"
-        response=$(curl -sH "$AUTH" https://api.github.com/repos/AmusementClub/cuda/releases/tags/$tag)
-        eval $(echo "$response" | grep -C3 "name.:.\+$NAME" | grep -w id | tr : = | tr -cd '[[:alnum:]]=')
-        [ "$id" ] || { echo "Error: Failed to get asset id, response: $response" | awk 'length($0)<100' >&2; exit 1; }
-        ASSET="https://api.github.com/repos/AmusementClub/cuda/releases/assets/$id"
-        curl -LJO -H "$AUTH" -H 'Accept: application/octet-stream' "$ASSET"
-
-        mv "$name" trt.7z
+        curl -L -o trt.zip https://developer.download.nvidia.com/compute/machine-learning/tensorrt/10.0.0/zip/TensorRT-10.0.0.6.Windows10.win10.cuda-12.4.zip
 
     - name: Extract TensorRT library
-      run: 7z x trt.7z
+      run: |
+        unzip trt.zip
+        mv TensorRT-*/ TensorRT/
 
     - name: Move TensorRT library
-      run: mv TensorRT/*.dll vsmlrt-cuda -v
+      run: mv TensorRT/lib/*.dll vsmlrt-cuda -v
 
     - name: Download CUDA Libraries
       shell: cmd
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.3.1/network_installers/cuda_12.3.1_windows_network.exe
-        cuda_installer.exe -s cudart_12.3 cublas_12.3 cufft_12.3 cupti_12.3 nvrtc_12.3
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.4.0/network_installers/cuda_12.4.0_windows_network.exe
+        cuda_installer.exe -s cudart_12.4 cublas_12.4 cufft_12.4 cupti_12.4 nvrtc_12.4
 
     - name: Move CUDA Libraries
       shell: cmd
       run: |
-        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.3\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
-        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.3\bin\*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\bin\*.dll" vsmlrt-cuda
         del vsmlrt-cuda\cudart32*.dll
 
     - name: Setup VC commands
