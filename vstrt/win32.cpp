@@ -15,14 +15,9 @@
 namespace {
 std::vector<std::wstring> dlls = {
 	// This list must be sorted by dependency.
-	L"cudnn_ops_infer64_8.dll",
-	L"cudnn_cnn_infer64_8.dll",
-	L"cudnn64_8.dll",
 #ifdef USE_NVINFER_PLUGIN
 	// nvinfer_plugin dependencies
 	L"nvinfer.dll",
-	L"cublasLt64_12.dll",
-	L"cublas64_12.dll",
 	L"nvinfer_plugin.dll",
 #endif
 	// Finally, nvinfer again.
