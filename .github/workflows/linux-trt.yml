@@ -40,18 +40,12 @@ jobs:
         echo "CUDA_PATH=/usr/local/cuda" >> $GITHUB_ENV
         echo "LD_LIBRARY_PATH=/usr/local/cuda/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" >> $GITHUB_ENV
 
-    - name: Setup tensorrt
-      run: |
-        curl -L -o trt.tar.gz https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/9.3.0/tensorrt-9.3.0.1.linux.x86_64-gnu.cuda-12.2.tar.gz
-        tar -xf trt.tar.gz
-
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="`pwd`/vapoursynth/include"
         -D CMAKE_CXX_COMPILER=g++-12
         -D CMAKE_CXX_FLAGS="-Wall -ffast-math -march=x86-64-v3"
-        -D TENSORRT_HOME="`pwd`/TensorRT-9.3.0.1"
 
     - name: Build
       run: cmake --build build --verbose
