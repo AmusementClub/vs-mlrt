@@ -34,6 +34,10 @@ struct InferenceInstance {
     StreamResource stream;
     std::unique_ptr<nvinfer1::IExecutionContext> exec_context;
     GraphExecResource graphexec;
+
+#if NV_TENSORRT_MAJOR >= 10
+    Resource<uint8_t *, cudaFree> d_context_allocation;
+#endif
 };
 
 class Logger : public nvinfer1::ILogger {
@@ -282,7 +286,11 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
     checkError(cudaStreamCreateWithFlags(&stream.data, cudaStreamNonBlocking));
 
     auto exec_context = std::unique_ptr<nvinfer1::IExecutionContext>(
+#if NV_TENSORRT_MAJOR >= 10
+        engine->createExecutionContext(nvinfer1::ExecutionContextAllocationStrategy::kUSER_MANAGED)
+#else
         engine->createExecutionContext()
+#endif
     );
 
 #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
@@ -394,6 +402,18 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
         };
     }
 
+#if NV_TENSORRT_MAJOR >= 10
+    size_t buffer_size { exec_context->updateDeviceMemorySizeForShapes() };
+    if (buffer_size == 0) {
+        return set_error("failed to get internal activation buffer size");
+    }
+
+    Resource<uint8_t *, cudaFree> d_context_allocation {};
+    checkError(cudaMalloc(&d_context_allocation.data, buffer_size));
+
+    exec_context->setDeviceMemory(d_context_allocation.data);
+#endif
+
     GraphExecResource graphexec {};
     if (use_cuda_graph) {
         auto result = getGraphExec(
@@ -412,7 +432,10 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
         .dst = std::move(dst),
         .stream = std::move(stream),
         .exec_context = std::move(exec_context),
-        .graphexec = std::move(graphexec)
+        .graphexec = std::move(graphexec),
+#if NV_TENSORRT_MAJOR >= 10
+        .d_context_allocation = std::move(d_context_allocation)
+#endif
     };
 }
 
