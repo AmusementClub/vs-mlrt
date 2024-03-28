@@ -42,7 +42,7 @@ jobs:
 
     - name: Setup tensorrt
       run: |
-        sudo apt-get install -y libnvinfer-dev=8.6.1.6-1+cuda12.0
+        sudo apt-get install -y libnvinfer-dev=8.6.1.6-1+cuda12.0 libnvinfer-headers-dev=8.6.1.6-1+cuda12.0
 
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
