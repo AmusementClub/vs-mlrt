@@ -86,13 +86,13 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: NVIDIA/TensorRT
-        ref: release/9.3
+        ref: release/10.0
         fetch-depth: 1
         path: tensorrt-oss
 
     - name: Override trtexec CMake file
       run: |
-        cp -f -r -v tensorrt/samples ../tensorrt-oss
+        rem cp -f -r -v tensorrt/samples ../tensorrt-oss
 
         mv trtexec/CMakeLists.txt ../tensorrt-oss/samples/trtexec
         mv trtexec/*.cpp ../tensorrt-oss/samples/trtexec
