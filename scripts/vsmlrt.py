@@ -1,4 +1,4 @@
-__version__ = "3.20.5"
+__version__ = "3.20.6"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -9,6 +9,7 @@ __all__ = [
     "CUGAN",
     "RIFE", "RIFEModel", "RIFEMerge",
     "SAFA", "SAFAModel", "SAFAAdaptiveMode",
+    "SCUNet", "SCUNetModel",
     "inference"
 ]
 
@@ -1396,6 +1397,88 @@ def SAFA(
 
     if clip.num_frames != clip_org.num_frames:
         clip = clip[:-1]
+
+    return clip
+
+
+@enum.unique
+class SCUNetModel(enum.IntEnum):
+    scunet_color_15 = 0
+    scunet_color_25 = 1
+    scunet_color_50 = 2
+    scunet_color_real_psnr = 3
+    scunet_color_real_gan = 4
+    scunet_gray_15 = 5
+    scunet_gray_25 = 6
+    scunet_gray_50 = 7
+
+
+def SCUNet(
+    clip: vs.VideoNode,
+    tiles: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    tilesize: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    overlap: typing.Optional[typing.Union[int, typing.Tuple[int, int]]] = None,
+    model: SCUNetModel = SCUNetModel.scunet_color_real_psnr,
+    backend: backendT = Backend.OV_CPU()
+) -> vs.VideoNode:
+    """ Practical Blind Denoising via Swin-Conv-UNet and Data Synthesis
+
+    Unlike vs-scunet v1.0.0, the default model is set to scunet_color_real_psnr due to the color shift.
+    """
+
+    func_name = "vsmlrt.SCUNet"
+
+    if not isinstance(clip, vs.VideoNode):
+        raise TypeError(f'{func_name}: "clip" must be a clip!')
+
+    if clip.format.sample_type != vs.FLOAT or clip.format.bits_per_sample not in [16, 32]:
+        raise ValueError(f"{func_name}: only constant format 16/32 bit float input supported")
+
+    if not isinstance(model, int) or model not in SCUNetModel.__members__.values():
+        raise ValueError(f'{func_name}: invalid "model"')
+
+    if model in range(5) and clip.format.color_family != vs.RGB:
+        raise ValueError(f'{func_name}: "clip" must be of RGB color family')
+    elif model in range(5, 8) and clip.format.color_family != vs.GRAY:
+        raise ValueError(f'{func_name}: "clip" must be of GRAY color family')
+
+    if overlap is None:
+        overlap_w = overlap_h = 16
+    elif isinstance(overlap, int):
+        overlap_w = overlap_h = overlap
+    else:
+        overlap_w, overlap_h = overlap
+
+    multiple = 1
+
+    (tile_w, tile_h), (overlap_w, overlap_h) = calc_tilesize(
+        tiles=tiles, tilesize=tilesize,
+        width=clip.width, height=clip.height,
+        multiple=multiple,
+        overlap_w=overlap_w, overlap_h=overlap_h
+    )
+
+    if tile_w % multiple != 0 or tile_h % multiple != 0:
+        raise ValueError(
+            f'{func_name}: tile size must be divisible by {multiple} ({tile_w}, {tile_h})'
+        )
+
+    backend = init_backend(
+        backend=backend,
+        trt_opt_shapes=(tile_w, tile_h)
+    )
+
+    network_path = os.path.join(
+        models_path,
+        "scunet",
+        f"{tuple(SCUNetModel.__members__)[model]}.onnx"
+    )
+
+    clip = inference_with_fallback(
+        clips=[clip], network_path=network_path,
+        overlap=(overlap_w, overlap_h), tilesize=(tile_w, tile_h),
+        backend=backend
+    )
 
     return clip
 
