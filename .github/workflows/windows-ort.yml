@@ -153,23 +153,30 @@ jobs:
       run: |
         cmake --install build --prefix install
         mkdir artifact
-        mkdir artifact\vsort
+        mkdir libraries
+        mkdir libraries\vsort
         copy install\bin\vsort.dll artifact\
-        copy onnxruntime-gpu\bin\*.dll artifact\vsort\
-        copy onnxruntime-gpu\lib\*.dll artifact\vsort\
+        copy onnxruntime-gpu\bin\*.dll libraries\vsort\
+        copy onnxruntime-gpu\lib\*.dll libraries\vsort\
 
     - name: Download DirectML Library
       # follows DirectML in https://github.com/AmusementClub/onnxruntime/blob/master/cmake/external/dml.cmake#L44
       run: |
         curl -s -o directml.nupkg -LJO https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/1.13.1
         unzip -q directml.nupkg -d dml
-        copy dml\bin\x64-win\DirectML.dll artifact\vsort\
+        copy dml\bin\x64-win\DirectML.dll libraries\vsort\
 
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
         name: VSORT-Windows-x64
         path: vsort/artifact
+
+    - name: Upload runtime
+      uses: actions/upload-artifact@v4
+      with:
+        name: VSORT-Windows-x64-Libraries
+        path: vsort/libraries
 
     - name: Setup Python portable
       run: |
@@ -185,7 +192,7 @@ jobs:
       run: |
         copy artifact\*.dll vs_portable\vapoursynth64\plugins
         mkdir vs_portable\vapoursynth64\plugins\vsort\
-        copy artifact\vsort\*.dll vs_portable\vapoursynth64\plugins\vsort\
+        copy libraries\vsort\*.dll vs_portable\vapoursynth64\plugins\vsort\
 
     - name: Install waifu2x model
       run: |
