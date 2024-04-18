@@ -39,7 +39,14 @@ if (CMAKE_CXX_STANDARD GREATER_EQUAL 20)
     set_target_properties(vsort PROPERTIES CXX_STANDARD 20)
 endif()
 
-target_link_libraries(vsort PRIVATE onnx onnxruntime)
+# https://github.com/onnx/onnx/commit/21bff4e55dcefecc069c679115baae6b00caa0d5
+if (ONNX_VERSION VERSION_LESS 1.16.0)
+    target_link_libraries(vsort PRIVATE onnx)
+else()
+    target_link_libraries(vsort PRIVATE ONNX::onnx)
+endif()
+
+target_link_libraries(vsort PRIVATE onnxruntime)
 
 if (ENABLE_CUDA)
     find_package(CUDAToolkit REQUIRED)
