@@ -33,8 +33,7 @@ using namespace std::chrono_literals;
 #endif // ENABLE_CUDA
 
 #ifdef ENABLE_DML
-// include/onnxruntime/core/providers/dml/dml_provider_factory.h
-#include <../providers/dml/dml_provider_factory.h>
+#include <dml_provider_factory.h>
 #endif // ENABLE_DML
 
 #include "config.h"
