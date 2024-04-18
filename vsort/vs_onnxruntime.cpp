@@ -1,11 +1,9 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
-#include <ios>
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -626,9 +624,11 @@ static const VSFrameRef *VS_CC vsOrtGetFrame(
                         resource.stream
                     ));
 
+#if ORT_API_VERSION < 16
                     // OrtCUDAProviderOptionsV2 disallows using custom user stream
                     // and the inference is executed on a private non-blocking stream
                     checkCUDAError(cudaStreamSynchronize(resource.stream));
+#endif // ORT_API_VERSION < 16
                 }
 #endif // ENABLE_CUDA
 
@@ -907,6 +907,11 @@ static void VS_CC vsOrtCreate(
     if (error) {
         cudnn_benchmark = true;
     }
+
+    bool prefer_nhwc = !!(vsapi->propGetInt(in, "prefer_nhwc", 0, &error));
+    if (error) {
+        prefer_nhwc = false;
+    }
 #endif // ENABLE_CUDA
 
     if (auto err = ortInit(); err.has_value()) {
@@ -1060,19 +1065,28 @@ static void VS_CC vsOrtCreate(
                 "cudnn_conv_algo_search",
                 "cudnn_conv_use_max_workspace",
                 "arena_extend_strategy",
-                "enable_cuda_graph"
+                "enable_cuda_graph",
+#if ORT_API_VERSION >= 16
+                "do_copy_in_default_stream",
+#endif // ORT_API_VERSION >= 16
+#if ORT_API_VERSION >= 17
+                "prefer_nhwc",
+#endif // ORT_API_VERSION >= 17
             };
             auto device_id_str = std::to_string(d->device_id);
             const char * values [] {
                 device_id_str.c_str(),
-                "EXHAUSTIVE",
+                cudnn_benchmark ? "EXHAUSTIVE" : "HEURISTIC",
                 "1",
                 "kSameAsRequested",
-                "0"
+                "0",
+#if ORT_API_VERSION >= 16
+                "0",
+#endif // ORT_API_VERSION >= 16
+#if ORT_API_VERSION >= 17
+                prefer_nhwc ? "1" : "0",
+#endif // ORT_API_VERSION >= 17
             };
-            if (!cudnn_benchmark) {
-                values[1] = "HEURISTIC";
-            }
             if (use_cuda_graph) {
                 values[4] = "1";
                 resource.require_replay = true;
@@ -1080,6 +1094,14 @@ static void VS_CC vsOrtCreate(
                 resource.require_replay = false;
             }
             checkError(ortapi->UpdateCUDAProviderOptions(cuda_options, keys, values, std::size(keys)));
+
+#if ORT_API_VERSION >= 16
+            checkError(ortapi->UpdateCUDAProviderOptionsWithValue(
+                cuda_options,
+                "user_compute_stream",
+                resource.stream
+            ));
+#endif // ORT_API_VERSION >= 16
 
             checkError(ortapi->SessionOptionsAppendExecutionProvider_CUDA_V2(session_options, cuda_options));
 
@@ -1248,6 +1270,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "path_is_serialization:int:opt;"
         "use_cuda_graph:int:opt;"
         "fp16_blacklist_ops:data[]:opt;"
+        "prefer_nhwc:int:opt;"
         , vsOrtCreate,
         nullptr,
         plugin
