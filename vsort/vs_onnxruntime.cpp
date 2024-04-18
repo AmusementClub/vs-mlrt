@@ -1280,9 +1280,25 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         vsapi->propSetData(out, "version", VERSION, -1, paReplace);
 
         vsapi->propSetData(
-            out, "onnxruntime_version",
+            out, "onnxruntime_api_version_build",
             std::to_string(ORT_API_VERSION).c_str(), -1, paReplace
         );
+
+        if (auto err = ortInit(); err.has_value()) {
+            vsapi->logMessage(mtWarning, err.value().c_str());
+        } else {
+            if (auto p = OrtGetApiBase(); p) {
+                vsapi->propSetData(
+                    out, "onnxruntime_version",
+                    p->GetVersionString(), -1, paReplace
+                );
+            }
+
+            vsapi->propSetData(
+                out, "onnxruntime_build_info",
+                ortapi->GetBuildInfoString(), -1, paReplace
+            );
+        }
 
 #ifdef ENABLE_CUDA
         vsapi->propSetData(
