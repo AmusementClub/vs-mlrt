@@ -943,7 +943,7 @@ static void VS_CC vsOrtCreate(
 
     int output_format = int64ToIntS(vsapi->propGetInt(in, "output_format", 0, &error));
     if (error) {
-        output_format = 1;
+        output_format = 0;
     }
     if (output_format != 0 && output_format != 1) {
         return set_error("\"output_format\" must be 0 or 1");
