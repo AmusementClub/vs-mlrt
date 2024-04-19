@@ -116,7 +116,7 @@ jobs:
 
     - name: Download ONNX Runtime Precompilation
       run: |
-        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-7972-g24652b96f0-240418-0452/onnxruntime-gpu-win64.zip
+        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-7972-g24652b96f0-240419-0050/onnxruntime-gpu-win64.zip
         unzip -q ortgpu.zip
 
     - name: Cache CUDA
@@ -153,30 +153,23 @@ jobs:
       run: |
         cmake --install build --prefix install
         mkdir artifact
-        mkdir libraries
-        mkdir libraries\vsort
+        mkdir artifact\vsort
         copy install\bin\vsort.dll artifact\
-        copy onnxruntime-gpu\bin\*.dll libraries\vsort\
-        copy onnxruntime-gpu\lib\*.dll libraries\vsort\
+        copy onnxruntime-gpu\bin\*.dll artifact\vsort\
+        copy onnxruntime-gpu\lib\*.dll artifact\vsort\
 
     - name: Download DirectML Library
       # follows DirectML in https://github.com/AmusementClub/onnxruntime/blob/master/cmake/external/dml.cmake#L44
       run: |
-        curl -s -o directml.nupkg -LJO https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/1.13.1
+        curl -s -o directml.nupkg -LJO https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/1.14.0
         unzip -q directml.nupkg -d dml
-        copy dml\bin\x64-win\DirectML.dll libraries\vsort\
+        copy dml\bin\x64-win\DirectML.dll artifact\vsort\
 
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
         name: VSORT-Windows-x64
         path: vsort/artifact
-
-    - name: Upload runtime
-      uses: actions/upload-artifact@v4
-      with:
-        name: VSORT-Windows-x64-Libraries
-        path: vsort/libraries
 
     - name: Setup Python portable
       run: |
@@ -192,7 +185,7 @@ jobs:
       run: |
         copy artifact\*.dll vs_portable\vapoursynth64\plugins
         mkdir vs_portable\vapoursynth64\plugins\vsort\
-        copy libraries\vsort\*.dll vs_portable\vapoursynth64\plugins\vsort\
+        copy artifact\vsort\*.dll vs_portable\vapoursynth64\plugins\vsort\
 
     - name: Install waifu2x model
       run: |
