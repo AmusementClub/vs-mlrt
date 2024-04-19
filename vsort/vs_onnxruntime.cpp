@@ -34,21 +34,10 @@ using namespace std::chrono_literals;
 #include <dml_provider_factory.h>
 #endif // ENABLE_DML
 
+#include "../common/convert_float_to_float16.h"
+#include "../common/onnx_utils.h"
+
 #include "config.h"
-
-
-extern std::variant<std::string, ONNX_NAMESPACE::ModelProto> loadONNX(
-    const std::string_view & path,
-    int64_t tile_w,
-    int64_t tile_h,
-    bool path_is_serialization
-) noexcept;
-
-extern void convert_float_to_float16(
-    ONNX_NAMESPACE::ModelProto & model,
-    bool force_fp16_initializers,
-    const std::unordered_set<std::string> & op_block_list
-) noexcept;
 
 
 #ifdef ENABLE_COREML

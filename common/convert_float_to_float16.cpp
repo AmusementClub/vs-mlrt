@@ -6,7 +6,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -19,11 +18,7 @@
 
 #include <onnx/onnx_pb.h>
 
-
-void convert_float_to_float16(
-    ONNX_NAMESPACE::ModelProto & model,
-    bool force_fp16_initializers
-) noexcept;
+#include "convert_float_to_float16.h"
 
 
 namespace {
