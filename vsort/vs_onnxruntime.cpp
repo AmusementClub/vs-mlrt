@@ -73,6 +73,7 @@ static std::mutex capture_lock;
 // rename GridSample to com.microsoft::GridSample
 // onnxruntime has support for CUDA-accelerated GridSample only in its own opset domain
 static void rename(ONNX_NAMESPACE::ModelProto & model) {
+#if ORT_API_VERSION < 18
     constexpr auto ms_domain = "com.microsoft";
 
     bool has_ms_opset = false;
@@ -95,6 +96,7 @@ static void rename(ONNX_NAMESPACE::ModelProto & model) {
             *node.mutable_domain() = ms_domain;
         }
     }
+#endif // ORT_API_VERSION < 18
 }
 
 
