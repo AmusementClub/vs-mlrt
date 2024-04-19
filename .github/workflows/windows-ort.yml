@@ -116,7 +116,7 @@ jobs:
 
     - name: Download ONNX Runtime Precompilation
       run: |
-        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-7972-g24652b96f0-240419-0050/onnxruntime-gpu-win64.zip
+        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-7983-g9001c69b84-240419-0832/onnxruntime-gpu-win64.zip
         unzip -q ortgpu.zip
 
     - name: Cache CUDA
@@ -161,7 +161,7 @@ jobs:
     - name: Download DirectML Library
       # follows DirectML in https://github.com/AmusementClub/onnxruntime/blob/master/cmake/external/dml.cmake#L44
       run: |
-        curl -s -o directml.nupkg -LJO https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/1.14.0
+        curl -s -o directml.nupkg -LJO https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/1.14.1
         unzip -q directml.nupkg -d dml
         copy dml\bin\x64-win\DirectML.dll artifact\vsort\
 
