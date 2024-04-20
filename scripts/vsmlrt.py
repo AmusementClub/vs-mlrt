@@ -78,6 +78,18 @@ class Backend:
 
         basic performance tuning:
         set fp16 = True (on RTX GPUs)
+
+        Semantics of `fp16`:
+            Enabling `fp16` will use a built-in quantization that converts a fp32 onnx to a fp16 onnx.
+            If the input video is of half-precision floating-point format,
+            the generated fp16 onnx will use fp16 input.
+            The output format can be controlled by the `output_format` option (0 = fp32, 1 = fp16).
+
+            Disabling `fp16` will not use the built-in quantization.
+            However, if the onnx file itself uses fp16 for computation,
+            the actual computation will be done in fp16.
+            In this case, the input video format should match the input format of the onnx,
+            and the output format is inferred from the onnx.
         """
 
         device_id: int = 0
