@@ -1,4 +1,4 @@
-__version__ = "3.20.7"
+__version__ = "3.20.8"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -88,6 +88,7 @@ class Backend:
         use_cuda_graph: bool = False # preview, not supported by all models
         fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
         prefer_nhwc: bool = False
+        output_format: int = 0 # 0: fp32, 1: fp16
 
         # internal backend attributes
         supports_onnx_serialization: bool = True
@@ -2043,6 +2044,7 @@ def _inference(
 
         if version >= (1, 18, 0):
             kwargs["prefer_nhwc"] = backend.prefer_nhwc
+            kwargs["output_format"] = backend.output_format
 
         clip = core.ort.Model(
             clips, network_path,
