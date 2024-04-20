@@ -940,6 +940,11 @@ static void VS_CC vsOrtCreate(
         prefer_nhwc = false;
     }
 #endif // ORT_API_VERSION >= 17
+
+    bool tf32 = !!(vsapi->propGetInt(in, "tf32", 0, &error));
+    if (error) {
+        tf32 = false;
+    }
 #endif // ENABLE_CUDA
 
     if (auto err = ortInit(); err.has_value()) {
@@ -1121,6 +1126,7 @@ static void VS_CC vsOrtCreate(
                 "enable_cuda_graph",
 #if ORT_API_VERSION >= 17
                 "prefer_nhwc",
+                "use_tf32",
 #endif // ORT_API_VERSION >= 17
             };
             auto device_id_str = std::to_string(d->device_id);
@@ -1131,6 +1137,7 @@ static void VS_CC vsOrtCreate(
                 "kSameAsRequested",
                 "0",
 #if ORT_API_VERSION >= 17
+                "0",
                 "0",
 #endif // ORT_API_VERSION >= 17
             };
@@ -1146,6 +1153,9 @@ static void VS_CC vsOrtCreate(
 #if ORT_API_VERSION >= 17
             if (prefer_nhwc) {
                 values[5] = "1";
+            }
+            if (tf32) {
+                values[6] = "1";
             }
 #endif // ORT_API_VERSION >= 17
             checkError(ortapi->UpdateCUDAProviderOptions(cuda_options, keys, values, std::size(keys)));
@@ -1327,6 +1337,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "fp16_blacklist_ops:data[]:opt;"
         "prefer_nhwc:int:opt;"
         "output_format:int:opt;"
+        "tf32:int:opt;"
         , vsOrtCreate,
         nullptr,
         plugin
