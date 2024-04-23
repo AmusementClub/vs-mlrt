@@ -347,6 +347,23 @@ static std::optional<std::string> checkNodesAndNetwork(
         return set_error("tile size larger than clip dimension");
     }
 
+    OrtTypeInfo * output_type_info;
+    checkError(ortapi->SessionGetOutputTypeInfo(session, 0, &output_type_info));
+
+    const OrtTensorTypeAndShapeInfo * output_tensor_info;
+    checkError(ortapi->CastTypeInfoToTensorInfo(output_type_info, &output_tensor_info));
+
+    auto network_out_dims = std::get<std::array<int64_t, 4>>(getShape(output_tensor_info));
+
+    auto network_out_height = network_out_dims[2];
+    auto network_out_width = network_out_dims[3];
+
+    if (network_out_height % network_in_height != 0 || network_out_width % network_in_width != 0) {
+        return set_error("output dimensions must be divisible by input dimensions");
+    }
+
+    ortapi->ReleaseTypeInfo(output_type_info);
+
     ortapi->ReleaseTypeInfo(input_type_info);
 
     return {};
