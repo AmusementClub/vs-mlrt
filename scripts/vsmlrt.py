@@ -1,4 +1,4 @@
-__version__ = "3.20.10"
+__version__ = "3.20.11"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -165,6 +165,7 @@ class Backend:
         bf16: bool = False
         custom_env: typing.Dict[str, str] = field(default_factory=lambda: {})
         custom_args: typing.List[str] = field(default_factory=lambda: [])
+        engine_folder: typing.Optional[str] = None
 
         # internal backend attributes
         supports_onnx_serialization: bool = False
@@ -1638,7 +1639,8 @@ def get_engine_path(
     builder_optimization_level: int,
     max_aux_streams: typing.Optional[int],
     short_path: typing.Optional[bool],
-    bf16: bool
+    bf16: bool,
+    engine_folder: typing.Optional[str]
 ) -> str:
 
     with open(network_path, "rb") as file:
@@ -1678,11 +1680,16 @@ def get_engine_path(
         f"_{checksum:x}"
     )
 
+    dirname, basename = os.path.split(network_path)
+
+    if engine_folder is not None:
+        os.makedirs(engine_folder, exist_ok=True)
+        dirname = engine_folder
+
     if short_path or (short_path is None and platform.system() == "Windows"):
-        dirname, basename = os.path.split(network_path)
         return os.path.join(dirname, f"{zlib.crc32((basename + identity).encode()):x}.engine")
     else:
-        return f"{network_path}.{identity}.engine"
+        return f"{os.path.join(dirname, basename)}.{identity}.engine"
 
 
 def trtexec(
@@ -1714,7 +1721,8 @@ def trtexec(
     short_path: typing.Optional[bool] = None,
     bf16: bool = False,
     custom_env: typing.Dict[str, str] = {},
-    custom_args: typing.List[str] = []
+    custom_args: typing.List[str] = [],
+    engine_folder: typing.Optional[str] = None
 ) -> str:
 
     # tensort runtime version
@@ -1749,18 +1757,21 @@ def trtexec(
         max_aux_streams=max_aux_streams,
         short_path=short_path,
         bf16=bf16,
+        engine_folder=engine_folder,
     )
 
     if os.access(engine_path, mode=os.R_OK):
         return engine_path
 
-    alter_engine_path = os.path.join(
-        tempfile.gettempdir(),
-        os.path.splitdrive(engine_path)[1][1:]
-    )
+    # do not consider alternative path when the engine_folder is given
+    if engine_folder is None:
+        alter_engine_path = os.path.join(
+            tempfile.gettempdir(),
+            os.path.splitdrive(engine_path)[1][1:]
+        )
 
-    if os.access(alter_engine_path, mode=os.R_OK):
-        return alter_engine_path
+        if os.access(alter_engine_path, mode=os.R_OK):
+            return alter_engine_path
 
     try:
         # test writability
@@ -1768,12 +1779,16 @@ def trtexec(
             pass
         os.remove(engine_path)
     except PermissionError:
-        print(f"{engine_path} not writable", file=sys.stderr)
-        engine_path = alter_engine_path
-        dirname = os.path.dirname(engine_path)
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
-        print(f"change engine path to {engine_path}", file=sys.stderr)
+        if engine_folder is None:
+            print(f"{engine_path} is not writable", file=sys.stderr)
+            engine_path = alter_engine_path
+            dirname = os.path.dirname(engine_path)
+            if not os.path.exists(dirname):
+                os.makedirs(dirname)
+            print(f"change engine path to {engine_path}", file=sys.stderr)
+        else:
+            # do not consider alternative path when the engine_folder is given
+            raise PermissionError(f"{engine_path} is not writable")
 
     args = [
         trtexec_path,
@@ -2298,7 +2313,8 @@ def _inference(
             short_path=backend.short_path,
             bf16=backend.bf16,
             custom_env=backend.custom_env,
-            custom_args=backend.custom_args
+            custom_args=backend.custom_args,
+            engine_folder=backend.engine_folder,
         )
         clip = core.trt.Model(
             clips, engine_path,
