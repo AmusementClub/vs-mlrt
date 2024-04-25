@@ -13,7 +13,8 @@
 #include <NvInferRuntime.h>
 
 #if NV_TENSORRT_VERSION >= 100001
-#define CONCAT_VERSION(name, version) (name "_" #version ".dll")
+#define TO_STRING(x) #x
+#define CONCAT_VERSION(name, version) (name "_" TO_STRING(version) ".dll")
 #endif // NV_TENSORRT_VERSION >= 100001
 
 namespace {
