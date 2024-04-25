@@ -46,18 +46,18 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-vstrt-cuda-12.4.0
+        key: ${{ runner.os }}-vstrt-cuda-12.4.1
         save-always: true
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.4.0/network_installers/cuda_12.4.0_windows_network.exe
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.4.1/network_installers/cuda_12.4.1_windows_network.exe
         cuda_installer.exe -s nvcc_12.4 cudart_12.4 cuda_profiler_api_12.4
 
     - name: Download TensorRT
       run: |
-        curl -L -o trt.zip https://developer.download.nvidia.com/compute/machine-learning/tensorrt/10.0.0/zip/TensorRT-10.0.0.6.Windows10.win10.cuda-12.4.zip
+        curl -L -o trt.zip https://developer.download.nvidia.com/compute/machine-learning/tensorrt/10.0.1/zip/TensorRT-10.0.1.6.Windows10.win10.cuda-12.4.zip
         unzip trt.zip
         mv TensorRT-*/ tensorrt/
 
@@ -75,6 +75,7 @@ jobs:
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
         -D TENSORRT_HOME="%cd%\tensorrt"
         -D USE_NVINFER_PLUGIN=ON
+        -D TENSORRT_LIBRARY_SUFFIX="_10"
 
     - name: Build
       run: cmake --build build --config Release --verbose
@@ -104,6 +105,7 @@ jobs:
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
         -D TENSORRT_HOME="%cd%\tensorrt"
+        -D TENSORRT_LIBRARY_SUFFIX="_10"
 
     - name: Build trtexec
       run: cmake --build build_trtexec --verbose
