@@ -12,16 +12,30 @@
 
 #include <NvInferVersion.h>
 
+#if NV_TENSORRT_VERSION >= 100100
+#define CONCAT_VERSION(name, version) (name "_" #version ".dll")
+#endif // NV_TENSORRT_VERSION >= 100100
+
 namespace {
 std::vector<std::wstring> dlls = {
 	// This list must be sorted by dependency.
+#if NV_TENSORRT_VERSION >= 100100
+#ifdef USE_NVINFER_PLUGIN
+	// nvinfer_plugin dependencies
+	CONCAT_VERSION(L"nvinfer", NV_TENSORRT_MAJOR),
+	CONCAT_VERSION(L"nvinfer_plugin", NV_TENSORRT_MAJOR),
+#endif // USE_NVINFER_PLUGIN
+	// Finally, nvinfer again.
+	CONCAT_VERSION(L"nvinfer", NV_TENSORRT_MAJOR), // must be the last
+#else // NV_TENSORRT_VERSION >= 100100
 #ifdef USE_NVINFER_PLUGIN
 	// nvinfer_plugin dependencies
 	L"nvinfer.dll",
 	L"nvinfer_plugin.dll",
-#endif
+#endif // USE_NVINFER_PLUGIN
 	// Finally, nvinfer again.
 	L"nvinfer.dll", // must be the last
+#endif // NV_TENSORRT_VERSION >= 100100
 };
 
 namespace fs = std::filesystem;
