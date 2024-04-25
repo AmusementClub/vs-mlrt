@@ -10,7 +10,7 @@
 
 #include <iostream>
 
-#include <NvInferVersion.h>
+#include <NvInferRuntime.h>
 
 #if NV_TENSORRT_VERSION >= 100001
 #define CONCAT_VERSION(name, version) (name "_" #version ".dll")
