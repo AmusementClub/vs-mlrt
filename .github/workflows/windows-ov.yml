@@ -39,7 +39,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -51,19 +51,19 @@ jobs:
 
     - name: Cache protobuf
       id: cache-protobuf
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: vsov/protobuf/install
-        key: ${{ runner.os }}-vsov-protobuf-v1
+        key: ${{ runner.os }}-vsov-protobuf-v2
 
     - name: Checkout protobuf
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
       with:
         repository: protocolbuffers/protobuf
-        # follows protobuf in https://github.com/AmusementClub/openvino/tree/master/thirdparty/protobuf
+        # follows protobuf in https://github.com/openvinotoolkit/openvino/tree/2024.0.0/thirdparty/protobuf
         # if you change this, remember to bump the version of the cache key.
-        ref: 6c6b0778b70f35f93c2f0dee30e5d12ad2a83eea
+        ref: fe271ab76f2ad2b2b28c10443865d2af21e27e0e
         fetch-depth: 1
         path: vsov/protobuf
 
@@ -83,19 +83,19 @@ jobs:
 
     - name: Cache onnx
       id: cache-onnx
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: vsov/onnx/install
-        key: ${{ runner.os }}-vsov-onnx-v2
+        key: ${{ runner.os }}-vsov-onnx-v3
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: onnx/onnx
-        # follows onnx in https://github.com/AmusementClub/openvino/tree/master/thirdparty/onnx
+        # follows onnx in https://github.com/openvinotoolkit/openvino/tree/2024.0.0/thirdparty/onnx
         # if you change this, remember to bump the version of the cache key.
-        ref: f7ee1ac60d06abe8e26c9b6bbe1e3db5286b614b
+        ref: b86cc54efce19530fb953e4b21f57e6b3888534c
         fetch-depth: 1
         path: vsov/onnx
 
@@ -124,23 +124,16 @@ jobs:
         unzip -q vs.zip
         mv vapoursynth-*/ vapoursynth/
 
-    - name: Download OpenVINO Runtime Precompilation
-      shell: bash
+    - name: Setup OpenVINO
       run: |
-        rev="${{github.event.inputs.ov_tag || inputs.ov_tag || 'latest'}}"
-        if [ "$rev" == "latest" ]; then
-          url="https://github.com/AmusementClub/openvino/releases/latest/download/openvino-gpu-win64.zip"
-        else
-          url="https://github.com/AmusementClub/openvino/releases/download/$rev/openvino-gpu-win64.zip"
-        fi
-        curl -s -o openvino.zip -LJO "$url"
-        unzip -q openvino.zip
+        curl -L -o ov.zip https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.0/windows/w_openvino_toolkit_windows_2024.0.0.14509.34caeefd078_x86_64.zip
+        unzip ov.zip
+        rename w_openvino_toolkit_windows_2024.0.0.14509.34caeefd078_x86_64 openvino
 
     - name: Configure
       run: cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-        -D InferenceEngine_DIR=openvino/runtime/cmake
         -D OpenVINO_DIR=openvino/runtime/cmake
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
         -D ENABLE_VISUALIZATION=ON
@@ -156,12 +149,12 @@ jobs:
         cmake --install build --prefix install
         mkdir artifact
         mkdir artifact\vsov
-        copy openvino\runtime\3rdparty\tbb\bin\tbb.dll artifact\vsov\
+        copy openvino\runtime\3rdparty\tbb\bin\tbb12.dll artifact\vsov\
         copy install\bin\vsov.dll artifact\
         xcopy openvino\runtime\bin\intel64\Release\* artifact\vsov\ /s
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: VSOV-Windows-x64
         path: vsov/artifact

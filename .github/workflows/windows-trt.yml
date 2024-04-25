@@ -31,7 +31,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -43,24 +43,23 @@ jobs:
 
     - name: Cache CUDA
       id: cache-cuda
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-vstrt-cuda-11.8.0
+        key: ${{ runner.os }}-vstrt-cuda-12.4.1
+        save-always: true
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.8.0/network_installers/cuda_11.8.0_windows_network.exe
-        cuda_installer.exe -s nvcc_11.8 cudart_11.8 nvprof_11.8 cuda_profiler_api_11.8
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.4.1/network_installers/cuda_12.4.1_windows_network.exe
+        cuda_installer.exe -s nvcc_12.4 cudart_12.4 cuda_profiler_api_12.4
 
-    - name: Checkout tensorrt
-      uses: actions/checkout@v3
-      with:
-        repository: AmusementClub/cuda
-        token: ${{ secrets.REPO_TOKEN }}
-        ref: tensorrt-8.5.1
-        path: tensorrt
+    - name: Download TensorRT
+      run: |
+        curl -L -o trt.zip https://developer.download.nvidia.com/compute/machine-learning/tensorrt/10.0.1/zip/TensorRT-10.0.1.6.Windows10.win10.cuda-12.4.zip
+        unzip trt.zip
+        mv TensorRT-*/ tensorrt/
 
     - name: Download VapourSynth headers
       run: |
@@ -72,10 +71,11 @@ jobs:
       run: cmake -S . -B build -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
-        -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
+        -D TENSORRT_HOME="%cd%\tensorrt"
         -D USE_NVINFER_PLUGIN=ON
+        -D TENSORRT_LIBRARY_SUFFIX="_10"
 
     - name: Build
       run: cmake --build build --config Release --verbose
@@ -84,15 +84,17 @@ jobs:
       run: cmake --install build --prefix install
 
     - name: Checkout TensorRT OSS
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: NVIDIA/TensorRT
-        ref: 8.5.1
+        ref: release/10.0
         fetch-depth: 1
         path: tensorrt-oss
 
     - name: Override trtexec CMake file
       run: |
+        cp -f -r -v tensorrt/samples ../tensorrt-oss
+
         mv trtexec/CMakeLists.txt ../tensorrt-oss/samples/trtexec
         mv trtexec/*.cpp ../tensorrt-oss/samples/trtexec
         mv trtexec/*.manifest ../tensorrt-oss/samples/trtexec
@@ -101,8 +103,9 @@ jobs:
       run: cmake -S ../tensorrt-oss/samples/trtexec -B build_trtexec -G Ninja
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8"
-        -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
+        -D TENSORRT_HOME="%cd%\tensorrt"
+        -D TENSORRT_LIBRARY_SUFFIX="_10"
 
     - name: Build trtexec
       run: cmake --build build_trtexec --verbose
@@ -121,7 +124,7 @@ jobs:
       run: git describe --tags --long
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: VSTRT-Windows-x64
         path: vstrt/artifact

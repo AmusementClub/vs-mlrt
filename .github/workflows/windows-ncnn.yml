@@ -39,7 +39,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -48,13 +48,13 @@ jobs:
 
     - name: Cache protobuf
       id: cache-protobuf
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: vsncnn/protobuf/install
         key: ${{ runner.os }}-vsncnn-protobuf-v3.16.0
 
     - name: Checkout protobuf
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
       with:
         repository: protocolbuffers/protobuf
@@ -81,14 +81,14 @@ jobs:
 
     - name: Cache onnx
       id: cache-onnx
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: vsncnn/onnx/install
         key: ${{ runner.os }}-vsncnn-onnx-v1.12.0-protobuf-v3.16.0
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: onnx/onnx
         ref: v1.12.0
@@ -161,7 +161,7 @@ jobs:
         copy install\bin\vsncnn.dll artifact\
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: VSNCNN-GPU-Windows-x64
         path: vsncnn/artifact

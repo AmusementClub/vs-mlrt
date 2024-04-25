@@ -28,63 +28,41 @@ jobs:
         shell: bash
 
     steps:
-    # Note: unfortunately, cuDNN download requires registration and according to its license
-    # agreements, we can only redistribute it along with an application that uses it, so we
-    # have to use a private repository to hold a copy of the library.
     - name: Download cuDNN inference library
-      run: |
-        # https://stackoverflow.com/questions/20396329/how-to-download-github-release-from-private-repo-using-command-line/35688093#35688093
-
-        tag=cudnn-8.6.0-bin
-        name=cudnn.7z
-
-        AUTH="Authorization: token ${{ secrets.REPO_TOKEN }}"
-        response=$(curl -sH "$AUTH" https://api.github.com/repos/AmusementClub/cuda/releases/tags/$tag)
-        eval $(echo "$response" | grep -C3 "name.:.\+$NAME" | grep -w id | tr : = | tr -cd '[[:alnum:]]=')
-        [ "$id" ] || { echo "Error: Failed to get asset id, response: $response" | awk 'length($0)<100' >&2; exit 1; }
-        ASSET="https://api.github.com/repos/AmusementClub/cuda/releases/assets/$id"
-        curl -LJO -H "$AUTH" -H 'Accept: application/octet-stream' "$ASSET"
+      run: curl -LJ https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-8.9.7.29_cuda12-archive.zip -o cudnn.zip
 
     - name: Extract cuDNN library
-      run: 7z x cudnn.7z
+      run: unzip cudnn.zip
 
     - name: Move cuDNN library
-      run: mv cudnn/bin vsmlrt-cuda -v
+      run: |
+        mkdir -p vsmlrt-cuda
+        mv cudnn-windows-*/bin/*.dll vsmlrt-cuda/ -v
+        rm vsmlrt-cuda/cudnn_*_train*.dll -v
 
-    # Same licensing issue with the tensorrt libraries.
     - name: Download TensorRT library
       run: |
-        # https://stackoverflow.com/questions/20396329/how-to-download-github-release-from-private-repo-using-command-line/35688093#35688093
-
-        tag=tensorrt-8.5.1-bin
-        name=TensorRT.7z
-
-        AUTH="Authorization: token ${{ secrets.REPO_TOKEN }}"
-        response=$(curl -sH "$AUTH" https://api.github.com/repos/AmusementClub/cuda/releases/tags/$tag)
-        eval $(echo "$response" | grep -C3 "name.:.\+$NAME" | grep -w id | tr : = | tr -cd '[[:alnum:]]=')
-        [ "$id" ] || { echo "Error: Failed to get asset id, response: $response" | awk 'length($0)<100' >&2; exit 1; }
-        ASSET="https://api.github.com/repos/AmusementClub/cuda/releases/assets/$id"
-        curl -LJO -H "$AUTH" -H 'Accept: application/octet-stream' "$ASSET"
-
-        mv "$name" trt.7z
+        curl -L -o trt.zip https://developer.download.nvidia.com/compute/machine-learning/tensorrt/10.0.1/zip/TensorRT-10.0.1.6.Windows10.win10.cuda-12.4.zip
 
     - name: Extract TensorRT library
-      run: 7z x trt.7z
+      run: |
+        unzip trt.zip
+        mv TensorRT-*/ TensorRT/
 
     - name: Move TensorRT library
-      run: mv TensorRT/*.dll vsmlrt-cuda -v
+      run: mv TensorRT/lib/*.dll vsmlrt-cuda -v
 
     - name: Download CUDA Libraries
       shell: cmd
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.8.0/network_installers/cuda_11.8.0_windows_network.exe
-        cuda_installer.exe -s cudart_11.8 cublas_11.8 cufft_11.8 cupti_11.8 nvrtc_11.8
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.4.1/network_installers/cuda_12.4.1_windows_network.exe
+        cuda_installer.exe -s cudart_12.4 cublas_12.4 cufft_12.4 cupti_12.4 nvrtc_12.4
 
     - name: Move CUDA Libraries
       shell: cmd
       run: |
-        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
-        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin\*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4\bin\*.dll" vsmlrt-cuda
         del vsmlrt-cuda\cudart32*.dll
 
     - name: Setup VC commands
@@ -99,7 +77,7 @@ jobs:
         while true; do
           changed=false
           for dll in *.[dD][lL][lL]; do
-             for dep in $(dumpbin -dependents "$dll" | grep -o -i '\(vc\|msvc\)[a-z0-9_-]*\.dll'); do
+             for dep in $(dumpbin -dependents "$dll" | grep -o -i '\<\(vc\|msvc\)[a-z0-9_-]*\.dll'); do
                 echo "finding $dep for $dll"
                 if ! test -f ./"$dep"; then
                   changed=true
@@ -113,42 +91,17 @@ jobs:
           $changed || break
         done
 
-    - name: Cache zlib
-      id: cache-zlib
-      uses: actions/cache@v3
-      with:
-        path: ${{ github.workspace }}/zlib-release
-        key: ${{ runner.os }}-zlib-1.2.12
-
-    - name: Setup msbuild
-      if: steps.cache-zlib.outputs.cache-hit != 'true'
-      uses: microsoft/setup-msbuild@v1
-
-    - name: Compile zlib
-      if: steps.cache-zlib.outputs.cache-hit != 'true'
-      shell: cmd
-      run: |
-        curl -s -o zlib.tar.gz -LJO https://github.com/madler/zlib/archive/refs/tags/v1.2.12.tar.gz
-        tar -xf zlib.tar.gz
-        cd zlib-1.2.12\contrib\vstudio\vc14
-        python -c "f=open('zlibvc.vcxproj','r+b');s=f.read();s=s.replace(b'MultiThreadedDLL',b'MultiThreaded');start=s.index(b'<ClCompile Include=\"..\\..\\masmx64\\inffas8664.c\">');end_str=b'</ClCompile>\n';end=s.index(end_str,start);s=s[:start]+s[end+len(end_str):];f.seek(0);f.write(s);f.truncate();f.close()"
-        msbuild zlibvc.sln -target:zlibvc /p:Configuration=ReleaseWithoutAsm /p:Platform=x64 /p:PlatformToolset=v143 -maxCpuCount
-        mkdir %GITHUB_WORKSPACE%\zlib-release
-        move x64\ZlibDllReleaseWithoutAsm\zlibwapi.dll %GITHUB_WORKSPACE%\zlib-release
-
-    - name: Copy zlib
-      run: cp -v zlib-release/zlibwapi.dll vsmlrt-cuda
-
     - name: Compress
       run: |
         7z a -t7z -mx=3 vsmlrt-cuda.7z vsmlrt-cuda
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: vsmlrt-cuda
         path: vsmlrt-cuda.7z
         retention-days: 1
+        compression-level: 0
 
     - name: Rename release asset
       run: |

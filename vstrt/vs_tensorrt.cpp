@@ -366,9 +366,12 @@ static void VS_CC vsTrtCreate(
     d->logger.set_verbosity(static_cast<nvinfer1::ILogger::Severity>(verbosity));
 
 #ifdef USE_NVINFER_PLUGIN
+    // related to https://github.com/AmusementClub/vs-mlrt/discussions/65, for unknown reason
+#if !(NV_TENSORRT_MAJOR == 9 && defined(_WIN32))
     if (!initLibNvInferPlugins(&d->logger, "")) {
         vsapi->logMessage(mtWarning, "vsTrt: Initialize TensorRT plugins failed");
     }
+#endif
 #endif
 
     std::ifstream engine_stream {
@@ -446,7 +449,17 @@ static void VS_CC vsTrtCreate(
     auto input_type = d->engines[0]->getBindingDataType(0);
 #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
 
-    auto input_sample_type = getSampleType(input_type) == 0 ? stInteger : stFloat;
+    VSSampleType input_sample_type;
+    {
+        auto sample_type = getSampleType(input_type);
+        if (sample_type == 0) {
+            input_sample_type = stInteger;
+        } else if (sample_type == 1) {
+            input_sample_type = stFloat;
+        } else {
+            return set_error("unknown input sample type");
+        }
+    }
     auto input_bits_per_sample = getBytesPerSample(input_type) * 8;
 
     if (auto err = checkNodes(in_vis, input_sample_type, input_bits_per_sample); err.has_value()) {
@@ -462,7 +475,17 @@ static void VS_CC vsTrtCreate(
     auto output_type = d->engines[0]->getBindingDataType(1);
 #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
 
-    auto output_sample_type = getSampleType(output_type) == 0 ? stInteger : stFloat;
+    VSSampleType output_sample_type;
+    {
+        auto sample_type = getSampleType(output_type);
+        if (sample_type == 0) {
+            output_sample_type = stInteger;
+        } else if (sample_type == 1) {
+            output_sample_type = stFloat;
+        } else {
+            return set_error("unknown output sample type");
+        }
+    }
     auto output_bits_per_sample = getBytesPerSample(output_type) * 8;
 
     setDimensions(
@@ -489,13 +512,22 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         VAPOURSYNTH_API_VERSION, 1, plugin
     );
 
+    // TRT 9 for windows does not export getInferLibVersion()
+#if NV_TENSORRT_MAJOR == 9 && defined(_WIN32)
+    auto test = getPluginRegistry();
+
+    if (test == nullptr) {
+        std::fprintf(stderr, "vstrt: TensorRT failed to load.\n");
+        return;
+    }
+#else // NV_TENSORRT_MAJOR == 9 && defined(_WIN32)
     int ver = getInferLibVersion(); // must ensure this is the first nvinfer function called
 #ifdef _WIN32
     if (ver == 0) { // a sentinel value, see dummy function in win32.cpp.
         std::fprintf(stderr, "vstrt: TensorRT failed to load.\n");
         return;
     }
-#endif
+#endif // _WIN32
     if (ver != NV_TENSORRT_VERSION) {
 #if NV_TENSORRT_MAJOR >= 10
         std::fprintf(
@@ -513,6 +545,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         );
 #endif // NV_TENSORRT_MAJOR >= 10
     }
+#endif // NV_TENSORRT_MAJOR == 9 && defined(_WIN32)
 
     myself = plugin;
 
@@ -535,7 +568,12 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
 
         vsapi->propSetData(
             out, "tensorrt_version",
-            std::to_string(getInferLibVersion()).c_str(), -1, paReplace
+#if NV_TENSORRT_MAJOR == 9 && defined(_WIN32)
+            std::to_string(NV_TENSORRT_VERSION).c_str(), 
+#else
+            std::to_string(getInferLibVersion()).c_str(), 
+#endif
+            -1, paReplace
         );
 
         vsapi->propSetData(

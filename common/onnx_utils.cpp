@@ -8,6 +8,8 @@
 #include <onnx/onnx_pb.h>
 #include <onnx/shape_inference/implementation.h>
 
+#include "onnx_utils.h"
+
 
 using namespace std::string_literals;
 

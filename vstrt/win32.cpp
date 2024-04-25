@@ -10,22 +10,32 @@
 
 #include <iostream>
 
+#include <NvInferVersion.h>
+
+#if NV_TENSORRT_VERSION >= 100100
+#define CONCAT_VERSION(name, version) (name "_" #version ".dll")
+#endif // NV_TENSORRT_VERSION >= 100100
+
 namespace {
 std::vector<std::wstring> dlls = {
 	// This list must be sorted by dependency.
-	L"zlibwapi.dll", // cuDNN version 8.3.0+ depends on zlib as a shared library dependency
-	L"cudnn_ops_infer64_8.dll",
-	L"cudnn_cnn_infer64_8.dll",
-	L"cudnn64_8.dll",
+#if NV_TENSORRT_VERSION >= 100100
+#ifdef USE_NVINFER_PLUGIN
+	// nvinfer_plugin dependencies
+	CONCAT_VERSION(L"nvinfer", NV_TENSORRT_MAJOR),
+	CONCAT_VERSION(L"nvinfer_plugin", NV_TENSORRT_MAJOR),
+#endif // USE_NVINFER_PLUGIN
+	// Finally, nvinfer again.
+	CONCAT_VERSION(L"nvinfer", NV_TENSORRT_MAJOR), // must be the last
+#else // NV_TENSORRT_VERSION >= 100100
 #ifdef USE_NVINFER_PLUGIN
 	// nvinfer_plugin dependencies
 	L"nvinfer.dll",
-	L"cublasLt64_11.dll",
-	L"cublas64_11.dll",
 	L"nvinfer_plugin.dll",
-#endif
+#endif // USE_NVINFER_PLUGIN
 	// Finally, nvinfer again.
 	L"nvinfer.dll", // must be the last
+#endif // NV_TENSORRT_VERSION >= 100100
 };
 
 namespace fs = std::filesystem;
@@ -64,7 +74,11 @@ FARPROC loadDLLs() {
 	return (FARPROC)h;
 }
 
+#if NV_TENSORRT_MAJOR == 9 && defined(_WIN32)
+static void * dummy() { // mimic getPluginRegistry
+#else
 static int dummy() { // mimic getInferLibVersion
+#endif
 	return 0;
 }
 

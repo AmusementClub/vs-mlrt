@@ -29,7 +29,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -41,17 +41,17 @@ jobs:
 
     - name: Cache protobuf
       id: cache-protobuf
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: vsort/protobuf/install
         key: ${{ runner.os }}-vsort-protobuf-v4
 
     - name: Checkout protobuf
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
       with:
         repository: protocolbuffers/protobuf
-        # follows protobuf in https://github.com/AmusementClub/onnxruntime/blob/master/cmake/external/onnxruntime_external_deps.cmake#L161
+        # follows protobuf in https://github.com/AmusementClub/onnxruntime/blob/master/cmake/external/onnxruntime_external_deps.cmake#L203
         # if you change this, remember to bump the version of the cache key.
         ref: v3.21.12
         fetch-depth: 1
@@ -73,19 +73,19 @@ jobs:
 
     - name: Cache onnx
       id: cache-onnx
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: vsort/onnx/install
-        key: ${{ runner.os }}-vsort-onnx-v4
+        key: ${{ runner.os }}-vsort-onnx-v5
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: onnx/onnx
         # follows onnx in https://github.com/AmusementClub/onnxruntime/tree/master/cmake/external
         # if you change this, remember to bump the version of the cache key.
-        ref: a0d77f18516d2da7468a96b0de3b737266f23176
+        ref: 990217f043af7222348ca8f0301e17fa7b841781
         fetch-depth: 1
         path: vsort/onnx
 
@@ -116,21 +116,21 @@ jobs:
 
     - name: Download ONNX Runtime Precompilation
       run: |
-        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-5943-g73584f936-230528-0922/onnxruntime-gpu-win64.zip
+        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-7983-g9001c69b84-240419-0832/onnxruntime-gpu-win64.zip
         unzip -q ortgpu.zip
 
     - name: Cache CUDA
       id: cache-cuda
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-cuda-11.8.0
+        key: ${{ runner.os }}-cuda-12.4.0
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.8.0/network_installers/cuda_11.8.0_windows_network.exe
-        cuda_installer.exe -s nvcc_11.8 cudart_11.8
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.4.0/network_installers/cuda_12.4.0_windows_network.exe
+        cuda_installer.exe -s nvcc_12.4 cudart_12.4
 
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
@@ -139,10 +139,10 @@ jobs:
         -D VAPOURSYNTH_INCLUDE_DIRECTORY=vapoursynth\include
         -D protobuf_DIR=protobuf\install\cmake
         -D ONNX_DIR=onnx\install\lib\cmake\ONNX
-        -D ONNX_RUNTIME_API_DIRECTORY=onnxruntime-gpu\include\onnxruntime\core\session
+        -D ONNX_RUNTIME_API_DIRECTORY=onnxruntime-gpu\include\onnxruntime
         -D ONNX_RUNTIME_LIB_DIRECTORY=onnxruntime-gpu\lib
         -D ENABLE_CUDA=1
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
         -D ENABLE_DML=1
         -D CMAKE_CXX_STANDARD=20
 
@@ -161,12 +161,12 @@ jobs:
     - name: Download DirectML Library
       # follows DirectML in https://github.com/AmusementClub/onnxruntime/blob/master/cmake/external/dml.cmake#L44
       run: |
-        curl -s -o directml.nupkg -LJO https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/1.12.0
+        curl -s -o directml.nupkg -LJO https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/1.14.1
         unzip -q directml.nupkg -d dml
         copy dml\bin\x64-win\DirectML.dll artifact\vsort\
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: VSORT-Windows-x64
         path: vsort/artifact
@@ -199,7 +199,7 @@ jobs:
 
     - name: Create script
       shell: bash
-      run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ort, file=sys.stderr);core.std.BlankClip(format=vs.RGBS).ort.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True).resize.Bicubic(format=vs.YUV420P10, matrix_s='709').set_output()" > test.vpy
+      run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ort, file=sys.stderr);print(core.ort.Version(),file=sys.stderr);core.std.BlankClip(format=vs.RGBS).ort.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True).resize.Bicubic(format=vs.YUV420P10, matrix_s='709').set_output()" > test.vpy
 
     - name: Run vspipe
       shell: bash
@@ -221,8 +221,40 @@ jobs:
       shell: bash
       run: |
         set -ex
-        vs_portable/vspipe -i test.vpy -
-        vs_portable/vspipe --y4m -p -e 9 test.vpy - | vs_portable/x265 --log-file x265.log --log-file-level info --y4m -D 10 --preset ultrafast -o out.hevc -
+        vs_portable/vspipe -i test_fp16.vpy -
+        vs_portable/vspipe --y4m -p -e 9 test_fp16.vpy - | vs_portable/x265 --log-file x265.log --log-file-level info --y4m -D 10 --preset ultrafast -o out.hevc -
+        ls -l out.hevc x265.log
+        cat x265.log
+        grep -F 'encoded 10 frames' x265.log || exit 2
+        grep -i 'error' x265.log && exit 1
+        exit 0
+
+    - name: Create script (fp16 input)
+      shell: bash
+      run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ort, file=sys.stderr);flt=core.std.BlankClip(format=vs.RGBH).ort.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True, fp16=True);print(flt,file=sys.stderr);flt.resize.Bicubic(format=vs.YUV420P10, matrix_s='709').set_output()" > test_fp16_input.vpy
+
+    - name: Run vspipe (fp16 input)
+      shell: bash
+      run: |
+        set -ex
+        vs_portable/vspipe -i test_fp16_input.vpy -
+        vs_portable/vspipe --y4m -p -e 9 test_fp16_input.vpy - | vs_portable/x265 --log-file x265.log --log-file-level info --y4m -D 10 --preset ultrafast -o out.hevc -
+        ls -l out.hevc x265.log
+        cat x265.log
+        grep -F 'encoded 10 frames' x265.log || exit 2
+        grep -i 'error' x265.log && exit 1
+        exit 0
+
+    - name: Create script (fp16 output)
+      shell: bash
+      run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ort, file=sys.stderr);flt=core.std.BlankClip(format=vs.RGBS).ort.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True, fp16=True, output_format=1);print(flt,file=sys.stderr);flt.resize.Bicubic(format=vs.YUV420P10, matrix_s='709').set_output()" > test_fp16_output.vpy
+
+    - name: Run vspipe (fp16 output)
+      shell: bash
+      run: |
+        set -ex
+        vs_portable/vspipe -i test_fp16_output.vpy -
+        vs_portable/vspipe --y4m -p -e 9 test_fp16_output.vpy - | vs_portable/x265 --log-file x265.log --log-file-level info --y4m -D 10 --preset ultrafast -o out.hevc -
         ls -l out.hevc x265.log
         cat x265.log
         grep -F 'encoded 10 frames' x265.log || exit 2

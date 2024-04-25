@@ -8,7 +8,7 @@ set(VAPOURSYNTH_INCLUDE_DIRECTORY "" CACHE PATH "Path to VapourSynth headers")
 set(TENSORRT_HOME "" CACHE PATH "Path to TensorRT")
 option(USE_NVINFER_PLUGIN "Initialize nvinfer_plugin" FALSE)
 option(USE_NVINFER_PLUGIN_STATIC "Use static nvinfer_plugin" FALSE)
-set(CUDNN_HOME "" CACHE PATH "Path to cuDNN")
+set(TENSORRT_LIBRARY_SUFFIX "" CACHE STRING "TensorRT library suffix")
 
 FIND_PACKAGE(CUDAToolkit REQUIRED)
 
@@ -31,28 +31,21 @@ set_target_properties(vstrt PROPERTIES
 )
 
 target_link_directories(vstrt PRIVATE ${TENSORRT_HOME}/lib)
-target_link_libraries(vstrt PRIVATE CUDA::cudart_static nvinfer)
+target_link_libraries(vstrt PRIVATE CUDA::cudart_static "nvinfer${TENSORRT_LIBRARY_SUFFIX}")
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    target_link_options(vstrt PRIVATE "/DELAYLOAD:nvinfer.dll" "delayimp.lib")
+    target_link_options(vstrt PRIVATE "/DELAYLOAD:nvinfer${TENSORRT_LIBRARY_SUFFIX}.dll" "delayimp.lib")
 endif()
 
 if (USE_NVINFER_PLUGIN)
     add_definitions(-DUSE_NVINFER_PLUGIN)
     if (USE_NVINFER_PLUGIN_STATIC)
-        target_link_libraries(vstrt PRIVATE nvinfer_plugin_static)
-
-        find_library(CUDNN_LIB cudnn HINTS ${CUDNN_ROOT_DIR} PATH_SUFFIXES lib)
-        target_link_libraries(vstrt PRIVATE ${CUDNN_LIB} CUDA::cublas)
-
-        if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-            target_link_options(vstrt PRIVATE "/DELAYLOAD:cublas64_11.dll" "/DELAYLOAD:cudnn64_8.dll")
-        endif()
+        target_link_libraries(vstrt PRIVATE "nvinfer_plugin_static${TENSORRT_LIBRARY_SUFFIX}")
     else()
-        target_link_libraries(vstrt PRIVATE nvinfer_plugin)
+        target_link_libraries(vstrt PRIVATE "nvinfer_plugin${TENSORRT_LIBRARY_SUFFIX}")
 
         if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-            target_link_options(vstrt PRIVATE "/DELAYLOAD:nvinfer_plugin.dll")
+            target_link_options(vstrt PRIVATE "/DELAYLOAD:nvinfer_plugin${TENSORRT_LIBRARY_SUFFIX}.dll")
         endif()
     endif()
 endif()

@@ -22,7 +22,6 @@ static std::vector<std::wstring> cudaDlls {
     L"cudart64",
     L"cublasLt64", L"cublas64",
     L"cufft64",
-    L"zlibwapi", // cuDNN version 8.3.0+ depends on zlib as a shared library dependency
     L"cudnn_ops_infer64", L"cudnn_cnn_infer64", L"cudnn_adv_infer64", L"cudnn64",
     L"cupti64",
 };
