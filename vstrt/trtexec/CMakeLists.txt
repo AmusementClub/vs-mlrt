@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(trtexec LANGUAGES CXX)
 
 set(TENSORRT_HOME "" CACHE PATH "Path to TensorRT")
+set(TENSORRT_LIBRARY_SUFFIX "" CACHE STRING "TensorRT library suffix")
 
 find_package(CUDAToolkit REQUIRED)
 
@@ -36,9 +37,9 @@ target_link_directories(trtexec PRIVATE
 
 target_link_libraries(trtexec PRIVATE
     CUDA::cudart_static
-    nvinfer
-    nvinfer_plugin
-    nvonnxparser
+    "nvinfer${TENSORRT_LIBRARY_SUFFIX}"
+    "nvinfer_plugin${TENSORRT_LIBRARY_SUFFIX}"
+    "nvonnxparser${TENSORRT_LIBRARY_SUFFIX}"
 )
 
 install(TARGETS trtexec RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
