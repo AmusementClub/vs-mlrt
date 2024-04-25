@@ -93,7 +93,7 @@ jobs:
 
     - name: Override trtexec CMake file
       run: |
-        rem cp -f -r -v tensorrt/samples ../tensorrt-oss
+        cp -f -r -v tensorrt/samples ../tensorrt-oss
 
         mv trtexec/CMakeLists.txt ../tensorrt-oss/samples/trtexec
         mv trtexec/*.cpp ../tensorrt-oss/samples/trtexec
