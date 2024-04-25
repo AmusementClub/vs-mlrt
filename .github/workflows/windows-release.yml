@@ -124,6 +124,7 @@ jobs:
         compression-level: 0
 
     - name: Download External Models
+      if: false
       run: |
         rm -rf release
         set -ex
@@ -145,10 +146,11 @@ jobs:
         popd
         ls -lR
         du -sh
-        7za a -t7z -bb3 -mx=9 ../ext-models.7z .
+        7za a -t7z -bb3 -mx=9 ../ext-models.7z . -v2g
 
     - name: Upload external model release
       uses: actions/upload-artifact@v4
+      if: false
       with:
         name: External-Models
         path: release
@@ -221,7 +223,6 @@ jobs:
     - name: Rename release asset
       run: |
         mv models.7z models.${{ github.event.inputs.tag }}.7z
-        mv ext-models.7z ext-models.${{ github.event.inputs.tag }}.7z
         mv contrib-models.7z contrib-models.${{ github.event.inputs.tag }}.7z
 
     - name: Release models
@@ -230,7 +231,6 @@ jobs:
         tag_name: ${{ github.event.inputs.tag }}
         files: |
           models.${{ github.event.inputs.tag }}.7z
-          ext-models.${{ github.event.inputs.tag }}.7z
           contrib-models.${{ github.event.inputs.tag }}.7z
         fail_on_unmatched_files: true
         generate_release_notes: false
