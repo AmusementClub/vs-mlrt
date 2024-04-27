@@ -33,13 +33,13 @@ jobs:
     - name: Setup HIP and MIGraphX
       run: |
         wget https://repo.radeon.com/rocm/rocm.gpg.key -O - | gpg --dearmor | sudo tee /etc/apt/keyrings/rocm.gpg > /dev/null
-        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.0.2 jammy main" | sudo tee --append /etc/apt/sources.list.d/rocm.list
+        echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.1 jammy main" | sudo tee --append /etc/apt/sources.list.d/rocm.list
         echo -e 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' | sudo tee /etc/apt/preferences.d/rocm-pin-600
         sudo apt update
         sudo apt install hip-runtime-amd rocm-device-libs migraphx-dev
 
     - name: Configure
-      run: cmake -S . -B build -G Ninja -LA
+      run: cmake -S . -B build -G Ninja -Wno-dev -LA
         -D CMAKE_BUILD_TYPE=Release
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="`pwd`/vapoursynth/include"
         -D CMAKE_CXX_COMPILER=g++-12
