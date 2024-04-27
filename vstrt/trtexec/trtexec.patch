@@ -1,0 +1,17 @@
+diff --git a/samples/utils/fileLock.cpp b/samples/utils/fileLock.cpp
+index e155c0b..de6bce2 100644
+--- a/samples/utils/fileLock.cpp
++++ b/samples/utils/fileLock.cpp
+@@ -35,8 +35,11 @@ FileLock::FileLock(ILogger& logger, std::string const& fileName)
+         ss << "Trying to set exclusive file lock " << lockFileName << std::endl;
+         mLogger.log(ILogger::Severity::kVERBOSE, ss.str().c_str());
+     }
++    int size = MultiByteToWideChar(CP_UTF8, 0, lockFileName.c_str(), -1, nullptr, 0);
++    std::wstring lockFileNameW (size, L'\0');
++    MultiByteToWideChar(CP_UTF8, 0, lockFileName.c_str(), -1, &lockFileNameW[0], size);
+     // MS docs said this is a blocking IO if "FILE_FLAG_OVERLAPPED" is not provided
+-    mHandle = CreateFileA(lockFileName.c_str(), GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, 0, NULL);
++    mHandle = CreateFileW(lockFileNameW.c_str(), GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_FLAG_DELETE_ON_CLOSE | FILE_ATTRIBUTE_TEMPORARY, NULL);
+     if (mHandle == INVALID_HANDLE_VALUE)
+     {
+         throw std::runtime_error("Failed to lock " + lockFileName + "!");
