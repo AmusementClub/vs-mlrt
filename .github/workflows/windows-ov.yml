@@ -61,7 +61,7 @@ jobs:
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
       with:
         repository: protocolbuffers/protobuf
-        # follows protobuf in https://github.com/openvinotoolkit/openvino/tree/2024.0.0/thirdparty/protobuf
+        # follows protobuf in https://github.com/AmusementClub/openvino/tree/master/thirdparty/protobuf
         # if you change this, remember to bump the version of the cache key.
         ref: fe271ab76f2ad2b2b28c10443865d2af21e27e0e
         fetch-depth: 1
@@ -93,7 +93,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: onnx/onnx
-        # follows onnx in https://github.com/openvinotoolkit/openvino/tree/2024.0.0/thirdparty/onnx
+        # follows onnx in https://github.com/AmusementClub/openvino/tree/master/thirdparty/onnx
         # if you change this, remember to bump the version of the cache key.
         ref: b86cc54efce19530fb953e4b21f57e6b3888534c
         fetch-depth: 1
@@ -124,11 +124,18 @@ jobs:
         unzip -q vs.zip
         mv vapoursynth-*/ vapoursynth/
 
-    - name: Setup OpenVINO
+    - name: Download OpenVINO Runtime Precompilation
+      shell: bash
       run: |
-        curl -L -o ov.zip https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.0/windows/w_openvino_toolkit_windows_2024.0.0.14509.34caeefd078_x86_64.zip
-        unzip ov.zip
-        rename w_openvino_toolkit_windows_2024.0.0.14509.34caeefd078_x86_64 openvino
+        # rev="${{github.event.inputs.ov_tag || inputs.ov_tag || 'latest'}}"
+        # if [ "$rev" == "latest" ]; then
+        #   url="https://github.com/AmusementClub/openvino/releases/latest/download/openvino-gpu-win64.zip"
+        # else
+        #   url="https://github.com/AmusementClub/openvino/releases/download/$rev/openvino-gpu-win64.zip"
+        # fi
+        url="https://github.com/AmusementClub/openvino/releases/download/2020.2-15171-g4655dd6ce3/openvino-gpu-win64.zip"
+        curl -s -o openvino.zip -LJO "$url"
+        unzip -q openvino.zip
 
     - name: Configure
       run: cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
@@ -209,8 +216,8 @@ jobs:
       shell: bash
       run: |
         set -ex
-        vs_portable/vspipe -i test.vpy -
-        vs_portable/vspipe --y4m -p -e 9 test.vpy - | vs_portable/x265 --log-file x265.log --log-file-level info --y4m -D 10 --preset ultrafast -o out.hevc -
+        vs_portable/vspipe -i test_fp16.vpy -
+        vs_portable/vspipe --y4m -p -e 9 test_fp16.vpy - | vs_portable/x265 --log-file x265.log --log-file-level info --y4m -D 10 --preset ultrafast -o out.hevc -
         ls -l out.hevc x265.log
         cat x265.log
         grep -F 'encoded 10 frames' x265.log || exit 2
