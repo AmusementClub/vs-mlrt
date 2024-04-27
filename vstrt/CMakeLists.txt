@@ -13,6 +13,7 @@ set(TENSORRT_LIBRARY_SUFFIX "" CACHE STRING "TensorRT library suffix")
 FIND_PACKAGE(CUDAToolkit REQUIRED)
 
 add_library(vstrt SHARED
+    $<$<PLATFORM_ID:Windows>: longpath.manifest>
     vs_tensorrt.cpp
     win32.cpp
 )

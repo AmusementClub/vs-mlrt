@@ -8,7 +8,7 @@ set(TENSORRT_LIBRARY_SUFFIX "" CACHE STRING "TensorRT library suffix")
 find_package(CUDAToolkit REQUIRED)
 
 add_executable(trtexec
-    $<$<PLATFORM_ID:Windows>: trtexec.manifest>
+    $<$<PLATFORM_ID:Windows>: longpath.manifest>
     trtexec.cpp
     logfile.cpp
     ../common/bfloat16.cpp
