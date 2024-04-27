@@ -1,4 +1,4 @@
-__version__ = "3.20.11"
+__version__ = "3.20.12"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1686,8 +1686,20 @@ def get_engine_path(
         os.makedirs(engine_folder, exist_ok=True)
         dirname = engine_folder
 
-    if short_path or (short_path is None and platform.system() == "Windows"):
-        return os.path.join(dirname, f"{zlib.crc32((basename + identity).encode()):x}.engine")
+    use_short_path = False
+
+    if short_path:
+        use_short_path = True
+    elif platform.system() == "Windows":
+        # use short path by default
+        if short_path is None:
+            use_short_path = True
+        # NTFS limitation
+        elif len(f"{basename}.{identity}.engine.cache.lock") >= 256:
+            use_short_path = True
+
+    if use_short_path:
+        return os.path.join(dirname, f"{zlib.crc32((f'{basename}.{identity}').encode()):x}.engine")
     else:
         return f"{os.path.join(dirname, basename)}.{identity}.engine"
 
