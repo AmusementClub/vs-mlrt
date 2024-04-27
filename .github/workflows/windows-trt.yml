@@ -97,7 +97,7 @@ jobs:
 
         mv trtexec/CMakeLists.txt ../tensorrt-oss/samples/trtexec
         mv trtexec/*.cpp ../tensorrt-oss/samples/trtexec
-        mv trtexec/*.manifest ../tensorrt-oss/samples/trtexec
+        mv longpath.manifest ../tensorrt-oss/samples/trtexec
 
     - name: Apply patch
       run: |
