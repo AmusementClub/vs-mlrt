@@ -99,6 +99,12 @@ jobs:
         mv trtexec/*.cpp ../tensorrt-oss/samples/trtexec
         mv trtexec/*.manifest ../tensorrt-oss/samples/trtexec
 
+    - name: Apply patch
+      run: |
+        mv trtexec/trtexec.patch ../tensorrt-oss
+        cd ../tensorrt-oss
+        git apply trtexec.patch --verbose
+
     - name: Configure trtexec
       run: cmake -S ../tensorrt-oss/samples/trtexec -B build_trtexec -G Ninja
         -D CMAKE_BUILD_TYPE=Release
