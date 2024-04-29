@@ -441,7 +441,8 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
 
 static inline
 std::optional<ErrorMessage> checkEngine(
-    const std::unique_ptr<nvinfer1::ICudaEngine> & engine
+    const std::unique_ptr<nvinfer1::ICudaEngine> & engine,
+    bool flexible_output
 ) noexcept {
 
 #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
@@ -506,8 +507,8 @@ std::optional<ErrorMessage> checkEngine(
     }
 
     int out_channels = output_dims.d[1];
-    if (out_channels != 1 && out_channels != 3) {
-        return "output dimensions must be 1 or 3";
+    if (out_channels != 1 && out_channels != 3 && !flexible_output) {
+        return "output dimensions must be 1 or 3, or enable \"flexible_output\"";
     }
 
     int in_height = input_dims.d[2];
@@ -547,7 +548,8 @@ std::optional<ErrorMessage> checkEngine(
 static inline
 std::variant<ErrorMessage, std::unique_ptr<nvinfer1::ICudaEngine>> initEngine(
     const char * engine_data, size_t engine_nbytes,
-    const std::unique_ptr<nvinfer1::IRuntime> & runtime
+    const std::unique_ptr<nvinfer1::IRuntime> & runtime,
+    bool flexible_output
 ) noexcept {
 
     const auto set_error = [](const ErrorMessage & error_message) {
@@ -562,7 +564,7 @@ std::variant<ErrorMessage, std::unique_ptr<nvinfer1::ICudaEngine>> initEngine(
         return set_error("engine deserialization failed");
     }
 
-    if (auto err = checkEngine(engine); err.has_value()) {
+    if (auto err = checkEngine(engine, flexible_output); err.has_value()) {
         return set_error(err.value());
     }
 

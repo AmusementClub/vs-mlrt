@@ -82,6 +82,8 @@ struct vsTrtData {
     std::mutex instances_lock;
     std::vector<InferenceInstance> instances;
 
+    std::string flexible_output_prop;
+
     [[nodiscard]]
     int acquire() noexcept {
         semaphore.acquire();
@@ -168,6 +170,8 @@ static const VSFrameRef *VS_CC vsTrtGetFrame(
             src_frames[0], core
         )};
 
+        std::vector<VSFrameRef *> dst_frames;
+
 #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
         auto output_name = d->engines[0]->getIOTensorName(1);
         const nvinfer1::Dims dst_dim { instance.exec_context->getTensorShape(output_name) };
@@ -181,8 +185,19 @@ static const VSFrameRef *VS_CC vsTrtGetFrame(
 
         std::vector<uint8_t *> dst_ptrs;
         dst_ptrs.reserve(dst_planes);
-        for (int i = 0; i < dst_planes; ++i) {
-            dst_ptrs.emplace_back(vsapi->getWritePtr(dst_frame, i));
+        if (d->flexible_output_prop.empty()) {
+            for (int i = 0; i < dst_planes; ++i) {
+                dst_ptrs.emplace_back(vsapi->getWritePtr(dst_frame, i));
+            }
+        } else {
+            for (int i = 0; i < dst_planes; ++i) {
+                auto frame { vsapi->newVideoFrame(
+                    d->out_vi->format, d->out_vi->width, d->out_vi->height,
+                    src_frames[0], core
+                )};
+                dst_frames.emplace_back(frame);
+                dst_ptrs.emplace_back(vsapi->getWritePtr(frame, 0));
+            }
         }
 
         const int h_scale = dst_tile_h / src_tile_h;
@@ -225,9 +240,23 @@ static const VSFrameRef *VS_CC vsTrtGetFrame(
                 frameCtx
             );
 
+            for (const auto & frame : dst_frames) {
+                vsapi->freeFrame(frame);
+            }
+
             vsapi->freeFrame(dst_frame);
 
             return nullptr;
+        }
+        
+        if (!d->flexible_output_prop.empty()) {
+            auto prop = vsapi->getFramePropsRW(dst_frame);
+
+            for (int i = 0; i < dst_planes; i++) {
+                auto key { d->flexible_output_prop + std::to_string(i) };
+                vsapi->propSetFrame(prop, key.c_str(), dst_frames[i], paReplace);
+                vsapi->freeFrame(dst_frames[i]);
+            }
         }
 
         return dst_frame;
@@ -365,6 +394,11 @@ static void VS_CC vsTrtCreate(
     }
     d->logger.set_verbosity(static_cast<nvinfer1::ILogger::Severity>(verbosity));
 
+    auto flexible_output_prop = vsapi->propGetData(in, "flexible_output_prop", 0, &error);
+    if (!error) {
+        d->flexible_output_prop = flexible_output_prop;
+    }
+
 #ifdef USE_NVINFER_PLUGIN
     // related to https://github.com/AmusementClub/vs-mlrt/discussions/65, for unknown reason
 #if !(NV_TENSORRT_MAJOR == 9 && defined(_WIN32))
@@ -391,7 +425,7 @@ static void VS_CC vsTrtCreate(
     engine_stream.read(engine_data.get(), engine_nbytes);
 
     d->runtime.reset(nvinfer1::createInferRuntime(d->logger));
-    auto maybe_engine = initEngine(engine_data.get(), engine_nbytes, d->runtime);
+    auto maybe_engine = initEngine(engine_data.get(), engine_nbytes, d->runtime, !d->flexible_output_prop.empty());
     if (std::holds_alternative<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)) {
         d->engines.push_back(std::move(std::get<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)));
     } else {
@@ -417,7 +451,7 @@ static void VS_CC vsTrtCreate(
         // https://docs.nvidia.com/deeplearning/tensorrt/archives/tensorrt-821/developer-guide/index.html#perform-inference
         // each optimization profile can only have one execution context when using dynamic shapes
         if (is_dynamic && i < d->num_streams - 1) {
-            auto maybe_engine = initEngine(engine_data.get(), engine_nbytes, d->runtime);
+            auto maybe_engine = initEngine(engine_data.get(), engine_nbytes, d->runtime, !d->flexible_output_prop.empty());
             if (std::holds_alternative<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)) {
                 d->engines.push_back(std::move(std::get<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)));
             } else {
@@ -490,8 +524,20 @@ static void VS_CC vsTrtCreate(
 
     setDimensions(
         d->out_vi, d->instances[0].exec_context, core, vsapi,
-        output_sample_type, output_bits_per_sample
+        output_sample_type, output_bits_per_sample,
+        !d->flexible_output_prop.empty()
     );
+
+    if (!d->flexible_output_prop.empty()) {
+        const auto & exec_context = d->instances[0].exec_context;
+        #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+            auto output_name = exec_context->getEngine().getIOTensorName(1);
+            const nvinfer1::Dims & out_dims = exec_context->getTensorShape(output_name);
+        #else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+            const nvinfer1::Dims & out_dims = exec_context->getBindingDimensions(1);
+        #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+        vsapi->propSetInt(out, "num_planes", out_dims.d[1], paReplace);
+    }
 
     vsapi->createFilter(
         in, out, "Model",
@@ -557,7 +603,8 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "device_id:int:opt;"
         "use_cuda_graph:int:opt;"
         "num_streams:int:opt;"
-        "verbosity:int:opt;",
+        "verbosity:int:opt;"
+        "flexible_output_prop:data:opt;",
         vsTrtCreate,
         nullptr,
         plugin

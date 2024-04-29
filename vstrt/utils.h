@@ -20,7 +20,8 @@ void setDimensions(
     VSCore * core,
     const VSAPI * vsapi,
     int sample_type,
-    int bits_per_sample
+    int bits_per_sample,
+    bool flexible_output
 ) noexcept {
 
 #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
@@ -42,7 +43,7 @@ void setDimensions(
     vi->height *= out_height / in_height;
     vi->width *= out_width / in_width;
 
-    if (out_dims.d[1] == 1) {
+    if (out_dims.d[1] == 1 || flexible_output) {
         vi->format = vsapi->registerFormat(cmGray, sample_type, bits_per_sample, 0, 0, core);
     } else if (out_dims.d[1] == 3) {
         vi->format = vsapi->registerFormat(cmRGB, sample_type, bits_per_sample, 0, 0, core);
