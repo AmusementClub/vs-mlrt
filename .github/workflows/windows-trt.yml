@@ -94,6 +94,7 @@ jobs:
     - name: Override trtexec CMake file
       run: |
         cp -f -r -v tensorrt/samples ../tensorrt-oss
+        cp -f -r -v tensorrt/include ../tensorrt-oss
 
         mv trtexec/CMakeLists.txt ../tensorrt-oss/samples/trtexec
         mv trtexec/*.cpp ../tensorrt-oss/samples/trtexec
@@ -110,8 +111,6 @@ jobs:
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
-        -D TENSORRT_HOME="%cd%\tensorrt"
-        -D TENSORRT_LIBRARY_SUFFIX="_10"
 
     - name: Build trtexec
       run: cmake --build build_trtexec --verbose
@@ -142,7 +141,7 @@ jobs:
         7z a -t7z -mx=7 ../../VSTRT-Windows-x64.${{ github.event.inputs.tag }}.7z .
 
     - name: Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
       with:
         tag_name: ${{ inputs.tag }}
