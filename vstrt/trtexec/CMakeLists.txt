@@ -23,6 +23,7 @@ add_executable(trtexec
 target_include_directories(trtexec PRIVATE
     ../common
     ..
+    ../../include
 )
 
 target_link_libraries(trtexec PRIVATE CUDA::cudart_static)
