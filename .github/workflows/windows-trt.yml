@@ -116,6 +116,7 @@ jobs:
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
+        -D CMAKE_UNITY_BUILD=ON -D CMAKE_UNITY_BUILD_BATCH_SIZE=0
 
     - name: Build trtexec
       run: cmake --build build_trtexec --verbose
