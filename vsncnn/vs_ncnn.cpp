@@ -2,7 +2,6 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
-#include <fstream>
 #include <memory>
 #include <optional>
 #include <string>
@@ -123,6 +122,8 @@ struct vsNcnnData {
     int input_index;
     int output_index;
 
+    std::string flexible_output_prop;
+
     int acquire() noexcept {
         semaphore.acquire();
         {
@@ -195,6 +196,9 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
             d->out_vi->format, d->out_vi->width, d->out_vi->height,
             src_frames.front(), core
         );
+
+        std::vector<VSFrameRef *> dst_frames;
+
         auto dst_stride = vsapi->getStride(dst_frame, 0);
         auto dst_bytes = vsapi->getFrameFormat(dst_frame)->bytesPerSample;
 
@@ -222,9 +226,21 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
         auto dst_tile_w = dst_tile_shape[3];
         auto dst_tile_w_bytes = dst_tile_w * dst_bytes;
         auto dst_planes = dst_tile_shape[1];
-        uint8_t * dst_ptrs[3] {};
-        for (int i = 0; i < dst_planes; ++i) {
-            dst_ptrs[i] = vsapi->getWritePtr(dst_frame, i);
+
+        std::vector<uint8_t *> dst_ptrs;
+        if (d->flexible_output_prop.empty()) {
+            for (int i = 0; i < dst_planes; ++i) {
+                dst_ptrs.emplace_back(vsapi->getWritePtr(dst_frame, i));
+            }
+        } else {
+            for (int i = 0; i < dst_planes; ++i) {
+                auto frame { vsapi->newVideoFrame(
+                    d->out_vi->format, d->out_vi->width, d->out_vi->height,
+                    src_frames[0], core
+                )};
+                dst_frames.emplace_back(frame);
+                dst_ptrs.emplace_back(vsapi->getWritePtr(frame, 0));
+            }
         }
 
         auto h_scale = dst_tile_h / src_tile_h;
@@ -239,6 +255,10 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
             );
 
             d->release(ticket);
+
+            for (const auto & frame : dst_frames) {
+                vsapi->freeFrame(frame);
+            }
 
             vsapi->freeFrame(dst_frame);
 
@@ -354,6 +374,16 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
 
         for (const auto & frame : src_frames) {
             vsapi->freeFrame(frame);
+        }
+
+        if (!d->flexible_output_prop.empty()) {
+            auto prop = vsapi->getFramePropsRW(dst_frame);
+
+            for (int i = 0; i < dst_planes; i++) {
+                auto key { d->flexible_output_prop + std::to_string(i) };
+                vsapi->propSetFrame(prop, key.c_str(), dst_frames[i], paReplace);
+                vsapi->freeFrame(dst_frames[i]);
+            }
         }
 
         return dst_frame;
@@ -487,6 +517,11 @@ static void VS_CC vsNcnnCreate(
         d->fp16 = false;
     }
 
+    auto flexible_output_prop = vsapi->propGetData(in, "flexible_output_prop", 0, &error);
+    if (!error) {
+        d->flexible_output_prop = flexible_output_prop;
+    }
+
     bool path_is_serialization = !!vsapi->propGetInt(in, "path_is_serialization", 0, &error);
     if (error) {
         path_is_serialization = false;
@@ -534,11 +569,12 @@ static void VS_CC vsNcnnCreate(
     d->out_vi = std::make_unique<VSVideoInfo>(*in_vis.front()); // mutable
     d->out_vi->width *= d->out_tile_w / d->in_tile_w;
     d->out_vi->height *= d->out_tile_h / d->in_tile_h;
-    if (d->out_tile_c == 1) {
+    if (d->out_tile_c == 1 || !d->flexible_output_prop.empty()) {
         d->out_vi->format = vsapi->registerFormat(cmGray, stFloat, 32, 0, 0, core);
-    }
-    if (d->out_tile_c == 3) {
+    } else if (d->out_tile_c == 3) {
         d->out_vi->format = vsapi->registerFormat(cmRGB, stFloat, 32, 0, 0, core);
+    } else {
+        return set_error("output dimensions must be 1 or 3, or enable \"flexible_output\"");
     }
 
     auto ncnn_result = onnx2ncnn(onnx_model);
@@ -596,6 +632,10 @@ static void VS_CC vsNcnnCreate(
         }
     }
 
+    if (!d->flexible_output_prop.empty()) {
+        vsapi->propSetInt(out, "num_planes", d->out_tile_c, paReplace);
+    }
+
     vsapi->createFilter(
         in, out, "Model",
         vsNcnnInit, vsNcnnGetFrame, vsNcnnFree,
@@ -629,6 +669,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "builtindir:data:opt;"
         "fp16:int:opt;"
         "path_is_serialization:int:opt;"
+        "flexible_output_prop:data:opt;"
         , vsNcnnCreate,
         nullptr,
         plugin
