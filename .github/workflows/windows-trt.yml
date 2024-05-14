@@ -134,6 +134,9 @@ jobs:
     - name: Describe
       run: git describe --tags --long
 
+    - name: Dump dependencies
+      run: dumpbin /dependents artifact\vstrt.dll
+
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
