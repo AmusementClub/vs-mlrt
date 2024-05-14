@@ -224,8 +224,27 @@ jobs:
         grep -i 'error' x265.log && exit 1
         exit 0
 
+    - name: Create script (flexible output)
+      shell: bash
+      run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ov, file=sys.stderr);prop=\"test\";output=core.std.BlankClip(format=vs.RGBS).ov.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True, flexible_output_prop=prop);core.std.ShufflePlanes([output[\"clip\"].std.PropToClip(prop=f\"{prop}{i}\") for i in range(output[\"num_planes\"])], [0, 0, 0], vs.RGB).resize.Bicubic(format=vs.YUV420P10, matrix_s='709').set_output()" > test_flexible_output.vpy
+
+    - name: Run vspipe (flexible output)
+      shell: bash
+      run: |
+        set -ex
+        vs_portable/vspipe -i test_flexible_output.vpy -
+        vs_portable/vspipe --y4m -p -e 9 test_flexible_output.vpy - | vs_portable/x265 --log-file x265.log --log-file-level info --y4m -D 10 --preset ultrafast -o out.hevc -
+        ls -l out.hevc x265.log
+        cat x265.log
+        grep -F 'encoded 10 frames' x265.log || exit 2
+        grep -i 'error' x265.log && exit 1
+        exit 0
+
     - name: Describe
       run: git describe --tags --long
+
+    - name: Dump dependencies
+      run: dumpbin /dependents artifact\vsov.dll
 
     - name: Compress artifact for release
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
