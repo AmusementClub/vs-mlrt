@@ -23,18 +23,14 @@ if(WIN32_SHARED_OPENVINO)
     target_compile_definitions(vsov PRIVATE WIN32_SHARED_OPENVINO)
 endif()
 
-if(WIN32_SHARED_OPENVINO)
-    find_package(protobuf REQUIRED CONFIG)
-    find_package(ONNX REQUIRED CONFIG)
+find_package(protobuf REQUIRED CONFIG)
+find_package(ONNX REQUIRED CONFIG)
 
-    # https://github.com/onnx/onnx/commit/21bff4e55dcefecc069c679115baae6b00caa0d5
-    if (ONNX_VERSION VERSION_LESS 1.16.0)
-        target_link_libraries(vsov PRIVATE onnx)
-    else()
-        target_link_libraries(vsov PRIVATE ONNX::onnx)
-    endif()
+# https://github.com/onnx/onnx/commit/21bff4e55dcefecc069c679115baae6b00caa0d5
+if (ONNX_VERSION VERSION_LESS 1.16.0)
+    target_link_libraries(vsov PRIVATE onnx)
 else()
-    target_link_libraries(vsov PRIVATE openvino::frontend::onnx)
+    target_link_libraries(vsov PRIVATE ONNX::onnx)
 endif()
 
 target_include_directories(vsov PRIVATE
