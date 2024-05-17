@@ -1,4 +1,4 @@
-__version__ = "3.21.0"
+__version__ = "3.21.1"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -2279,22 +2279,24 @@ def _inference(
                 "https://github.com/AmusementClub/vs-mlrt/releases/tag/external-models"
             )
 
+    kwargs = dict(overlap=overlap, tilesize=tilesize)
+    if flexible_output_prop is not None:
+        kwargs["flexible_output_prop"] = flexible_output_prop
+
     if isinstance(backend, Backend.ORT_CPU):
         ret = core.ort.Model(
             clips, network_path,
-            overlap=overlap, tilesize=tilesize,
             provider="CPU", builtin=False,
             num_streams=backend.num_streams,
             verbosity=backend.verbosity,
             fp16=backend.fp16,
             path_is_serialization=path_is_serialization,
             fp16_blacklist_ops=backend.fp16_blacklist_ops,
-            flexible_output_prop=flexible_output_prop,
+            **kwargs
         )
     elif isinstance(backend, Backend.ORT_DML):
         ret = core.ort.Model(
             clips, network_path,
-            overlap=overlap, tilesize=tilesize,
             provider="DML", builtin=False,
             device_id=backend.device_id,
             num_streams=backend.num_streams,
@@ -2302,11 +2304,9 @@ def _inference(
             fp16=backend.fp16,
             path_is_serialization=path_is_serialization,
             fp16_blacklist_ops=backend.fp16_blacklist_ops,
-            flexible_output_prop=flexible_output_prop,
+            **kwargs
         )
     elif isinstance(backend, Backend.ORT_CUDA):
-        kwargs = dict()
-
         version_list = core.ort.Version().get("onnxruntime_version", b"0.0.0").split(b'.')
         if len(version_list) != 3:
             version = (0, 0, 0)
@@ -2320,7 +2320,6 @@ def _inference(
 
         ret = core.ort.Model(
             clips, network_path,
-            overlap=overlap, tilesize=tilesize,
             provider="CUDA", builtin=False,
             device_id=backend.device_id,
             num_streams=backend.num_streams,
@@ -2360,13 +2359,12 @@ def _inference(
 
         ret = core.ov.Model(
             clips, network_path,
-            overlap=overlap, tilesize=tilesize,
             device="CPU", builtin=False,
             fp16=False, # use ov's internal quantization
             config=config,
             path_is_serialization=path_is_serialization,
             fp16_blacklist_ops=backend.fp16_blacklist_ops, # disabled since fp16 = False
-            flexible_output_prop=flexible_output_prop,
+            **kwargs
         )
     elif isinstance(backend, Backend.OV_GPU):
         version = tuple(map(int, core.ov.Version().get("openvino_version", b"0.0.0").split(b'-')[0].split(b'.')))
@@ -2388,13 +2386,12 @@ def _inference(
 
         ret = core.ov.Model(
             clips, network_path,
-            overlap=overlap, tilesize=tilesize,
             device=f"GPU.{backend.device_id}", builtin=False,
             fp16=False, # use ov's internal quantization
             config=config,
             path_is_serialization=path_is_serialization,
             fp16_blacklist_ops=backend.fp16_blacklist_ops,
-            flexible_output_prop=flexible_output_prop,
+            **kwargs
         )
     elif isinstance(backend, Backend.TRT):
         if path_is_serialization:
@@ -2441,24 +2438,21 @@ def _inference(
         )
         ret = core.trt.Model(
             clips, engine_path,
-            overlap=overlap,
-            tilesize=tilesize,
             device_id=backend.device_id,
             use_cuda_graph=backend.use_cuda_graph,
             num_streams=backend.num_streams,
             verbosity=4 if backend.verbose else 2,
-            flexible_output_prop=flexible_output_prop,
+            **kwargs
         )
     elif isinstance(backend, Backend.NCNN_VK):
         ret = core.ncnn.Model(
             clips, network_path,
-            overlap=overlap, tilesize=tilesize,
             device_id=backend.device_id,
             num_streams=backend.num_streams,
             builtin=False,
             fp16=backend.fp16,
             path_is_serialization=path_is_serialization,
-            flexible_output_prop=flexible_output_prop,
+            **kwargs
         )
     elif isinstance(backend, Backend.MIGX):
         if path_is_serialization:
@@ -2485,19 +2479,16 @@ def _inference(
         )
         ret = core.migx.Model(
             clips, mxr_path,
-            overlap=overlap,
-            tilesize=tilesize,
             device_id=backend.device_id,
-            flexible_output_prop=flexible_output_prop,
+            **kwargs
         )
     elif isinstance(backend, Backend.OV_NPU):
         ret = core.ov.Model(
             clips, network_path,
-            overlap=overlap, tilesize=tilesize,
             device="NPU", builtin=False,
             fp16=False, # use ov's internal quantization
             path_is_serialization=path_is_serialization,
-            flexible_output_prop=flexible_output_prop,
+            **kwargs
         )
     else:
         raise TypeError(f'unknown backend {backend}')
