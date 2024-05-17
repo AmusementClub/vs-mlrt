@@ -1,4 +1,4 @@
-__version__ = "3.21.1"
+__version__ = "3.21.2"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -522,6 +522,12 @@ def DPIR(
         backend=backend,
         trt_opt_shapes=(tile_w, tile_h)
     )
+
+    if isinstance(backend, Backend.TRT) and not backend.force_fp16:
+        backend.custom_args.extend([
+            "--precisionConstraints=obey",
+            "--layerPrecisions=Conv_123:fp32"
+        ])
 
     network_path = os.path.join(
         models_path,
