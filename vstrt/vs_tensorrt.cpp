@@ -445,6 +445,8 @@ static void VS_CC vsTrtCreate(
             is_dynamic
         );
 
+        // https://docs.nvidia.com/deeplearning/tensorrt/archives/tensorrt-1000-ea/developer-guide/index.html#perform-inference
+#if NV_TENSORRT_MAJOR < 10
         // duplicates ICudaEngine instances
         //
         // According to
@@ -458,6 +460,7 @@ static void VS_CC vsTrtCreate(
                 return set_error(std::get<ErrorMessage>(maybe_engine));
             }
         }
+#endif // NV_TENSORRT_MAJOR < 10
 
         if (std::holds_alternative<InferenceInstance>(maybe_instance)) {
             auto instance = std::move(std::get<InferenceInstance>(maybe_instance));
