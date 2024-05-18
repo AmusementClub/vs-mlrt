@@ -546,6 +546,8 @@ static const VSFrameRef *VS_CC vsMIGXGetFrame(
                 ));
 
                 migraphx_arguments_t outputs;
+
+#ifdef MIGRAPHX_VERSION_TWEAK
                 checkError(migraphx_program_run_async(
                     &outputs,
                     d->program,
@@ -553,6 +555,15 @@ static const VSFrameRef *VS_CC vsMIGXGetFrame(
                     instance.stream.data,
                     "ihipStream_t"
                 ));
+#else // MIGRAPHX_VERSION_TWEAK
+                checkHIPError(hipStreamSynchronize(instance.stream));
+
+                checkError(migraphx_program_run(
+                    &outputs,
+                    d->program,
+                    instance.params
+                ));
+#endif // MIGRAPHX_VERSION_TWEAK
 
                 checkHIPError(hipMemcpyAsync(
                     instance.dst.h_data.data,
@@ -753,12 +764,15 @@ static void VS_CC vsMIGXCreate(
         checkError(migraphx_program_parameter_shapes_names(&input_name[0], input_shapes));
         // here we assume that the second parameter corresponds to the input node
         checkError(migraphx_program_parameter_shapes_get(&input_shape, input_shapes, input_name[1]));
+        // TODO: support dynamic shapes
+#ifdef MIGRAPHX_VERSION_TWEAK
         bool is_dynamic;
         checkError(migraphx_shape_dynamic(&is_dynamic, input_shape));
         // TODO
         if (is_dynamic) {
             return set_error("dynamic shape is not supported for now");
         }
+#endif // MIGRAPHX_VERSION_TWEAK
         migraphx_shape_datatype_t type;
         checkError(migraphx_shape_type(&type, input_shape));
         if (type != migraphx_shape_float_type && type != migraphx_shape_half_type) {
@@ -817,12 +831,15 @@ static void VS_CC vsMIGXCreate(
             return set_error("program must have exactly one output");
         }
         checkError(migraphx_shapes_get(&output_shape, output_shapes, 0));
+        // TODO: support dynamic shapes
+#ifdef MIGRAPHX_VERSION_TWEAK
         bool is_dynamic;
         checkError(migraphx_shape_dynamic(&is_dynamic, output_shape));
         // TODO
         if (is_dynamic) {
             return set_error("dynamic shape is not supported for now");
         }
+#endif // MIGRAPHX_VERSION_TWEAK
         migraphx_shape_datatype_t type;
         checkError(migraphx_shape_type(&type, output_shape));
         if (type != migraphx_shape_float_type && type != migraphx_shape_half_type) {
