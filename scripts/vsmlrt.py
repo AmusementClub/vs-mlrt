@@ -1,4 +1,4 @@
-__version__ = "3.21.2"
+__version__ = "3.21.3"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -12,7 +12,8 @@ __all__ = [
     "SCUNet", "SCUNetModel",
     "SwinIR", "SwinIRModel",
     "ArtCNN", "ArtCNNModel",
-    "inference"
+    "inference",
+    "flexible_inference"
 ]
 
 import copy
