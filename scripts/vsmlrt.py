@@ -2336,7 +2336,6 @@ def _inference(
             path_is_serialization=path_is_serialization,
             use_cuda_graph=backend.use_cuda_graph,
             fp16_blacklist_ops=backend.fp16_blacklist_ops,
-            flexible_output_prop=flexible_output_prop,
             **kwargs
         )
     elif isinstance(backend, Backend.OV_CPU):
