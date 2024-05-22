@@ -1666,7 +1666,7 @@ def ArtCNN(
             raise ValueError(f'{func_name}: "clip" must be of YUV color family')
         if clip.format.subsampling_h != 0 or clip.format.subsampling_w != 0:
             raise ValueError(
-                f'{func_name}: "clip" must be without subsampling!'
+                f'{func_name}: "clip" must be without subsampling! '
                 'Bilinear upsampling is recommended.'
             )
     elif clip.format.color_family != vs.GRAY:
@@ -2280,7 +2280,7 @@ def _inference(
         if not os.path.exists(network_path):
             raise RuntimeError(
                 f'"{network_path}" not found, '
-                "built-in models can be found at"
+                "built-in models can be found at "
                 "https://github.com/AmusementClub/vs-mlrt/releases/tag/model-20211209, "
                 "https://github.com/AmusementClub/vs-mlrt/releases/tag/model-20220923 and "
                 "https://github.com/AmusementClub/vs-mlrt/releases/tag/external-models"
