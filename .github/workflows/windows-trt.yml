@@ -70,7 +70,7 @@ jobs:
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
-        -D CMAKE_CXX_FLAGS="/EHsc /Wall /wd4100 /wd4625 /wd4626 /wd4996"
+        -D CMAKE_CXX_FLAGS="/EHsc /Wall /wd4100 /wd4625 /wd4626 /wd4710 /wd4711 /wd4820 /wd4996 /wd5026 /wd5027"
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
