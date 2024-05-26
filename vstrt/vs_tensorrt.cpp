@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <ios>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -420,15 +421,24 @@ static void VS_CC vsTrtCreate(
         return set_error("open engine failed");
     }
 
-    size_t engine_nbytes = engine_stream.tellg();
+    auto engine_nbytes = engine_stream.tellg();
+    if (engine_nbytes == -1) {
+        return set_error("open engine failed");
+    }
+
     std::unique_ptr<char [], decltype(&free)> engine_data {
-        (char *) malloc(engine_nbytes), free
+        (char *) malloc(static_cast<size_t>(engine_nbytes)), free
     };
     engine_stream.seekg(0, std::ios::beg);
-    engine_stream.read(engine_data.get(), engine_nbytes);
+    engine_stream.read(engine_data.get(), static_cast<std::streamsize>(engine_nbytes));
 
     d->runtime.reset(nvinfer1::createInferRuntime(d->logger));
-    auto maybe_engine = initEngine(engine_data.get(), engine_nbytes, d->runtime, !d->flexible_output_prop.empty());
+    auto maybe_engine = initEngine(
+        engine_data.get(),
+        static_cast<size_t>(engine_nbytes),
+        d->runtime,
+        !d->flexible_output_prop.empty()
+    );
     if (std::holds_alternative<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)) {
         d->engines.push_back(std::move(std::get<std::unique_ptr<nvinfer1::ICudaEngine>>(maybe_engine)));
     } else {
