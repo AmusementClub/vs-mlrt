@@ -25,11 +25,14 @@
 #include "utils.h"
 
 #ifdef _WIN32
-#include <locale>
-#include <codecvt>
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+    
 static std::wstring translateName(const char *name) {
-	std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-	return converter.from_bytes(name);
+    auto size = MultiByteToWideChar(CP_UTF8, 0, name, -1, nullptr, 0);
+    std::wstring ret(size);
+    MultiByteToWideChar(CP_UTF8, 0, name, -1, ret.data(), size);
+    return ret;
 }
 #else
 #define translateName(n) (n)
