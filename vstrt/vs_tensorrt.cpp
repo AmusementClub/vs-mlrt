@@ -537,7 +537,6 @@ static void VS_CC vsTrtCreate(
     if (!d->flexible_output_prop.empty()) {
         const auto & exec_context = d->instances[0].exec_context;
         #if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
-            auto output_name = exec_context->getEngine().getIOTensorName(1);
             const nvinfer1::Dims & out_dims = exec_context->getTensorShape(output_name);
         #else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
             const nvinfer1::Dims & out_dims = exec_context->getBindingDimensions(1);
