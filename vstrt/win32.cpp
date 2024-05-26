@@ -48,7 +48,7 @@ static fs::path dllDir() {
 			size_t n = 0;
 			do {
 				buf.resize(buf.size() + MAX_PATH);
-				n = GetModuleFileNameW(mod, buf.data(), buf.size());
+				n = GetModuleFileNameW(mod, buf.data(), static_cast<DWORD>(buf.size()));
 			} while (n >= buf.size());
 			buf.resize(n);
 			std::wstring path(buf.begin(), buf.end());
