@@ -30,7 +30,7 @@
     
 static std::wstring translateName(const char *name) {
     auto size = MultiByteToWideChar(CP_UTF8, 0, name, -1, nullptr, 0);
-    std::wstring ret(size);
+    std::wstring ret(static_cast<size_t>(size), {});
     MultiByteToWideChar(CP_UTF8, 0, name, -1, ret.data(), size);
     return ret;
 }
