@@ -50,8 +50,8 @@ class Logger : public nvinfer1::ILogger {
 public:
     Logger() = default;
 
-    void set_verbosity(Severity verbosity) noexcept {
-        this->verbosity = verbosity;
+    void set_verbosity(Severity value) noexcept {
+        this->verbosity = value;
     }
 
 private:
@@ -240,7 +240,7 @@ size_t getSize(
 }
 
 static inline
-size_t getBytesPerSample(nvinfer1::DataType type) noexcept {
+int getBytesPerSample(nvinfer1::DataType type) noexcept {
     switch (type) {
         case nvinfer1::DataType::kFLOAT:
             return 4;
@@ -506,15 +506,15 @@ std::optional<ErrorMessage> checkEngine(
         return "batch size of network output must be 1";
     }
 
-    int out_channels = output_dims.d[1];
+    auto out_channels = output_dims.d[1];
     if (out_channels != 1 && out_channels != 3 && !flexible_output) {
         return "output dimensions must be 1 or 3, or enable \"flexible_output\"";
     }
 
-    int in_height = input_dims.d[2];
-    int in_width = input_dims.d[3];
-    int out_height = output_dims.d[2];
-    int out_width = output_dims.d[3];
+    auto in_height = input_dims.d[2];
+    auto in_width = input_dims.d[3];
+    auto out_height = output_dims.d[2];
+    auto out_width = output_dims.d[3];
     if (out_height % in_height != 0 || out_width % in_width != 0) {
         return "output dimensions must be divisible by input dimensions";
     }
