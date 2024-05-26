@@ -81,7 +81,8 @@ std::optional<ErrorMessage> inference(
                     vs_bitblt(
                         h_data, src_tile_w_bytes,
                         src_ptr, info.in.pitch,
-                        src_tile_w_bytes, info.in.tile_h
+                        static_cast<size_t>(src_tile_w_bytes),
+                        static_cast<size_t>(info.in.tile_h)
                     );
 
                     h_data += src_tile_bytes;
@@ -114,8 +115,8 @@ std::optional<ErrorMessage> inference(
                         info.out.pitch,
                         h_data + (y_crop_start * dst_tile_w_bytes + x_crop_start * info.out.bytes_per_sample),
                         dst_tile_w_bytes,
-                        dst_tile_w_bytes - (x_crop_start + x_crop_end) * info.out.bytes_per_sample,
-                        dst_tile_h - (y_crop_start + y_crop_end)
+                        static_cast<size_t>(dst_tile_w_bytes - (x_crop_start + x_crop_end) * info.out.bytes_per_sample),
+                        static_cast<size_t>(dst_tile_h - (y_crop_start + y_crop_end))
                     );
 
                     h_data += dst_tile_bytes;
