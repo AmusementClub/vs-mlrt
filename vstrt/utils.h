@@ -34,11 +34,11 @@ void setDimensions(
     const nvinfer1::Dims & out_dims = exec_context->getBindingDimensions(1);
 #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
 
-    int in_height = in_dims.d[2];
-    int in_width = in_dims.d[3];
+    auto in_height = static_cast<int>(in_dims.d[2]);
+    auto in_width = static_cast<int>(in_dims.d[3]);
 
-    int out_height = out_dims.d[2];
-    int out_width = out_dims.d[3];
+    auto out_height = static_cast<int>(out_dims.d[2]);
+    auto out_width = static_cast<int>(out_dims.d[3]);
 
     vi->height *= out_height / in_height;
     vi->width *= out_width / in_width;
@@ -157,14 +157,14 @@ std::optional<std::string> checkNodesAndContext(
     const nvinfer1::Dims & network_in_dims = execution_context->getBindingDimensions(0);
 #endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
 
-    int network_in_channels = network_in_dims.d[1];
+    auto network_in_channels = network_in_dims.d[1];
     int num_planes = numPlanes(vis);
     if (network_in_channels != num_planes) {
         return "expects " + std::to_string(network_in_channels) + " input planes";
     }
 
-    int network_in_height = network_in_dims.d[2];
-    int network_in_width = network_in_dims.d[3];
+    auto network_in_height = network_in_dims.d[2];
+    auto network_in_width = network_in_dims.d[3];
     int clip_in_height = vis[0]->height;
     int clip_in_width = vis[0]->width;
 
@@ -187,8 +187,8 @@ static inline void VS_CC getDeviceProp(
     }
 
     cudaDeviceProp prop;
-    if (auto err = cudaGetDeviceProperties(&prop, device_id); err != cudaSuccess) {
-        vsapi->setError(out, cudaGetErrorString(err));
+    if (auto error = cudaGetDeviceProperties(&prop, device_id); error != cudaSuccess) {
+        vsapi->setError(out, cudaGetErrorString(error));
         return ;
     }
 
@@ -213,7 +213,7 @@ static inline void VS_CC getDeviceProp(
         for (int i = 0; i < 16; ++i) {
             uuid[i] = prop.uuid.bytes[i];
         }
-        vsapi->propSetIntArray(out, "uuid", std::data(uuid), std::size(uuid));
+        vsapi->propSetIntArray(out, "uuid", std::data(uuid), static_cast<int>(std::size(uuid)));
     }
     setProp("total_global_memory", prop.totalGlobalMem);
     setProp("shared_memory_per_block", prop.sharedMemPerBlock);
