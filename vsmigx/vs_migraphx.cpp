@@ -855,7 +855,7 @@ static void VS_CC vsMIGXCreate(
         if (lengths[0] != 1) {
             return set_error("batch size must be 1");
         }
-        if (lengths[1] != 1 && lengths[1] != 3 && !d->flexible_output_prop.empty()) {
+        if (lengths[1] != 1 && lengths[1] != 3 && d->flexible_output_prop.empty()) {
             return set_error("output should have 1 or 3 channels, or enable \"flexible_output\"");
         }
         if (lengths[2] % tile_h != 0 && lengths[3] % tile_w != 0) {
