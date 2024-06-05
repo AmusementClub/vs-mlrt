@@ -1,4 +1,4 @@
-__version__ = "3.21.5"
+__version__ = "3.21.6"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -41,20 +41,37 @@ def get_plugins_path() -> str:
     try:
         path = core.ov.Version()["path"]
     except AttributeError:
+        pass
+
+    if path == b"":
         try:
             path = core.ort.Version()["path"]
         except AttributeError:
-            try:
-                path = core.ncnn.Version()["path"]
-            except AttributeError:
-                try:
-                    path = core.trt.Version()["path"]
-                except AttributeError:
-                    path = core.migx.Version()["path"]
+            pass
 
-    assert path != b""
+    if path == b"":
+        try:
+            path = core.ncnn.Version()["path"]
+        except AttributeError:
+            pass
+
+    if path == b"":
+        try:
+            path = core.trt.Version()["path"]
+        except AttributeError:
+            pass
+
+    if path == b"":
+        try:
+            path = core.migx.Version()["path"]
+        except AttributeError:
+            pass
+
+    if path == b"":
+        raise RuntimeError("vsmlrt: cannot load any filters")
 
     return os.path.dirname(path).decode()
+
 
 plugins_path: str = get_plugins_path()
 trtexec_path: str = os.path.join(plugins_path, "vsmlrt-cuda", "trtexec")
