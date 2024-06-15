@@ -57,7 +57,7 @@ jobs:
 
     - name: Download TensorRT
       run: |
-        curl -L -o trt.zip https://developer.download.nvidia.com/compute/machine-learning/tensorrt/10.0.1/zip/TensorRT-10.0.1.6.Windows10.win10.cuda-12.4.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.1.0/zip/TensorRT-10.1.0.27.Windows.win10.cuda-12.4.zip
         unzip trt.zip
         mv TensorRT-*/ tensorrt/
 
@@ -99,8 +99,8 @@ jobs:
 
     - name: Override trtexec CMake file
       run: |
-        rem cp -f -r -v tensorrt/samples ../tensorrt-oss
-        rem cp -f -r -v tensorrt/include ../tensorrt-oss
+        cp -f -r -v tensorrt/samples ../tensorrt-oss
+        cp -f -r -v tensorrt/include ../tensorrt-oss
 
         mv trtexec/CMakeLists.txt ../tensorrt-oss/samples/trtexec
         mv trtexec/*.cpp ../tensorrt-oss/samples/trtexec
@@ -110,7 +110,12 @@ jobs:
       run: |
         mv trtexec/trtexec.patch ../tensorrt-oss
         cd ../tensorrt-oss
+
+        copy samples\utils\fileLock.cpp samples\utils\fileLock-utf16le.cpp
+        powershell "Get-Content samples\utils\fileLock-utf16le.cpp | Out-File samples\utils\fileLock.cpp -Encoding ascii"
         git apply trtexec.patch --verbose
+        copy samples\utils\fileLock.cpp samples\utils\fileLock-utf8.cpp
+        powershell "Get-Content samples\utils\fileLock-utf8.cpp | Out-File samples\utils\fileLock.cpp"
 
     - name: Configure trtexec
       run: cmake -S ../tensorrt-oss/samples/trtexec -B build_trtexec -G Ninja
