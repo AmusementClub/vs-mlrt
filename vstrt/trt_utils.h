@@ -411,8 +411,12 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
     Resource<uint8_t *, cudaFree> d_context_allocation {};
     checkError(cudaMalloc(&d_context_allocation.data, buffer_size));
 
+#if NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 1001
+    exec_context->setDeviceMemoryV2(d_context_allocation.data, static_cast<int64_t>(buffer_size));
+#else // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 1001
     exec_context->setDeviceMemory(d_context_allocation.data);
-#endif
+#endif // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 1001
+#endif // NV_TENSORRT_MAJOR >= 10
 
     GraphExecResource graphexec {};
     if (use_cuda_graph) {
