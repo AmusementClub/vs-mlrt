@@ -213,13 +213,6 @@ jobs:
         du -sh
         7za a -t7z -bb3 -mx=9 ../contrib-models.7z .
 
-    - name: Upload contrib model release
-      uses: actions/upload-artifact@v4
-      with:
-        name: Contrib-Models
-        path: release
-        retention-days: 1
-
     - name: Rename release asset
       run: |
         mv models.7z models.${{ github.event.inputs.tag }}.7z
