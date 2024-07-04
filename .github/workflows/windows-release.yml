@@ -398,14 +398,17 @@ jobs:
         generate_release_notes: false
         prerelease: true
 
-    - name: Build TensorRT-only release
+    - name: Build TensorRT release
       shell: bash
       run: |
         cd release-cuda
+        cd vsmlrt-cuda
         rm --verbose cublas*.dll cudnn*.dll cufft*.dll cupti*.dll nvblas*.dll
+        cd ..
+        rm --verbose vsort/onnxruntime_providers_*.dll
         7za a -t7z -bb3 -mx=9 ../vsmlrt-windows-x64-tensorrt.7z .
 
-    - name: Upload TensorRT-only release
+    - name: Upload TensorRT release
       uses: actions/upload-artifact@v4
       if: false
       with:
@@ -414,10 +417,10 @@ jobs:
         retention-days: 1
         compression-level: 0
 
-    - name: Rename release asset for TensorRT-only release
+    - name: Rename release asset for TensorRT release
       run: mv vsmlrt-windows-x64-tensorrt.7z vsmlrt-windows-x64-tensorrt.${{ github.event.inputs.tag }}.7z
 
-    - name: Release TensorRT-only
+    - name: Release TensorRT
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.event.inputs.tag }}
