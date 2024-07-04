@@ -253,7 +253,7 @@ jobs:
         7z a -t7z -mx=7 ../../VSOV-Windows-x64.${{ github.event.inputs.tag }}.7z .
 
     - name: Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
       with:
         tag_name: ${{ inputs.tag }}

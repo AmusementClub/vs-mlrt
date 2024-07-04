@@ -108,7 +108,7 @@ jobs:
         mv vsmlrt-cuda.7z vsmlrt-cuda.${{ github.event.inputs.tag}}.7z
 
     - name: Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.event.inputs.tag }}
         files: vsmlrt-cuda.${{ github.event.inputs.tag }}.7z
