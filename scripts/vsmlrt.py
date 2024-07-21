@@ -1,4 +1,4 @@
-__version__ = "3.21.10"
+__version__ = "3.21.11"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1660,6 +1660,8 @@ class ArtCNNModel(enum.IntEnum):
     ArtCNN_C4F32_Chroma = 4
     ArtCNN_C16F64_Chroma = 5
     ArtCNN_R16F96 = 6
+    ArtCNN_R8F64 = 7
+    ArtCNN_R8F64_DS = 8
 
 
 def ArtCNN(
