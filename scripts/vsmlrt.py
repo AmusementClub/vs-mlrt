@@ -1,4 +1,4 @@
-__version__ = "3.21.13"
+__version__ = "3.21.14"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -919,6 +919,7 @@ class RIFEModel(enum.IntEnum):
     v4_18 = 418
     v4_19 = 419
     v4_20 = 420
+    v4_21 = 421
 
 
 def RIFEMerge(
@@ -982,6 +983,10 @@ def RIFEMerge(
     model_major = int(str(int(model))[0])
     model_minor = int(str(int(model))[1:3])
     lite = "_lite" if len(str(int(model))) >= 4 else ""
+
+    if (model_major, model_minor) >= (4, 21) and ensemble:
+        raise ValueError(f'{func_name}: ensemble is not supported since RIFE v4.21')
+
     version = f"v{model_major}.{model_minor}{lite}{'_ensemble' if ensemble else ''}"
 
     if (model_major, model_minor) >= (4, 7) and scale != 1.0:
