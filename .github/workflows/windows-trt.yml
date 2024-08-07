@@ -52,12 +52,12 @@ jobs:
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.5.0/network_installers/cuda_12.5.0_windows_network.exe
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.5.1/network_installers/cuda_12.5.1_windows_network.exe
         cuda_installer.exe -s nvcc_12.5 cudart_12.5 cuda_profiler_api_12.5
 
     - name: Download TensorRT
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.2.0/zip/TensorRT-10.2.0.19.Windows.win10.cuda-12.5.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.3.0/zip/TensorRT-10.3.0.26.Windows.win10.cuda-12.5.zip
         unzip trt.zip
         mv TensorRT-*/ tensorrt/
 
@@ -93,9 +93,10 @@ jobs:
         path: tensorrt-oss
 
     - name: Download NvOnnxParser.h
+      if: false
       run: |
         cd ../tensorrt-oss/include
-        curl -LJO https://raw.githubusercontent.com/onnx/onnx-tensorrt/10.0-GA/NvOnnxParser.h
+        curl -LJO https://raw.githubusercontent.com/onnx/onnx-tensorrt/10.2-GA/NvOnnxParser.h
 
     - name: Override trtexec CMake file
       run: |
