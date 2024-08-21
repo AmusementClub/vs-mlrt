@@ -4,7 +4,7 @@ The vs-tensorrt plugin provides optimized CUDA runtime for some popular AI filte
 
 ## Usage
 
-Prototype: `core.trt.Model(clip[] clips, string engine_path[, int[] overlap, int[] tilesize, int device_id=0, bint use_cuda_graph=False, int num_streams=1, int verbosity=2])`
+Prototype: `core.trt.Model(clip[] clips, string engine_path[, int[] overlap, int[] tilesize, int device_id=0, bint use_cuda_graph=False, int num_streams=1, int verbosity=2, string flexible_output_prop=""])`
 
 Arguments:
 - `clip[] clips`: the input clips, only 32-bit floating point RGB or GRAY clips are supported. For model specific input requirements, please consult our [wiki](https://github.com/AmusementClub/vs-mlrt/wiki).
@@ -16,6 +16,26 @@ Arguments:
 - `int num_streams`: number of concurrent CUDA streams to use. Default 1. Increase if GPU not saturated.
 - `verbosity`: The verbosity level of TensorRT runtime. The message writes to `stderr`.
   `0`: Internal error. `1`: Application error. `2`: Warning. `3`: Informational messages with instructional information. `4`: Verbose messages with debugging information.
+- `string flexible_output_prop`: used to support onnx models with arbitrary number of output planes.
+
+  ```python3
+  from typing import TypedDict
+
+  class Output(TypedDict):
+      clip: vs.VideoNode
+      num_planes: int
+
+  prop = "planes" # arbitrary non-empty string
+  output = core.trt.Model(src, engine_path, flexible_output_prop=prop) # type: Output
+
+  clip = output["clip"]
+  num_planes = output["num_planes"]
+
+  output_planes = [
+      clip.std.PropToClip(prop=f"{prop}{i}")
+      for i in range(num_planes)
+  ] # type: list[vs.VideoNode]
+  ```
   
 When `overlap` and `tilesize` are not specified, the filter will internally try to resize the network to fit the input clips. This might not always work (for example, the network might require the width to be divisible by 8), and the filter will error out in this case.
 
@@ -30,7 +50,7 @@ The general rule is to either:
 
 1. Build engine
    ```shell
-   trtexec --onnx=drunet_gray.onnx --minShapes=input:1x1x8x8 --optShapes=input:1x1x64x64 --maxShapes=input:1x1x1080x1920 --saveEngine=dpir_gray_1080p_dynamic.engine --tacticSources=+CUDNN,-CUBLAS,-CUBLAS_LT
+   trtexec --onnx=drunet_gray.onnx --minShapes=input:1x2x8x8 --optShapes=input:1x2x64x64 --maxShapes=input:1x2x1080x1920 --saveEngine=dpir_gray_1080p_dynamic.engine
    ```
    
    The engine will be optimized for `64x64` input and can be applied to eligible inputs with shape from `8x8` to `1920x1080` by specifying parameter `tilesize` in the `trt` plugin.
@@ -43,7 +63,7 @@ In vpy script:
 # DPIR
 src = core.std.BlankClip(src, width=640, height=360, format=vs.GRAYS)
 sigma = 10.0
-flt = core.trt.Model([src, core.std.BlankClip(src, color=sigma/255.0)], engine_path="dpir_gray_640_360.engine", tilesize=[640, 360])
+flt = core.trt.Model([src, core.std.BlankClip(src, color=sigma/255.0)], engine_path="dpir_gray_1080p_dynamic.engine", tilesize=[640, 360])
 ```
 
 ## trtexec useful arguments
