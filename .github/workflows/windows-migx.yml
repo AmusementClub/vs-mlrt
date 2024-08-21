@@ -82,7 +82,6 @@ jobs:
       run: |
         mkdir artifact
         copy install\bin\vsmigx.dll artifact\
-        mkdir artifact\vsmlrt-hip
 
     - name: Describe
       run: git describe --tags --long
