@@ -44,7 +44,7 @@ The general rule is to either:
 
 ### Build program
    ```shell
-   migraphx-driver compile --onnx drunet_gray.onnx --gpu --input-dim @input 1 2 1080 1920 --output dpir_gray_1080p.engine
+   migraphx-driver compile --onnx drunet_gray.onnx --gpu --input-dim @input 1 2 1080 1920 --output dpir_gray_1080p.mxr
    ```
    
    The program can be applied to `1920x1080` input.
@@ -57,7 +57,7 @@ In vpy script:
 # DPIR
 src = core.std.BlankClip(src, width=1920, height=1080, format=vs.GRAYS)
 sigma = 10.0
-flt = core.migx.Model([src, core.std.BlankClip(src, color=sigma/255.0)], engine_path="dpir_gray_1080p.engine", tilesize=[1920, 1080])
+flt = core.migx.Model([src, core.std.BlankClip(src, color=sigma/255.0)], engine_path="dpir_gray_1080p.mxr", tilesize=[1920, 1080])
 ```
 
 ## trtexec useful arguments
