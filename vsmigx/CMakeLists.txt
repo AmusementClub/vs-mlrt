@@ -9,7 +9,7 @@ set(VAPOURSYNTH_INCLUDE_DIRECTORY "" CACHE PATH "Path to VapourSynth headers")
 find_package(migraphx REQUIRED CONFIG)
 find_package(hip REQUIRED CONFIG)
 
-add_library(vsmigx SHARED vs_migraphx.cpp)
+add_library(vsmigx SHARED vs_migraphx.cpp win32.cpp)
 
 target_include_directories(vsmigx PRIVATE ${VAPOURSYNTH_INCLUDE_DIRECTORY})
 
@@ -21,6 +21,14 @@ set_target_properties(vsmigx PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
 )
+
+if (WIN32)
+    target_link_options(vsmigx PRIVATE
+        "/DELAYLOAD:migraphx_c.dll"
+        "/DELAYLOAD:amdhip64_6.dll"
+        "delayimp.lib"
+    )
+endif()
 
 find_package(Git REQUIRED)
 execute_process(

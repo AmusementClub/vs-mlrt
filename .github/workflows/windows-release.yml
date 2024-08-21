@@ -49,6 +49,13 @@ jobs:
     secrets:
       REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
 
+  build-vsmigx:
+    uses: ./.github/workflows/windows-migx.yml
+    with:
+      tag: ${{ github.event.inputs.tag }}
+    secrets:
+      REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+
   build-vsncnn:
     uses: ./.github/workflows/windows-ncnn.yml
     with:
@@ -57,6 +64,13 @@ jobs:
 
   build-cuda-dependency:
     uses: ./.github/workflows/windows-cuda-dependency.yml
+    with:
+      tag: ${{ github.event.inputs.tag }}
+    secrets:
+      REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+
+  build-hip-dependency:
+    uses: ./.github/workflows/windows-hip-dependency.yml
     with:
       tag: ${{ github.event.inputs.tag }}
     secrets:
@@ -231,7 +245,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    needs: [build-vsov, build-vsort, build-vstrt, build-vsncnn, build-cuda-dependency, build-scripts, build-models]
+    needs: [build-vsov, build-vsort, build-vstrt, build-vsmigx, build-vsncnn, build-cuda-dependency, build-hip-dependency, build-scripts, build-models]
 
     defaults:
       run:
@@ -268,6 +282,12 @@ jobs:
         name: VSTRT-Windows-x64
         path: vstrt-release
 
+    - name: Download artifact for vsmigx
+      uses: actions/download-artifact@v4
+      with:
+        name: VSMIGX-Windows-x64
+        path: vsmigx-release
+
     - name: Download artifact for vsncnn
       uses: actions/download-artifact@v4
       with:
@@ -279,6 +299,12 @@ jobs:
       with:
         name: vsmlrt-cuda
         path: cuda-release
+
+    - name: Download artifact for hip dependencies
+      uses: actions/download-artifact@v4
+      with:
+        name: vsmlrt-hip
+        path: hip-release
 
     - name: Build CPU-only release
       shell: bash
@@ -418,6 +444,48 @@ jobs:
       with:
         tag_name: ${{ github.event.inputs.tag }}
         files: vsmlrt-windows-x64-tensorrt.${{ github.event.inputs.tag }}.7z
+        fail_on_unmatched_files: true
+        generate_release_notes: false
+        prerelease: true
+
+    - name: Extract HIP libraries
+      run: |
+        cd hip-release
+        7za x -bb3 vsmlrt-hip.7z
+        rm vsmlrt-hip.7z
+
+    - name: Build MIGraphX release
+      shell: bash
+      run: |
+        mkdir release-hip
+        cp -r models-release/models release-hip/
+        cp -r vsov-release/* release-hip/
+        cp -r vsort-release/* release-hip/
+        cp -r vsmigx-release/* release-hip/
+        cp -r vsncnn-release/* release-hip/
+        cp -r hip-release/* release-hip/
+        cp scripts-release/*.py release-hip/
+        cd release-hip
+        ls -lR
+        7za a -t7z -bb3 -mx=9 ../vsmlrt-windows-x64-migraphx.7z .
+
+    - name: Upload MIGraphX release
+      uses: actions/upload-artifact@v4
+      if: false
+      with:
+        name: vsmlrt-migraphx-release
+        path: vsmlrt-windows-x64-migraphx.7z
+        retention-days: 1
+        compression-level: 0
+
+    - name: Rename release asset for MIGraphX release
+      run: mv vsmlrt-windows-x64-migraphx.7z vsmlrt-windows-x64-migraphx.${{ github.event.inputs.tag }}.7z
+
+    - name: Release MIGraphX
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.event.inputs.tag }}
+        files: vsmlrt-windows-x64-migraphx.${{ github.event.inputs.tag }}.7z
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true

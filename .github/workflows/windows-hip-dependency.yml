@@ -1,0 +1,90 @@
+name: Upload vs-mlrt-hip dependencies
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'which tag to upload to'
+        required: true
+        default: 'v100'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'which tag to upload to'
+        required: true
+        type: string
+    secrets:
+      REPO_TOKEN:
+        required: true
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    outputs:
+      runID: ${{ steps.output.outputs.runID }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Download MIGraphX Precompilation
+      run: |
+        curl -s -o migx.zip -LJO https://github.com/AmusementClub/AMDMIGraphX/releases/download/rocm-4.1.0-1515-g9cf49f92c-240821-0458/migraphx-win64.zip
+
+    - name: Extract MIGraphX Precompilation
+      run: |
+        unzip migx.zip
+
+    - name: Move MIGraphX Precompilation
+      run: |
+        mkdir vsmlrt-hip
+        mv migraphx/bin/* vsmlrt-hip -v
+        mv migraphx/lib/migraphx/bin/*.dll vsmlrt-hip -v
+
+    - name: Cache HIP
+      id: cache-hip
+      uses: actions/cache@v4
+      with:
+        path: C:\Program Files\AMD\ROCm
+        key: ${{ runner.os }}-rocm-6.1.2
+
+    - name: Setup HIP
+      if: steps.cache-hip.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        curl -s -o hip_installer.exe -L https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q3-WinSvr2022-For-HIP.exe
+        Start-Process hip_installer.exe -ArgumentList '-install' -NoNewWindow -Wait
+
+    - name: Move HIP Libraries
+      shell: cmd
+      run: |
+        move "C:\Program Files\AMD\ROCm\6.1\bin\amd_comgr_2.dll" vsmlrt-hip
+        move "C:\Program Files\AMD\ROCm\6.1\bin\amdhip64_6.dll" vsmlrt-hip
+        move "C:\Program Files\AMD\ROCm\6.1\bin\hiprtc0601.dll" vsmlrt-hip
+        move "C:\Program Files\AMD\ROCm\6.1\bin\hiprtc-builtins0601.dll" vsmlrt-hip
+
+    - name: Compress
+      run: |
+        7z a -t7z -mx=3 vsmlrt-hip.7z vsmlrt-hip
+
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: vsmlrt-hip
+        path: vsmlrt-hip.7z
+        retention-days: 1
+        compression-level: 0
+
+    - name: Rename release asset
+      run: |
+        mv vsmlrt-hip.7z vsmlrt-hip.${{ github.event.inputs.tag}}.7z
+
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.event.inputs.tag }}
+        files: vsmlrt-hip.${{ github.event.inputs.tag }}.7z
+        fail_on_unmatched_files: true
+        generate_release_notes: false
+        prerelease: true
