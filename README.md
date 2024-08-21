@@ -4,7 +4,7 @@ This project provides VapourSynth ML filter runtimes for a variety of platforms:
  - x86 CPUs: [vsov-cpu](#vsov-openvino-based-pure-cpu--intel-gpu-runtime), [vsort-cpu](#vsort-onnx-runtime-based-cpugpu-runtime)
  - Intel GPU (both integrated & discrete): [vsov-gpu](#vsov-openvino-based-pure-cpu--intel-gpu-runtime), [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime)
  - NVidia GPU: [vsort-cuda](#vsort-onnx-runtime-based-cpugpu-runtime), [vstrt](#vstrt-tensorrt-based-gpu-runtime), [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime)
- - AMD GPU: [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime)
+ - AMD GPU: [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime), [vsmigx](#vsmigx-migraphx-based-gpu-runtime)
 
 To simplify usage, we also provide a Python wrapper [vsmlrt.py](https://github.com/AmusementClub/vs-mlrt/blob/master/scripts/vsmlrt.py)
 for all bundled models and a unified interface to select different backends.
@@ -45,6 +45,15 @@ harder than the other runtimes. However, the resulting performance is also typic
 To install, download the latest release and extract them into your VS `plugins` directory.
 
 Please visit the [vstrt](vstrt) directory for details.
+
+## vsmigx: MIGraphX-based GPU Runtime
+
+[MIGraphX](https://github.com/ROCm/AMDMIGraphX) is a highly optimized AI inference runtime
+for AMD GPUs. It also uses benchmarking to find the optimal kernel, similar to vstrt.
+
+To install, download the latest release and extract them into your VS `plugins` directory.
+
+Please visit the [vsmigx](vsmigx) directory for details.
 
 ## vsncnn: NCNN-based GPU (Vulkan) Runtime
 
