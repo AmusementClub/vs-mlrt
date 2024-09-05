@@ -577,6 +577,9 @@ class RealESRGANModel(enum.IntEnum):
     animejanaiV3_HD_L1 = 5008
     animejanaiV3_HD_L2 = 5009
     animejanaiV3_HD_L3 = 5010
+    # contributed=Ani4K-v2 https://github.com/Sirosky/Upscale-Hub/releases/tag/Ani4K-v2
+    Ani4Kv2_G6i2_Compact = 7000
+    Ani4Kv2_G6i2_UltraCompact = 7001
 
 RealESRGANv2Model = RealESRGANModel
 
@@ -638,7 +641,7 @@ def RealESRGAN(
             "RealESRGANv2",
             "realesr-animevideov3.onnx"
         )
-    elif model in [5005, 5006, 5007, 5008, 5009, 5010]:
+    elif model in [5005, 5006, 5007, 5008, 5009, 5010, 7000, 7001]:
         network_path = os.path.join(
             models_path,
             "RealESRGANv2",
