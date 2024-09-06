@@ -129,13 +129,7 @@ jobs:
         cp -v install/lib/*.dylib artifact
 
     - name: Describe
-      run: |
-        git fetch --tags
-        if git describe --tags --long; then
-          echo "Tags found."
-        else
-          echo "No tags found."
-        fi
+      run: git describe --tags --long
 
     - name: Upload
       uses: actions/upload-artifact@v3
