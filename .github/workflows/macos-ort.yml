@@ -116,6 +116,7 @@ jobs:
         -D protobuf_DIR=protobuf/install/lib/cmake/protobuf
         -D ONNX_DIR=onnx/install/lib/cmake/ONNX
         -D CMAKE_CXX_STANDARD=20
+        -D ENABLE_COREML=ON
 
     - name: Build
       run: cmake --build build --verbose
