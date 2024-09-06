@@ -1141,7 +1141,7 @@ static void VS_CC vsOrtCreate(
         checkError(ortapi->CreateSessionOptions(&session_options));
         checkError(ortapi->SetSessionExecutionMode(
             session_options,
-            ExecutionMode::ORT_SEQUENTIAL
+            ExecutionMode::ORT_PARALLEL
         ));
 
         // it is important to disable the memory pattern optimization
