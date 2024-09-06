@@ -104,7 +104,7 @@ jobs:
       run: |
         curl -L -o ort.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.17.1/onnxruntime-osx-arm64-1.17.1.tgz
         tar -xf ort.tgz
-        mv onnxruntime-* onnxruntime -v
+        mv onnxruntime-* onnxruntime
 
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
