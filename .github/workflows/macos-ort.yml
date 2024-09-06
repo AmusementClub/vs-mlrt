@@ -5,7 +5,7 @@ on:
     paths:
       - 'common/**'
       - 'vsort/**'
-      - '.github/workflows/linux-ort.yml'
+      - '.github/workflows/macos-ort.yml'
   workflow_dispatch:
 
 jobs:
@@ -127,9 +127,6 @@ jobs:
       run: |
         mkdir artifact
         cp -v install/lib/*.dylib artifact
-
-    - name: Describe
-      run: git describe --tags --long
 
     - name: Upload
       uses: actions/upload-artifact@v3
