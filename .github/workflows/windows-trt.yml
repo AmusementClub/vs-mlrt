@@ -46,18 +46,18 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-vstrt-cuda-12.5.0
+        key: ${{ runner.os }}-vstrt-cuda-12.6.0
         save-always: true
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.5.1/network_installers/cuda_12.5.1_windows_network.exe
-        cuda_installer.exe -s nvcc_12.5 cudart_12.5 cuda_profiler_api_12.5
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.6.0/network_installers/cuda_12.6.0_windows_network.exe
+        cuda_installer.exe -s nvcc_12.6 cudart_12.6 cuda_profiler_api_12.6
 
     - name: Download TensorRT
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.3.0/zip/TensorRT-10.3.0.26.Windows.win10.cuda-12.5.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.4.0/zip/TensorRT-10.4.0.26.Windows.win10.cuda-12.6.zip
         unzip trt.zip
         mv TensorRT-*/ tensorrt/
 
@@ -72,7 +72,7 @@ jobs:
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_CXX_FLAGS="/EHsc /Wall /wd4100 /wd4625 /wd4626 /wd4710 /wd4711 /wd4820 /wd4996 /wd5026 /wd5027"
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6"
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
         -D TENSORRT_HOME="%cd%\tensorrt"
         -D USE_NVINFER_PLUGIN=ON
@@ -122,7 +122,7 @@ jobs:
       run: cmake -S ../tensorrt-oss/samples/trtexec -B build_trtexec -G Ninja
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.5"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.6"
         -D CMAKE_UNITY_BUILD=ON -D CMAKE_UNITY_BUILD_BATCH_SIZE=0
 
     - name: Build trtexec
