@@ -95,7 +95,7 @@ class Backend:
     @dataclass(frozen=False)
     class ORT_COREML:
         """ backend for coreml """
-        num_streams: int = 2
+        num_streams: int = 1
         verbosity: int = 0
         fp16: bool = False
         fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
