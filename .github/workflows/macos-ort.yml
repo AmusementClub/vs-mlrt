@@ -110,7 +110,7 @@ jobs:
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
-        -D CMAKE_CXX_FLAGS="-Wall -ffast-math -mcpu=apple-a14"
+        -D CMAKE_CXX_FLAGS="-Wall -ffast-math -mcpu=apple-m1"
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="`pwd`/vapoursynth/include"
         -D ONNX_RUNTIME_API_DIRECTORY=onnxruntime/include
         -D ONNX_RUNTIME_LIB_DIRECTORY=onnxruntime/lib
