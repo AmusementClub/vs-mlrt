@@ -145,7 +145,7 @@ jobs:
       run: git describe --tags --long
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: vsort-linux-x64-cuda12.1
         path: vsort/artifact
