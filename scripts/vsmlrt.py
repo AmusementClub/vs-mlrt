@@ -1,4 +1,4 @@
-__version__ = "3.21.19"
+__version__ = "3.21.20"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -185,6 +185,7 @@ class Backend:
         custom_env: typing.Dict[str, str] = field(default_factory=lambda: {})
         custom_args: typing.List[str] = field(default_factory=lambda: [])
         engine_folder: typing.Optional[str] = None
+        max_tactics: typing.Optional[int] = None
 
         # internal backend attributes
         supports_onnx_serialization: bool = False
@@ -1884,7 +1885,8 @@ def trtexec(
     bf16: bool = False,
     custom_env: typing.Dict[str, str] = {},
     custom_args: typing.List[str] = [],
-    engine_folder: typing.Optional[str] = None
+    engine_folder: typing.Optional[str] = None,
+    max_tactics: typing.Optional[int] = None
 ) -> str:
 
     # tensort runtime version
@@ -2061,6 +2063,10 @@ def trtexec(
     if trt_version >= (9, 0, 0):
         if bf16:
             args.append("--bf16")
+
+    if trt_version >= (10, 4, 0):
+        if max_tactics is not None:
+            args.append(f"--maxTactics={max_tactics}")
 
     args.extend(custom_args)
 
@@ -2479,6 +2485,7 @@ def _inference(
             custom_env=backend.custom_env,
             custom_args=backend.custom_args,
             engine_folder=backend.engine_folder,
+            max_tactics=backend.max_tactics,
         )
         ret = core.trt.Model(
             clips, engine_path,
