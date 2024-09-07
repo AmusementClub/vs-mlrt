@@ -1,4 +1,4 @@
-__version__ = "3.21.20"
+__version__ = "3.21.21"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -86,17 +86,6 @@ class Backend:
 
         num_streams: int = 1
         verbosity: int = 2
-        fp16: bool = False
-        fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
-
-        # internal backend attributes
-        supports_onnx_serialization: bool = True
-        
-    @dataclass(frozen=False)
-    class ORT_COREML:
-        """ backend for coreml """
-        num_streams: int = 1
-        verbosity: int = 0
         fp16: bool = False
         fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
 
@@ -276,6 +265,17 @@ class Backend:
         # internal backend attributes
         supports_onnx_serialization: bool = True
 
+    @dataclass(frozen=False)
+    class ORT_COREML:
+        """ backend for coreml """
+        num_streams: int = 1
+        verbosity: int = 0
+        fp16: bool = False
+        fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
+
+        # internal backend attributes
+        supports_onnx_serialization: bool = True
+
 
 backendT = typing.Union[
     Backend.OV_CPU,
@@ -287,6 +287,7 @@ backendT = typing.Union[
     Backend.ORT_DML,
     Backend.MIGX,
     Backend.OV_NPU,
+    Backend.ORT_COREML,
 ]
 
 
@@ -2879,6 +2880,18 @@ class BackendV2:
     def OV_NPU(**kwargs
     ) -> Backend.OV_NPU:
         return Backend.OV_NPU(
+            **kwargs
+        )
+
+    @staticmethod
+    def ORT_COREML(*,
+        num_streams: int = 1,
+        fp16: bool = False,
+        **kwargs
+    ) -> Backend.ORT_COREML:
+        return Backend.ORT_COREML(
+            num_streams=num_streams,
+            fp16=fp16,
             **kwargs
         )
 
