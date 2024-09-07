@@ -5,6 +5,7 @@ This project provides VapourSynth ML filter runtimes for a variety of platforms:
  - Intel GPU (both integrated & discrete): [vsov-gpu](#vsov-openvino-based-pure-cpu--intel-gpu-runtime), [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime)
  - NVidia GPU: [vsort-cuda](#vsort-onnx-runtime-based-cpugpu-runtime), [vstrt](#vstrt-tensorrt-based-gpu-runtime), [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime)
  - AMD GPU: [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime), [vsmigx](#vsmigx-migraphx-based-gpu-runtime)
+ - Apple SoC: [vsort-coreml](#vsort-onnx-runtime-based-cpugpu-runtime)
 
 To simplify usage, we also provide a Python wrapper [vsmlrt.py](https://github.com/AmusementClub/vs-mlrt/blob/master/scripts/vsmlrt.py)
 for all bundled models and a unified interface to select different backends.
