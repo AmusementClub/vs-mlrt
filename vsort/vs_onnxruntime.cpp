@@ -1238,7 +1238,7 @@ static void VS_CC vsOrtCreate(
         }
 #endif // ENABLE_COREML
 #ifdef ENABLE_DML
-        else if (d->backend == Backend::DML) {
+        if (d->backend == Backend::DML) {
             const OrtDmlApi * ortdmlapi {};
             checkError(ortapi->GetExecutionProviderApi("DML", ORT_API_VERSION, (const void **) &ortdmlapi));
             checkError(ortdmlapi->SessionOptionsAppendExecutionProvider_DML(session_options, d->device_id));
