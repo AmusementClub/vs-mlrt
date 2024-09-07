@@ -1,7 +1,0 @@
-{
-    "files.associations": {
-        "*.cxlog": "ini",
-        "*.vpy": "python",
-        "variant": "cpp"
-    }
-}
