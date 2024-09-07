@@ -8,6 +8,7 @@ set(ONNX_RUNTIME_LIB_DIRECTORY "" CACHE PATH "Path to ONNX Runtime libraries")
 
 set(ENABLE_CUDA OFF CACHE BOOL "Enable CUDA backend")
 set(ENABLE_DML OFF CACHE BOOL "Enable DirectML backend")
+set(ENABLE_COREML OFF CACHE BOOL "Enable CoreML support")
 
 find_package(protobuf REQUIRED CONFIG)
 find_package(ONNX REQUIRED CONFIG)
@@ -62,6 +63,10 @@ endif()
 
 if (ENABLE_DML)
     add_compile_definitions(ENABLE_DML)
+endif()
+
+if(ENABLE_COREML)
+    add_compile_definitions(ENABLE_COREML=1)
 endif()
 
 target_include_directories(vsort PUBLIC

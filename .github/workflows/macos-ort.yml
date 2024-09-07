@@ -1,0 +1,139 @@
+name: Build (macOS-ORT)
+
+on:
+  push:
+    paths:
+      - 'common/**'
+      - 'vsort/**'
+      - '.github/workflows/macos-ort.yml'
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    
+    defaults:
+      run:
+        working-directory: vsort
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Ninja
+      run: brew install ninja
+
+    - name: Cache protobuf
+      id: cache-protobuf
+      uses: actions/cache@v4
+      with:
+        path: vsort/protobuf/install
+        key: ${{ runner.os }}-vsort-protobuf-v1
+
+    - name: Checkout protobuf
+      uses: actions/checkout@v4
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      with:
+        repository: protocolbuffers/protobuf
+        ref: v3.21.12
+        fetch-depth: 1
+        path: vsort/protobuf
+
+    - name: Configure protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake -S protobuf/cmake -B protobuf/build_rel -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_POSITION_INDEPENDENT_CODE=ON
+        -D protobuf_BUILD_SHARED_LIBS=OFF
+        -D protobuf_BUILD_TESTS=OFF
+
+    - name: Build protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake --build protobuf/build_rel --verbose
+
+    - name: Install protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake --install protobuf/build_rel --prefix protobuf/install
+
+    - name: Cache onnx
+      id: cache-onnx
+      uses: actions/cache@v4
+      with:
+        path: vsort/onnx/install
+        key: ${{ runner.os }}-vsort-onnx-v1
+
+    - name: Checkout onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        repository: onnx/onnx
+        ref: b86cc54efce19530fb953e4b21f57e6b3888534c
+        fetch-depth: 1
+        path: vsort/onnx
+
+    - name: Configure onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake -S onnx -B onnx/build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_POSITION_INDEPENDENT_CODE=ON
+        -D Protobuf_PROTOC_EXECUTABLE=protobuf/install/bin/protoc
+        -D Protobuf_LITE_LIBRARY=protobuf/install/lib
+        -D Protobuf_LIBRARIES=protobuf/install/lib
+        -D ONNX_USE_LITE_PROTO=ON
+        -D ONNX_USE_PROTOBUF_SHARED_LIBS=OFF
+        -D ONNX_GEN_PB_TYPE_STUBS=OFF
+        -D ONNX_ML=0
+
+    - name: Build onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --build onnx/build --verbose
+
+    - name: Install onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --install onnx/build --prefix onnx/install
+
+    - name: Download VapourSynth headers
+      run: |
+        curl -L -o vs.zip https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R57.zip
+        unzip -q vs.zip
+        mv vapoursynth*/ vapoursynth
+
+    - name: Setup ONNX Runtime
+      run: |
+        curl -L -o ort.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.17.1/onnxruntime-osx-arm64-1.17.1.tgz
+        tar -xf ort.tgz
+        mv onnxruntime-* onnxruntime
+
+    - name: Configure
+      run: cmake -S . -B build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_CXX_FLAGS="-Wall -ffast-math -march=armv8-a"
+        -D VAPOURSYNTH_INCLUDE_DIRECTORY="`pwd`/vapoursynth/include"
+        -D ONNX_RUNTIME_API_DIRECTORY=onnxruntime/include
+        -D ONNX_RUNTIME_LIB_DIRECTORY=onnxruntime/lib
+        -D protobuf_DIR=protobuf/install/lib/cmake/protobuf
+        -D ONNX_DIR=onnx/install/lib/cmake/ONNX
+        -D CMAKE_CXX_STANDARD=20
+        -D ENABLE_COREML=ON
+
+    - name: Build
+      run: cmake --build build --verbose
+
+    - name: Install
+      run: cmake --install build --prefix install
+
+    - name: Prepare for upload
+      run: |
+        mkdir artifact
+        cp -v install/lib/*.dylib artifact
+
+    - name: Describe
+      run: git describe --tags --long
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: vsort-macos-arm64
+        path: vsort/artifact

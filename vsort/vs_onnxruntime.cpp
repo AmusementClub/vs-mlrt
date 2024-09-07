@@ -1230,7 +1230,7 @@ static void VS_CC vsOrtCreate(
         }
 #endif // ENABLE_CUDA
 #ifdef ENABLE_COREML
-        else if (d->backend == Backend::COREML) {
+        if (d->backend == Backend::COREML) {
             checkError(OrtSessionOptionsAppendExecutionProvider_CoreML(
                 session_options,
                 0
