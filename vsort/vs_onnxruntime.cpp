@@ -1012,10 +1012,12 @@ static void VS_CC vsOrtCreate(
         path_is_serialization = false;
     }
 
+#ifdef ENABLE_CUDA
     bool use_cuda_graph = !!vsapi->propGetInt(in, "use_cuda_graph", 0, &error);
     if (error) {
         use_cuda_graph = false;
     }
+#endif // ENABLE_CUDA
 
     int output_format = int64ToIntS(vsapi->propGetInt(in, "output_format", 0, &error));
     if (error) {
