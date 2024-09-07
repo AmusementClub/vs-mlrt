@@ -91,6 +91,17 @@ class Backend:
 
         # internal backend attributes
         supports_onnx_serialization: bool = True
+        
+    @dataclass(frozen=False)
+    class ORT_COREML:
+        """ backend for coreml """
+        num_streams: int = 2
+        verbosity: int = 0
+        fp16: bool = False
+        fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
+
+        # internal backend attributes
+        supports_onnx_serialization: bool = True
 
     @dataclass(frozen=False)
     class ORT_CUDA:
@@ -2350,6 +2361,17 @@ def _inference(
             clips, network_path,
             provider="DML", builtin=False,
             device_id=backend.device_id,
+            num_streams=backend.num_streams,
+            verbosity=backend.verbosity,
+            fp16=backend.fp16,
+            path_is_serialization=path_is_serialization,
+            fp16_blacklist_ops=backend.fp16_blacklist_ops,
+            **kwargs
+        )
+    elif isinstance(backend, Backend.ORT_COREML):
+        ret = core.ort.Model(
+            clips, network_path,
+            provider="COREML", builtin=False,
             num_streams=backend.num_streams,
             verbosity=backend.verbosity,
             fp16=backend.fp16,
