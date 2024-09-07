@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-14
     
     defaults:
       run:
@@ -62,14 +62,15 @@ jobs:
       uses: actions/cache@v4
       with:
         path: vsort/onnx/install
-        key: ${{ runner.os }}-vsort-onnx-v1
+        key: ${{ runner.os }}-vsort-onnx-v2
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
       uses: actions/checkout@v4
       with:
         repository: onnx/onnx
-        ref: b86cc54efce19530fb953e4b21f57e6b3888534c
+        # follows onnx in https://github.com/microsoft/onnxruntime/tree/main/cmake/external
+        ref: 595228d99e3977ac27cb79d5963adda262af99ad
         fetch-depth: 1
         path: vsort/onnx
 
@@ -102,14 +103,14 @@ jobs:
 
     - name: Setup ONNX Runtime
       run: |
-        curl -L -o ort.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.17.1/onnxruntime-osx-arm64-1.17.1.tgz
+        curl -L -o ort.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.19.2/onnxruntime-osx-arm64-1.19.2.tgz
         tar -xf ort.tgz
         mv onnxruntime-* onnxruntime
 
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
-        -D CMAKE_CXX_FLAGS="-Wall -ffast-math -march=armv8-a"
+        -D CMAKE_CXX_FLAGS="-Wall -ffast-math -mcpu=apple-a14"
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="`pwd`/vapoursynth/include"
         -D ONNX_RUNTIME_API_DIRECTORY=onnxruntime/include
         -D ONNX_RUNTIME_LIB_DIRECTORY=onnxruntime/lib
@@ -133,7 +134,7 @@ jobs:
       run: git describe --tags --long
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: vsort-macos-arm64
         path: vsort/artifact
