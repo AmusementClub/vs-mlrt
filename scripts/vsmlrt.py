@@ -1,4 +1,4 @@
-__version__ = "3.21.21"
+__version__ = "3.21.22"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -2659,34 +2659,125 @@ def inference_with_fallback(
     tilesize: typing.Tuple[int, int],
     backend: backendT,
     path_is_serialization: bool = False,
-    input_name: str = "input"
+    input_name: str = "input",
+    batch_size: int = 1 # experimental
 ) -> vs.VideoNode:
 
-    try:
-        ret = _inference(
-            clips=clips, network_path=network_path,
-            overlap=overlap, tilesize=tilesize,
-            backend=backend,
-            path_is_serialization=path_is_serialization,
-            input_name=input_name
-        )
-    except Exception as e:
-        if fallback_backend is not None:
-            import logging
-            logger = logging.getLogger("vsmlrt")
-            logger.warning(f'"{backend}" fails, trying fallback backend "{fallback_backend}"')
+    if not isinstance(batch_size, int) or batch_size < 1:
+        raise ValueError('"batch_size" must be a positve integer')
 
+    if batch_size == 1:
+        try:
             ret = _inference(
                 clips=clips, network_path=network_path,
                 overlap=overlap, tilesize=tilesize,
-                backend=fallback_backend,
+                backend=backend,
                 path_is_serialization=path_is_serialization,
                 input_name=input_name
             )
-        else:
-            raise e
+        except Exception as e:
+            if fallback_backend is not None:
+                import logging
+                logger = logging.getLogger("vsmlrt")
+                logger.warning(f'"{backend}" fails, trying fallback backend "{fallback_backend}"')
 
-    return typing.cast(vs.VideoNode, ret)
+                ret = _inference(
+                    clips=clips, network_path=network_path,
+                    overlap=overlap, tilesize=tilesize,
+                    backend=fallback_backend,
+                    path_is_serialization=path_is_serialization,
+                    input_name=input_name
+                )
+            else:
+                raise e
+
+        return typing.cast(vs.VideoNode, ret)
+    else:
+        import numpy as np
+        import onnx
+
+        if path_is_serialization:
+            model = onnx.load_model_from_string(network_path)
+        else:
+            model = onnx.load(network_path)
+
+        graph = model.graph
+        in_channels = graph.input[0].type.tensor_type.shape.dim[1].dim_value
+        graph.input[0].type.tensor_type.shape.dim[1].dim_value *= batch_size
+        graph.output[0].type.tensor_type.shape.dim[1].dim_param = "_vsmlrt_output_channels"
+
+        input_name = graph.input[0].name
+        output_name = graph.output[0].name
+        for node in graph.node:
+            for i, name in enumerate(node.input):
+                if name == input_name:
+                    node.input[i] = "_vsmlrt_input"
+
+            for i, name in enumerate(node.output):
+                if name == output_name:
+                    node.output[i] = "_vsmlrt_output"
+
+        graph.node.insert(1, onnx.helper.make_node(
+            op_type="Constant",
+            inputs=[],
+            outputs=["_vsmlrt_input_shape"],
+            value=onnx.numpy_helper.from_array(np.array([-1, in_channels, 0, 0]))
+        ))
+        graph.node.insert(2, onnx.helper.make_node(
+            op_type="Reshape",
+            inputs=[input_name, "_vsmlrt_input_shape"],
+            outputs=["_vsmlrt_input"]
+        ))
+
+        graph.node.insert(-1, onnx.helper.make_node(
+            op_type="Constant",
+            inputs=[],
+            outputs=["_vsmlrt_output_shape"],
+            value=onnx.numpy_helper.from_array(np.array([1, -1, 0, 0]))
+        ))
+        graph.node.insert(-1, onnx.helper.make_node(
+            op_type="Reshape",
+            inputs=["_vsmlrt_output", "_vsmlrt_output_shape"],
+            outputs=[output_name]
+        ))
+
+        if backend.supports_onnx_serialization:
+            network_path = model.SerializeToString()
+        else:
+            network_path = f"{network_path}_batch{batch_size}.onnx"
+            onnx.save(model, network_path)
+
+        pad = (batch_size - clips[0].num_frames % batch_size) % batch_size
+        if pad:
+            clips = [clip.std.DuplicateFrames([clip.num_frames - 1] * pad) for clip in clips]
+
+        clips = [
+            clip[i::batch_size]
+            for i in range(batch_size)
+            for clip in clips
+        ]
+
+        clips = flexible_inference_with_fallback(
+            clips=clips, network_path=network_path,
+            overlap=overlap, tilesize=tilesize,
+            backend=backend,
+            path_is_serialization=backend.supports_onnx_serialization,
+            input_name=input_name
+        )
+
+        if len(clips) == batch_size * 3:
+            clips = [
+                core.std.ShufflePlanes(clips[3*i:3*i+3], [0] * 3, vs.RGB)
+                for i in range(batch_size)
+            ]
+        elif len(clips) != batch_size:
+            raise ValueError("number of output channels must be 1 or 3")
+
+        clip = core.std.Interleave(clips)
+        if pad:
+            clip = clip[:-pad]
+
+        return clip
 
 
 def inference(
@@ -2695,7 +2786,8 @@ def inference(
     overlap: typing.Tuple[int, int] = (0, 0),
     tilesize: typing.Optional[typing.Tuple[int, int]] = None,
     backend: backendT = Backend.OV_CPU(),
-    input_name: typing.Optional[str] = "input"
+    input_name: typing.Optional[str] = "input",
+    batch_size: int = 1 # experimental
 ) -> vs.VideoNode:
 
     if isinstance(clips, vs.VideoNode):
@@ -2716,7 +2808,8 @@ def inference(
         tilesize=tilesize,
         backend=backend,
         path_is_serialization=False,
-        input_name=input_name
+        input_name=input_name,
+        batch_size=batch_size
     )
 
 
