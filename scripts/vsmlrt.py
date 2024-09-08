@@ -2570,74 +2570,6 @@ def _inference(
     return ret
 
 
-def inference_with_fallback(
-    clips: typing.List[vs.VideoNode],
-    network_path: typing.Union[bytes, str],
-    overlap: typing.Tuple[int, int],
-    tilesize: typing.Tuple[int, int],
-    backend: backendT,
-    path_is_serialization: bool = False,
-    input_name: str = "input"
-) -> vs.VideoNode:
-
-    try:
-        ret = _inference(
-            clips=clips, network_path=network_path,
-            overlap=overlap, tilesize=tilesize,
-            backend=backend,
-            path_is_serialization=path_is_serialization,
-            input_name=input_name
-        )
-    except Exception as e:
-        if fallback_backend is not None:
-            import logging
-            logger = logging.getLogger("vsmlrt")
-            logger.warning(f'"{backend}" fails, trying fallback backend "{fallback_backend}"')
-
-            ret = _inference(
-                clips=clips, network_path=network_path,
-                overlap=overlap, tilesize=tilesize,
-                backend=fallback_backend,
-                path_is_serialization=path_is_serialization,
-                input_name=input_name
-            )
-        else:
-            raise e
-
-    return typing.cast(vs.VideoNode, ret)
-
-
-def inference(
-    clips: typing.Union[vs.VideoNode, typing.List[vs.VideoNode]],
-    network_path: str,
-    overlap: typing.Tuple[int, int] = (0, 0),
-    tilesize: typing.Optional[typing.Tuple[int, int]] = None,
-    backend: backendT = Backend.OV_CPU(),
-    input_name: typing.Optional[str] = "input"
-) -> vs.VideoNode:
-
-    if isinstance(clips, vs.VideoNode):
-        clips = [clips]
-
-    if tilesize is None:
-        tilesize = (clips[0].width, clips[0].height)
-
-    backend = init_backend(backend=backend, trt_opt_shapes=tilesize)
-
-    if input_name is None:
-        input_name = get_input_name(network_path)
-
-    return inference_with_fallback(
-        clips=clips,
-        network_path=network_path,
-        overlap=overlap,
-        tilesize=tilesize,
-        backend=backend,
-        path_is_serialization=False,
-        input_name=input_name
-    )
-
-
 def flexible_inference_with_fallback(
     clips: typing.List[vs.VideoNode],
     network_path: typing.Union[bytes, str],
@@ -2717,6 +2649,74 @@ def flexible_inference(
         path_is_serialization=False,
         input_name=input_name,
         flexible_output_prop=flexible_output_prop
+    )
+
+
+def inference_with_fallback(
+    clips: typing.List[vs.VideoNode],
+    network_path: typing.Union[bytes, str],
+    overlap: typing.Tuple[int, int],
+    tilesize: typing.Tuple[int, int],
+    backend: backendT,
+    path_is_serialization: bool = False,
+    input_name: str = "input"
+) -> vs.VideoNode:
+
+    try:
+        ret = _inference(
+            clips=clips, network_path=network_path,
+            overlap=overlap, tilesize=tilesize,
+            backend=backend,
+            path_is_serialization=path_is_serialization,
+            input_name=input_name
+        )
+    except Exception as e:
+        if fallback_backend is not None:
+            import logging
+            logger = logging.getLogger("vsmlrt")
+            logger.warning(f'"{backend}" fails, trying fallback backend "{fallback_backend}"')
+
+            ret = _inference(
+                clips=clips, network_path=network_path,
+                overlap=overlap, tilesize=tilesize,
+                backend=fallback_backend,
+                path_is_serialization=path_is_serialization,
+                input_name=input_name
+            )
+        else:
+            raise e
+
+    return typing.cast(vs.VideoNode, ret)
+
+
+def inference(
+    clips: typing.Union[vs.VideoNode, typing.List[vs.VideoNode]],
+    network_path: str,
+    overlap: typing.Tuple[int, int] = (0, 0),
+    tilesize: typing.Optional[typing.Tuple[int, int]] = None,
+    backend: backendT = Backend.OV_CPU(),
+    input_name: typing.Optional[str] = "input"
+) -> vs.VideoNode:
+
+    if isinstance(clips, vs.VideoNode):
+        clips = [clips]
+
+    if tilesize is None:
+        tilesize = (clips[0].width, clips[0].height)
+
+    backend = init_backend(backend=backend, trt_opt_shapes=tilesize)
+
+    if input_name is None:
+        input_name = get_input_name(network_path)
+
+    return inference_with_fallback(
+        clips=clips,
+        network_path=network_path,
+        overlap=overlap,
+        tilesize=tilesize,
+        backend=backend,
+        path_is_serialization=False,
+        input_name=input_name
     )
 
 
