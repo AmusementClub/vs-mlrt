@@ -1,4 +1,4 @@
-__version__ = "3.22.1"
+__version__ = "3.22.2"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1005,7 +1005,7 @@ def RIFEMerge(
     model_minor = int(str(int(model))[1:3])
     lite = "_lite" if len(str(int(model))) >= 4 else ""
 
-    if (4, 21) <= (model_major, model_minor) < (4, 24) and ensemble:
+    if model_major == 4 and model_minor in (21, 22, 23, 25) and ensemble:
         raise ValueError(f'{func_name}: ensemble is not supported in RIFE v4.21 ~ v4.23')
 
     version = f"v{model_major}.{model_minor}{lite}{'_ensemble' if ensemble else ''}"
