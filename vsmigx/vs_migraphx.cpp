@@ -127,6 +127,43 @@ int numPlanes(
     return num_planes;
 }
 
+// 0: integer, 1: float, -1: unknown
+static inline
+int getSampleType(migraphx_shape_datatype_t type) noexcept {
+    switch (type) {
+        case migraphx_shape_uint8_type:
+        case migraphx_shape_uint16_type:
+        case migraphx_shape_uint32_type:
+        case migraphx_shape_uint64_type:
+            return 0;
+        case migraphx_shape_half_type:
+        case migraphx_shape_float_type:
+        case migraphx_shape_double_type:
+            return 1;
+        default:
+            return -1;
+    }
+}
+
+static inline
+int getBytesPerSample(migraphx_shape_datatype_t type) noexcept {
+    switch (type) {
+        case migraphx_shape_uint8_type:
+            return 1;
+        case migraphx_shape_half_type:
+        case migraphx_shape_uint16_type:
+            return 2;
+        case migraphx_shape_float_type:
+        case migraphx_shape_uint32_type:
+            return 4;
+        case migraphx_shape_double_type:
+        case migraphx_shape_uint64_type:
+            return 8;
+        default:
+            return 0;
+    }
+}
+
 static inline void VS_CC getDeviceProp(
     const VSMap *in, VSMap *out, void *userData,
     VSCore *core, const VSAPI *vsapi
@@ -777,6 +814,12 @@ static void VS_CC vsMIGXCreate(
         checkError(migraphx_shape_type(&type, input_shape));
         if (type != migraphx_shape_float_type && type != migraphx_shape_half_type) {
             return set_error("input type must be float or half");
+        }
+        if (in_vis[0]->format->sampleType != getSampleType(type)) {
+            return set_error("sample type mismatch");
+        }
+        if (in_vis[0]->format->bytesPerSample != getBytesPerSample(type)) {
+            return set_error("bytes per sample mismatch");
         }
         const size_t * lengths;
         size_t ndim;
