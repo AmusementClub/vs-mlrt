@@ -1,4 +1,4 @@
-__version__ = "3.22.4"
+__version__ = "3.22.5"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -941,6 +941,7 @@ class RIFEModel(enum.IntEnum):
     v4_23 = 423
     v4_24 = 424
     v4_25 = 425
+    v4_25_lite = 4251
     v4_26 = 426
 
 
@@ -1002,6 +1003,8 @@ def RIFEMerge(
 
     if (model_major, model_minor) >= (4, 26):
         tilesize_requirement = 64
+    elif (model_major, model_minor, lite) == (4, 25, "_lite"):
+        tilesize_requirement = 128
     else:
         tilesize_requirement = 32
     multiple_frac = tilesize_requirement / Fraction(scale)
