@@ -1,4 +1,4 @@
-__version__ = "3.22.5"
+__version__ = "3.22.6"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -942,6 +942,7 @@ class RIFEModel(enum.IntEnum):
     v4_24 = 424
     v4_25 = 425
     v4_25_lite = 4251
+    v4_25_heavy = 4252
     v4_26 = 426
 
 
@@ -999,11 +1000,17 @@ def RIFEMerge(
 
     model_major = int(str(int(model))[0])
     model_minor = int(str(int(model))[1:3])
-    lite = "_lite" if len(str(int(model))) >= 4 else ""
+    if len(str(int(model))) >= 4:
+        if str(int(model))[-1] == '1':
+            rife_type = "_lite"
+        elif str(int(model))[-1] == '2':
+            rife_type = "_heavy"
+    else:
+        rife_type = ""
 
     if (model_major, model_minor) >= (4, 26):
         tilesize_requirement = 64
-    elif (model_major, model_minor, lite) == (4, 25, "_lite"):
+    elif (model_major, model_minor, rife_type) == (4, 25, "_lite"):
         tilesize_requirement = 128
     else:
         tilesize_requirement = 32
@@ -1016,7 +1023,7 @@ def RIFEMerge(
     if model_major == 4 and (model_minor in (21, 22, 23) or model_minor >= 25) and ensemble:
         raise ValueError(f'{func_name}: ensemble is not supported')
 
-    version = f"v{model_major}.{model_minor}{lite}{'_ensemble' if ensemble else ''}"
+    version = f"v{model_major}.{model_minor}{rife_type}{'_ensemble' if ensemble else ''}"
 
     if (model_major, model_minor) >= (4, 7) and scale != 1.0:
         raise ValueError("not supported")
