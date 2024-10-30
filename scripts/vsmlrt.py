@@ -1,4 +1,4 @@
-__version__ = "3.22.6"
+__version__ = "3.22.7"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1012,8 +1012,11 @@ def RIFEMerge(
         tilesize_requirement = 64
     elif (model_major, model_minor, rife_type) == (4, 25, "_lite"):
         tilesize_requirement = 128
+    elif (model_major, model_minor, rife_type) == (4, 25, "_heavy"):
+        tilesize_requirement = 64
     else:
         tilesize_requirement = 32
+
     multiple_frac = tilesize_requirement / Fraction(scale)
     if multiple_frac.denominator != 1:
         raise ValueError(f'{func_name}: ({tilesize_requirement} / Fraction(scale)) must be an integer')
