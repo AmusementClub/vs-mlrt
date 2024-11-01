@@ -54,7 +54,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: vsov/protobuf/install
-        key: ${{ runner.os }}-vsov-protobuf-v2
+        key: ${{ runner.os }}-vsov-protobuf-v3
 
     - name: Checkout protobuf
       uses: actions/checkout@v4
@@ -63,13 +63,13 @@ jobs:
         repository: protocolbuffers/protobuf
         # follows protobuf in https://github.com/AmusementClub/openvino/tree/master/thirdparty/protobuf
         # if you change this, remember to bump the version of the cache key.
-        ref: fe271ab76f2ad2b2b28c10443865d2af21e27e0e
+        ref: f0dc78d7e6e331b8c6bb2d5283e06aa26883ca7c
         fetch-depth: 1
         path: vsov/protobuf
 
     - name: Configure protobuf
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
-      run: cmake -S protobuf\cmake -B protobuf\build_rel -G Ninja -LA
+      run: cmake -S protobuf -B protobuf\build_rel -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
         -D protobuf_BUILD_SHARED_LIBS=OFF  -D protobuf_BUILD_TESTS=OFF
 
@@ -95,7 +95,7 @@ jobs:
         repository: onnx/onnx
         # follows onnx in https://github.com/AmusementClub/openvino/tree/master/thirdparty/onnx
         # if you change this, remember to bump the version of the cache key.
-        ref: b86cc54efce19530fb953e4b21f57e6b3888534c
+        ref: b8baa8446686496da4cc8fda09f2b6fe65c2a02c
         fetch-depth: 1
         path: vsov/onnx
 
@@ -133,7 +133,7 @@ jobs:
         # else
         #   url="https://github.com/AmusementClub/openvino/releases/download/$rev/openvino-gpu-win64.zip"
         # fi
-        url="https://github.com/AmusementClub/openvino/releases/download/2020.2-15171-g4655dd6ce3/openvino-gpu-win64.zip"
+        url="https://github.com/AmusementClub/openvino/releases/download/2020.2-15171-g4655dd6ce3-2058-g5833781ddb/openvino-gpu-win64.zip"
         curl -s -o openvino.zip -LJO "$url"
         unzip -q openvino.zip
 
