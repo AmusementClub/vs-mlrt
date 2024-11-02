@@ -249,6 +249,7 @@ class Backend:
         opt_shapes: typing.Optional[typing.Tuple[int, int]] = None
         fast_math: bool = True
         exhaustive_tune: bool = False
+        num_streams: int = 1
 
         short_path: typing.Optional[bool] = None # True on Windows by default, False otherwise
         custom_env: typing.Dict[str, str] = field(default_factory=lambda: {})
@@ -2649,6 +2650,7 @@ def _inference(
         ret = core.migx.Model(
             clips, mxr_path,
             device_id=backend.device_id,
+            num_streams=backend.num_streams,
             **kwargs
         )
     elif isinstance(backend, Backend.OV_NPU):
