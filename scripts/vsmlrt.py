@@ -273,6 +273,7 @@ class Backend:
         verbosity: int = 0
         fp16: bool = False
         fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
+        MLprogram: int = 0
 
         # internal backend attributes
         supports_onnx_serialization: bool = True
@@ -2480,6 +2481,7 @@ def _inference(
             fp16=backend.fp16,
             path_is_serialization=path_is_serialization,
             fp16_blacklist_ops=backend.fp16_blacklist_ops,
+            MLprogram=backend.MLprogram,
             **kwargs
         )
     elif isinstance(backend, Backend.ORT_CUDA):
