@@ -27,7 +27,12 @@ Arguments:
  - `string provider`: Specifies the device to run the inference on.
    - `"CPU"` or `""`: pure CPU backend
    - `"CUDA"`: CUDA GPU backend, requires Nvidia Maxwell+ GPUs.
- - `int device_id`: select the GPU device for the CUDA backend.
+   - `"DML"`: DirectML backend
+   - `"COREML"`: CoreML backend
+ - `int device_id`: select the GPU device for the CUDA backend.'
+ - `int MLprogram`: select CoreML provider.
+   - 0: NeuralNetwork
+   - 1: MLProgram
  - `int verbosity`: specify the verbosity of logging, the default is warning.
    - 0: fatal error only, `ORT_LOGGING_LEVEL_FATAL`
    - 1: also errors, `ORT_LOGGING_LEVEL_ERROR`
