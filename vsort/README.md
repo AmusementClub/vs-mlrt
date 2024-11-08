@@ -30,9 +30,6 @@ Arguments:
    - `"DML"`: DirectML backend
    - `"COREML"`: CoreML backend
  - `int device_id`: select the GPU device for the CUDA backend.'
- - `int MLprogram`: select CoreML provider.
-   - 0: NeuralNetwork
-   - 1: MLProgram
  - `int verbosity`: specify the verbosity of logging, the default is warning.
    - 0: fatal error only, `ORT_LOGGING_LEVEL_FATAL`
    - 1: also errors, `ORT_LOGGING_LEVEL_ERROR`
@@ -45,6 +42,9 @@ Arguments:
  - `bint fp16`: whether to quantize model to fp16 for faster and memory efficient computation.
  - `bint path_is_serialization`: whether the `network_path` argument specifies an onnx serialization of type `bytes`.
  - `bint use_cuda_graph`: whether to use CUDA Graphs to improve performance and reduce CPU overhead in CUDA backend. Not all models are supported.
+ - `int ml_program`: select CoreML provider.
+   - 0: NeuralNetwork
+   - 1: MLProgram
 
 When `overlap` and `tilesize` are not specified, the filter will internally try to resize the network to fit the input clips. This might not always work (for example, the network might require the width to be divisible by 8), and the filter will error out in this case.
 

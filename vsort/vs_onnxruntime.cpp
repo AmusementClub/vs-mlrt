@@ -455,7 +455,7 @@ struct vsOrtData {
     std::unique_ptr<VSVideoInfo> out_vi;
 
 #ifdef ENABLE_COREML
-    bool MLprogram;
+    bool ml_program;
 #endif //ENABLE_COREML
 
     int overlap_w, overlap_h;
@@ -913,16 +913,16 @@ static void VS_CC vsOrtCreate(
         verbosity = ORT_LOGGING_LEVEL_WARNING;
     }
 #ifdef ENABLE_COREML
-    auto MLprogram = vsapi->propGetInt(in, "MLprogram", 0, &error);
+    auto ml_program = vsapi->propGetInt(in, "ml_program", 0, &error);
 
     if (error) {
-        d->MLprogram = false;
-    } else if (MLprogram == 0) {
-        d->MLprogram = false;
-    } else if (MLprogram == 1) {
-        d->MLprogram = true;
+        d->ml_program = false;
+    } else if (ml_program == 0) {
+        d->ml_program = false;
+    } else if (ml_program == 1) {
+        d->ml_program = true;
     } else {
-        return set_error("\"MLprogram\" must be 0 or 1");
+        return set_error("\"ml_program\" must be 0 or 1");
     }
 #endif //ENABLE_COREML
 
@@ -1250,7 +1250,7 @@ static void VS_CC vsOrtCreate(
 #endif // ENABLE_CUDA
 #ifdef ENABLE_COREML
         uint32_t coreml_flag = 0;
-        if (MLprogram) coreml_flag |= 0x010;
+        if (ml_program) coreml_flag |= 0x010;
         if (d->backend == Backend::COREML) {
             checkError(OrtSessionOptionsAppendExecutionProvider_CoreML(
                 session_options,
@@ -1415,9 +1415,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "tilesize:int[]:opt;"
         "provider:data:opt;" // "": Default (CPU), "CUDA": CUDA, "COREML": COREML, "DML": DML
         "device_id:int:opt;"
-#ifdef ENABLE_COREML
-        "MLprogram:int:opt;"
-#endif //ENABLE_COREML
         "num_streams:int:opt;"
         "verbosity:int:opt;"
         "cudnn_benchmark:int:opt;"
@@ -1431,6 +1428,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "output_format:int:opt;"
         "tf32:int:opt;"
         "flexible_output_prop:data:opt;"
+#ifdef ENABLE_COREML
+        "ml_program:int:opt;"
+#endif //ENABLE_COREML
         , vsOrtCreate,
         nullptr,
         plugin
