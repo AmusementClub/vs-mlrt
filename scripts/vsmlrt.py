@@ -1,4 +1,4 @@
-__version__ = "3.22.8"
+__version__ = "3.22.9"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -945,6 +945,7 @@ class RIFEModel(enum.IntEnum):
     v4_25_lite = 4251
     v4_25_heavy = 4252
     v4_26 = 426
+    v4_26_large = 4263
 
 
 def RIFEMerge(
@@ -1006,6 +1007,8 @@ def RIFEMerge(
             rife_type = "_lite"
         elif str(int(model))[-1] == '2':
             rife_type = "_heavy"
+        elif str(int(model))[-1] == '3':
+            rife_type = "_large"
     else:
         rife_type = ""
 
@@ -1014,6 +1017,8 @@ def RIFEMerge(
     elif (model_major, model_minor, rife_type) == (4, 25, "_lite"):
         tilesize_requirement = 128
     elif (model_major, model_minor, rife_type) == (4, 25, "_heavy"):
+        tilesize_requirement = 64
+    elif (model_major, model_minor, rife_type) == (4, 26, "_large"):
         tilesize_requirement = 64
     else:
         tilesize_requirement = 32
