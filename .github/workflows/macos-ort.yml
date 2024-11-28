@@ -103,7 +103,7 @@ jobs:
 
     - name: Setup ONNX Runtime
       run: |
-        curl -L -o ort.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.19.2/onnxruntime-osx-arm64-1.19.2.tgz
+        curl -L -o ort.tgz https://github.com/microsoft/onnxruntime/releases/download/v1.20.0/onnxruntime-osx-arm64-1.20.0.tgz
         tar -xf ort.tgz
         mv onnxruntime-* onnxruntime
 
