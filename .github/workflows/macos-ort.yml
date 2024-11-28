@@ -131,7 +131,7 @@ jobs:
         cp -v install/lib/*.dylib artifact
 
     - name: Describe
-      run: git describe --tags --long
+      run: git describe --tags --long --always
 
     - name: Upload
       uses: actions/upload-artifact@v4
