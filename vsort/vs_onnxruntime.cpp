@@ -454,6 +454,10 @@ struct vsOrtData {
     std::vector<VSNodeRef *> nodes;
     std::unique_ptr<VSVideoInfo> out_vi;
 
+#ifdef ENABLE_COREML
+    bool ml_program;
+#endif //ENABLE_COREML
+
     int overlap_w, overlap_h;
 
     OrtEnv * environment;
@@ -908,6 +912,19 @@ static void VS_CC vsOrtCreate(
     if (error) {
         verbosity = ORT_LOGGING_LEVEL_WARNING;
     }
+#ifdef ENABLE_COREML
+    auto ml_program = vsapi->propGetInt(in, "ml_program", 0, &error);
+
+    if (error) {
+        d->ml_program = false;
+    } else if (ml_program == 0) {
+        d->ml_program = false;
+    } else if (ml_program == 1) {
+        d->ml_program = true;
+    } else {
+        return set_error("\"ml_program\" must be 0 or 1");
+    }
+#endif //ENABLE_COREML
 
     // match verbosity of vs-trt
     verbosity = static_cast<OrtLoggingLevel>(4 - static_cast<int>(verbosity));
@@ -1232,10 +1249,12 @@ static void VS_CC vsOrtCreate(
         }
 #endif // ENABLE_CUDA
 #ifdef ENABLE_COREML
+        uint32_t coreml_flag = 0;
+        if (ml_program) coreml_flag |= 0x010;
         if (d->backend == Backend::COREML) {
             checkError(OrtSessionOptionsAppendExecutionProvider_CoreML(
                 session_options,
-                0
+                coreml_flag
             ));
         }
 #endif // ENABLE_COREML
@@ -1394,7 +1413,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "network_path:data;"
         "overlap:int[]:opt;"
         "tilesize:int[]:opt;"
-        "provider:data:opt;" // "": Default (CPU), "CUDA": CUDA
+        "provider:data:opt;" // "": Default (CPU), "CUDA": CUDA, "COREML": COREML, "DML": DML
         "device_id:int:opt;"
         "num_streams:int:opt;"
         "verbosity:int:opt;"
@@ -1409,6 +1428,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "output_format:int:opt;"
         "tf32:int:opt;"
         "flexible_output_prop:data:opt;"
+#ifdef ENABLE_COREML
+        "ml_program:int:opt;"
+#endif //ENABLE_COREML
         , vsOrtCreate,
         nullptr,
         plugin
