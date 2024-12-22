@@ -18,7 +18,12 @@
 #include <hip/hip_runtime.h>
 
 #include <migraphx/migraphx.h>
+
+#if __has_include(<migraphx/version.h>)
 #include <migraphx/version.h>
+#else
+#define NO_MIGX_VERSION
+#endif
 
 #include "config.h"
 
@@ -1019,6 +1024,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
     auto getVersion = [](const VSMap *, VSMap * out, void *, VSCore *, const VSAPI *vsapi) {
         vsapi->propSetData(out, "version", VERSION, -1, paReplace);
 
+#ifndef NO_MIGX_VERSION
         vsapi->propSetData(
             out, "migraphx_version_build",
             (std::to_string(MIGRAPHX_VERSION_MAJOR) +
@@ -1028,6 +1034,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
              std::to_string(MIGRAPHX_VERSION_PATCH)
             ).c_str(), -1, paReplace
         );
+#endif // NO_MIGX_VERSION
 
         int runtime_version;
         (void) hipRuntimeGetVersion(&runtime_version);
