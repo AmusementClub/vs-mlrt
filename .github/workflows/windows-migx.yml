@@ -43,18 +43,18 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:\Program Files\AMD\ROCm
-        key: ${{ runner.os }}-rocm-6.1.2
+        key: ${{ runner.os }}-rocm-6.2.4
 
     - name: Setup HIP
       if: steps.cache-hip.outputs.cache-hit != 'true'
       shell: pwsh
       run: |
-        curl -s -o hip_installer.exe -L https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q3-WinSvr2022-For-HIP.exe
+        curl -s -o hip_installer.exe -L https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q4-WinSvr2022-For-HIP.exe
         Start-Process hip_installer.exe -ArgumentList '-install' -NoNewWindow -Wait
 
     - name: Download MIGraphX Precompilation
       run: |
-        curl -s -o migx.zip -LJO https://github.com/AmusementClub/AMDMIGraphX/releases/download/rocm-4.1.0-1515-g9cf49f92c-240821-0458/migraphx-win64.zip
+        curl -s -o migx.zip -LJO https://github.com/AmusementClub/AMDMIGraphX/releases/download/rocm-4.1.0-1730-g6acc1f957-241221-0629/migraphx-win64.zip
         unzip -q migx.zip
 
     - name: Download VapourSynth headers
@@ -68,7 +68,7 @@ jobs:
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%/vapoursynth/include"
-        -D hip_DIR="C:/Program Files/AMD/ROCm/6.1/lib/cmake/hip"
+        -D hip_DIR="C:/Program Files/AMD/ROCm/6.2/lib/cmake/hip"
         -D HIP_PLATFORM=amd
         -D migraphx_DIR="%cd%/migraphx/lib/cmake/migraphx"
 
