@@ -1,0 +1,70 @@
+name: Build (Linux-TRT, ARM64)
+
+on:
+  push:
+    paths:
+      - 'vstrt/**'
+      - '.github/workflows/linux-trt-arm64.yml'
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-24.04-arm
+    
+    defaults:
+      run:
+        working-directory: vstrt
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Ninja
+      run: pip install ninja --break-system-packages
+
+    - name: Download VapourSynth headers
+      run: |
+        wget -q -O vs.zip https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R57.zip
+        unzip -q vs.zip
+        mv vapoursynth*/ vapoursynth
+
+    - name: Setup CUDA and TensorRT
+      run: |
+        wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/sbsa/cuda-keyring_1.1-1_all.deb
+        sudo dpkg -i cuda-keyring_1.1-1_all.deb
+        sudo apt-get update
+        export TRT_VER=10.7.0.23-1+cuda12.6
+        sudo apt-get install -y --no-install-recommends cuda-nvcc-12-6 cuda-cudart-dev-12-6 libnvinfer-dev=${TRT_VER} libnvinfer-headers-dev=${TRT_VER} libnvinfer10=${TRT_VER}
+        echo "PATH=/usr/local/cuda/bin${PATH:+:${PATH}}" >> $GITHUB_ENV
+        echo "CUDA_PATH=/usr/local/cuda" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=/usr/local/cuda/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" >> $GITHUB_ENV
+
+    - name: Configure
+      run: cmake -S . -B build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D VAPOURSYNTH_INCLUDE_DIRECTORY="`pwd`/vapoursynth/include"
+        -D CMAKE_CXX_FLAGS="-Wall -ffast-math"
+
+    - name: Build
+      run: cmake --build build --verbose
+
+    - name: Install
+      run: cmake --install build --prefix install
+
+    - name: Prepare for upload
+      run: |
+        mkdir artifact
+        cp -v install/lib/*.so artifact
+
+    - name: Describe
+      run: git describe --tags --long
+
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: VSTRT-Linux-ARM64
+        path: vstrt/artifact
+        overwrite: true
+
