@@ -1,0 +1,140 @@
+name: Build (Linux-OV, ARM64)
+
+on:
+  push:
+    paths:
+      - 'vsov/**'
+      - '.github/workflows/linux-ov-arm64.yml'
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-24.04-arm
+    
+    defaults:
+      run:
+        working-directory: vsov
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Ninja
+      run: pip install ninja
+
+    - name: Cache protobuf
+      id: cache-protobuf
+      uses: actions/cache@v4
+      with:
+        path: vsov/protobuf/install
+        key: ${{ runner.os }}-vsov-protobuf-v1
+
+    - name: Checkout protobuf
+      uses: actions/checkout@v4
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      with:
+        repository: protocolbuffers/protobuf
+        # follows protobuf in https://github.com/openvinotoolkit/openvino/tree/2024.1.0/thirdparty/protobuf
+        # if you change this, remember to bump the version of the cache key.
+        ref: f0dc78d7e6e331b8c6bb2d5283e06aa26883ca7c
+        fetch-depth: 1
+        path: vsov/protobuf
+
+    - name: Configure protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake -S protobuf/cmake -B protobuf/build_rel -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_POSITION_INDEPENDENT_CODE=ON
+        -D protobuf_BUILD_SHARED_LIBS=OFF  -D protobuf_BUILD_TESTS=OFF
+
+    - name: Build protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake --build protobuf/build_rel --verbose
+
+    - name: Install protobuf
+      if: steps.cache-protobuf.outputs.cache-hit != 'true'
+      run: cmake --install protobuf/build_rel --prefix protobuf/install
+
+    - name: Cache onnx
+      id: cache-onnx
+      uses: actions/cache@v4
+      with:
+        path: vsov/onnx/install
+        key: ${{ runner.os }}-vsov-onnx-v1
+
+    - name: Checkout onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        repository: onnx/onnx
+        # follows onnx in https://github.com/openvinotoolkit/openvino/tree/2024.1.0/thirdparty/onnx
+        # if you change this, remember to bump the version of the cache key.
+        ref: b8baa8446686496da4cc8fda09f2b6fe65c2a02c
+        fetch-depth: 1
+        path: vsov/onnx
+
+    - name: Configure onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake -S onnx -B onnx/build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_POSITION_INDEPENDENT_CODE=ON
+        -D Protobuf_PROTOC_EXECUTABLE=protobuf/install/bin/protoc
+        -D Protobuf_LITE_LIBRARY=protobuf/install/lib
+        -D Protobuf_LIBRARIES=protobuf/install/lib
+        -D ONNX_USE_LITE_PROTO=ON -D ONNX_USE_PROTOBUF_SHARED_LIBS=OFF
+        -D ONNX_GEN_PB_TYPE_STUBS=OFF -D ONNX_ML=0
+        -D ONNX_USE_MSVC_STATIC_RUNTIME=1
+
+    - name: Build onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --build onnx/build --verbose
+
+    - name: Install onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      run: cmake --install onnx/build --prefix onnx/install
+
+    - name: Download VapourSynth headers
+      run: |
+        wget -q -O vs.zip https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R57.zip
+        unzip -q vs.zip
+        mv vapoursynth*/ vapoursynth
+
+    - name: Setup OpenVINO
+      run: |
+        curl -L -o ov.tgz https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.6/linux/l_openvino_toolkit_ubuntu20_2024.6.0.17404.4c0f47d2335_arm64.tgz
+        tar -xf ov.tgz
+        mv l_openvino_* openvino -v
+
+    - name: Configure
+      run: cmake -S . -B build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_CXX_FLAGS="-Wall -ffast-math"
+        -D VAPOURSYNTH_INCLUDE_DIRECTORY="`pwd`/vapoursynth/include"
+        -D OpenVINO_DIR=openvino/runtime/cmake
+        -D ENABLE_VISUALIZATION=ON
+        -D WIN32_SHARED_OPENVINO=ON
+        -D protobuf_DIR=protobuf/install/lib/cmake/protobuf
+        -D ONNX_DIR=onnx/install/lib/cmake/ONNX
+
+    - name: Build
+      run: cmake --build build --verbose
+
+    - name: Install
+      run: cmake --install build --prefix install
+
+    - name: Prepare for upload
+      run: |
+        mkdir artifact
+        cp -v install/lib/*.so artifact
+
+    - name: Describe
+      run: git describe --tags --long
+
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: VSOV-Linux-ARM64
+        path: vsov/artifact
+
