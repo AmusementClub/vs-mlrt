@@ -36,9 +36,9 @@ jobs:
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
       with:
         repository: protocolbuffers/protobuf
-        # follows protobuf in https://github.com/openvinotoolkit/openvino/tree/2024.1.0/thirdparty/protobuf
+        # follows protobuf in https://github.com/openvinotoolkit/openvino/tree/2024.6.0/thirdparty/protobuf
         # if you change this, remember to bump the version of the cache key.
-        ref: fe271ab76f2ad2b2b28c10443865d2af21e27e0e
+        ref: f0dc78d7e6e331b8c6bb2d5283e06aa26883ca7c
         fetch-depth: 1
         path: vsov/protobuf
 
@@ -69,9 +69,9 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: onnx/onnx
-        # follows onnx in https://github.com/openvinotoolkit/openvino/tree/2024.1.0/thirdparty/onnx
+        # follows onnx in https://github.com/openvinotoolkit/openvino/tree/2024.6.0/thirdparty/onnx
         # if you change this, remember to bump the version of the cache key.
-        ref: b86cc54efce19530fb953e4b21f57e6b3888534c
+        ref: b8baa8446686496da4cc8fda09f2b6fe65c2a02c
         fetch-depth: 1
         path: vsov/onnx
 
@@ -103,7 +103,7 @@ jobs:
 
     - name: Setup OpenVINO
       run: |
-        curl -L -o ov.tgz https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.1/linux/l_openvino_toolkit_ubuntu22_2024.1.0.15008.f4afc983258_x86_64.tgz
+        curl -L -o ov.tgz https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.6/linux/l_openvino_toolkit_ubuntu24_2024.6.0.17404.4c0f47d2335_x86_64.tgz
         tar -xf ov.tgz
         mv l_openvino_* openvino -v
 
