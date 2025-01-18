@@ -29,7 +29,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: vsov/protobuf/install
-        key: ${{ runner.os }}-vsov-protobuf-v1
+        key: ${{ runner.os }}-vsov-protobuf-arm64-v1
 
     - name: Checkout protobuf
       uses: actions/checkout@v4
@@ -62,7 +62,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: vsov/onnx/install
-        key: ${{ runner.os }}-vsov-onnx-v1
+        key: ${{ runner.os }}-vsov-onnx-arm64-v1
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
