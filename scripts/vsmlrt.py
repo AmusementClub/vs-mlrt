@@ -1,4 +1,4 @@
-__version__ = "3.22.10"
+__version__ = "3.22.11"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1703,16 +1703,18 @@ def SwinIR(
 
 @enum.unique
 class ArtCNNModel(enum.IntEnum):
-    ArtCNN_C4F32 = 0 # deprecated
-    ArtCNN_C4F32_DS = 1 # deprecated
+    ArtCNN_C4F32 = 0
+    ArtCNN_C4F32_DS = 1
     ArtCNN_C16F64 = 2
     ArtCNN_C16F64_DS = 3
-    ArtCNN_C4F32_Chroma = 4 # deprecated
+    ArtCNN_C4F32_Chroma = 4
     ArtCNN_C16F64_Chroma = 5
     ArtCNN_R16F96 = 6
     ArtCNN_R8F64 = 7
     ArtCNN_R8F64_DS = 8
     ArtCNN_R8F64_Chroma = 9
+    ArtCNN_C4F16 = 10
+    ArtCNN_C4F16_DS = 11
 
 
 def ArtCNN(
