@@ -1,4 +1,4 @@
-__version__ = "3.22.11"
+__version__ = "3.22.12"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -186,6 +186,8 @@ class Backend:
         custom_args: typing.List[str] = field(default_factory=lambda: [])
         engine_folder: typing.Optional[str] = None
         max_tactics: typing.Optional[int] = None
+        tiling_optimization_level: int = 0
+        l2_limit_for_tiling: int = -1
 
         # internal backend attributes
         supports_onnx_serialization: bool = False
@@ -1924,7 +1926,9 @@ def trtexec(
     custom_env: typing.Dict[str, str] = {},
     custom_args: typing.List[str] = [],
     engine_folder: typing.Optional[str] = None,
-    max_tactics: typing.Optional[int] = None
+    max_tactics: typing.Optional[int] = None,
+    tiling_optimization_level: int = 0,
+    l2_limit_for_tiling: int = -1,
 ) -> str:
 
     # tensort runtime version
@@ -2105,6 +2109,10 @@ def trtexec(
     if trt_version >= (10, 4, 0):
         if max_tactics is not None:
             args.append(f"--maxTactics={max_tactics}")
+
+    if trt_version >= (10, 8, 0) and tiling_optimization_level != 0:
+        args.append(f"--tilingOptimizationLevel={tiling_optimization_level}")
+        args.append(f"--l2LimitForTiling={l2_limit_for_tiling}")
 
     args.extend(custom_args)
 
@@ -2615,6 +2623,8 @@ def _inference(
             custom_args=backend.custom_args,
             engine_folder=backend.engine_folder,
             max_tactics=backend.max_tactics,
+            tiling_optimization_level=backend.tiling_optimization_level,
+            l2_limit_for_tiling=backend.l2_limit_for_tiling,
         )
         ret = core.trt.Model(
             clips, engine_path,
