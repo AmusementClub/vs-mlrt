@@ -40,7 +40,6 @@ jobs:
       run: |
         mkdir vsmlrt-hip
         mv migraphx/bin/* vsmlrt-hip -v
-        mv migraphx/lib/migraphx/bin/*.dll vsmlrt-hip -v
 
     - name: Setup VC commands
       uses: ilammy/msvc-dev-cmd@v1
