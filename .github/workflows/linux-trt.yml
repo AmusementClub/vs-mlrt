@@ -35,8 +35,8 @@ jobs:
         wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
         sudo dpkg -i cuda-keyring_1.1-1_all.deb
         sudo apt-get update
-        export TRT_VER=10.7.0.23-1+cuda12.6
-        sudo apt-get install -y --no-install-recommends cuda-nvcc-12-6 cuda-cudart-dev-12-6 libnvinfer-dev=${TRT_VER} libnvinfer-headers-dev=${TRT_VER} libnvinfer10=${TRT_VER}
+        export TRT_VER=10.8.0.43-1+cuda12.8
+        sudo apt-get install -y --no-install-recommends cuda-nvcc-12-8 cuda-cudart-dev-12-8 libnvinfer-dev=${TRT_VER} libnvinfer-headers-dev=${TRT_VER} libnvinfer10=${TRT_VER}
         echo "PATH=/usr/local/cuda/bin${PATH:+:${PATH}}" >> $GITHUB_ENV
         echo "CUDA_PATH=/usr/local/cuda" >> $GITHUB_ENV
         echo "LD_LIBRARY_PATH=/usr/local/cuda/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" >> $GITHUB_ENV
@@ -45,7 +45,6 @@ jobs:
       run: cmake -S . -B build -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="`pwd`/vapoursynth/include"
-        -D CMAKE_CXX_COMPILER=g++-13
         -D CMAKE_CXX_FLAGS="-Wall -ffast-math -march=x86-64-v3"
 
     - name: Build
