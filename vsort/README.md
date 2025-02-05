@@ -4,7 +4,7 @@ The vs-onnxruntime plugin provides optimized CPU & CUDA runtime for some popular
 
 ## Building and Installation
 
-To build, you will need [ONNX Runtime](https://www.onnxruntime.ai/), [protobuf](https://github.com/protocolbuffers/protobuf), [ONNX](https://github.com/onnx/onnx) and thier dependencies.
+To build, you will need [ONNX Runtime](https://www.onnxruntime.ai/), [protobuf](https://github.com/protocolbuffers/protobuf), [ONNX](https://github.com/onnx/onnx) and their dependencies.
 
 Please refer to [ONNX Runtime Docs](https://onnxruntime.ai/docs/install/) for installation notes.
 Or, you can use our prebuilt Windows binary releases from [AmusementClub](https://github.com/AmusementClub/onnxruntime/releases/latest/).
