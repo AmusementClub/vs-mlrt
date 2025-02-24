@@ -533,7 +533,7 @@ def DPIR(
         strength = core.std.BlankClip(clip, format=gray_format, color=strength / 255, keep=True)
 
     if overlap is None:
-        overlap_w = overlap_h = 0
+        overlap_w = overlap_h = 16
     elif isinstance(overlap, int):
         overlap_w = overlap_h = overlap
     else:
@@ -1541,7 +1541,7 @@ def SCUNet(
         raise ValueError(f'{func_name}: "clip" must be of GRAY color family')
 
     if overlap is None:
-        overlap_w = overlap_h = 16
+        overlap_w = overlap_h = 64
     elif isinstance(overlap, int):
         overlap_w = overlap_h = overlap
     else:
