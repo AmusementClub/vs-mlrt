@@ -35,7 +35,7 @@ jobs:
         wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
         sudo dpkg -i cuda-keyring_1.1-1_all.deb
         sudo apt-get update
-        export TRT_VER=10.8.0.43-1+cuda12.8
+        export TRT_VER=10.9.0.34-1+cuda12.8
         sudo apt-get install -y --no-install-recommends cuda-nvcc-12-8 cuda-cudart-dev-12-8 libnvinfer-dev=${TRT_VER} libnvinfer-headers-dev=${TRT_VER} libnvinfer10=${TRT_VER}
         echo "PATH=/usr/local/cuda/bin${PATH:+:${PATH}}" >> $GITHUB_ENV
         echo "CUDA_PATH=/usr/local/cuda" >> $GITHUB_ENV
