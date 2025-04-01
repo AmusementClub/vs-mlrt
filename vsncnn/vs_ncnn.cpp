@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -644,6 +645,105 @@ static void VS_CC vsNcnnCreate(
 }
 
 
+static inline void VS_CC getDeviceProp(
+    const VSMap *in, VSMap *out, void *userData,
+    VSCore *core, const VSAPI *vsapi
+) {
+
+    int err;
+    int device_id = int64ToIntS(vsapi->propGetInt(in, "device_id", 0, &err));
+    if (err) {
+        device_id = 0;
+    }
+
+    ncnn::VulkanDevice * device = ncnn::get_gpu_device(device_id);
+    if (device == nullptr) {
+        vsapi->setError(out, "get_gpu_device failed");
+        return ;
+    }
+    const auto & info = device->info;
+
+    auto setProp = [&](const char * name, auto value, int data_length = -1) {
+        using T = std::decay_t<decltype(value)>;
+        if constexpr (std::is_integral_v<T>) {
+            vsapi->propSetInt(out, name, static_cast<int64_t>(value), paReplace);
+        } else if constexpr (std::is_floating_point_v<T>) {
+            vsapi->propSetFloat(out, name, value, paReplace);
+        } else if constexpr (std::is_same_v<T, char *>) {
+            vsapi->propSetData(out, name, value, data_length, paReplace);
+        }
+    };
+
+    setProp("api_version", info.api_version());
+    setProp("driver_version", info.driver_version());
+    setProp("vendor_id", info.vendor_id());
+    setProp("device_id", info.device_id());
+    setProp("device_name", info.device_name());
+    setProp("type", info.type());
+    setProp("max_shared_memory_size", info.max_shared_memory_size());
+    setProp("max_workgroup_count_x", info.max_workgroup_count_x());
+    setProp("max_workgroup_count_y", info.max_workgroup_count_y());
+    setProp("max_workgroup_count_z", info.max_workgroup_count_z());
+    setProp("max_workgroup_invocations", info.max_workgroup_invocations());
+    setProp("max_workgroup_size_x", info.max_workgroup_size_x());
+    setProp("max_workgroup_size_y", info.max_workgroup_size_y());
+    setProp("max_workgroup_size_z", info.max_workgroup_size_z());
+    setProp("memory_map_alignment", info.memory_map_alignment());
+    setProp("buffer_offset_alignment", info.buffer_offset_alignment());
+    setProp("non_coherent_atom_size", info.non_coherent_atom_size());
+    setProp("buffer_image_granularity", info.buffer_image_granularity());
+    setProp("max_imge_dimension_1d", info.max_image_dimension_1d());
+    setProp("max_imge_dimension_2d", info.max_image_dimension_2d());
+    setProp("max_imge_dimension_3d", info.max_image_dimension_3d());
+    setProp("timestamp_period", info.timestamp_period());
+    setProp("compute_queue_family_index", info.compute_queue_family_index());
+    setProp("graphics_queue_family_index", info.graphics_queue_family_index());
+    setProp("transfer_queue_family_index", info.transfer_queue_family_index());
+    setProp("unified_compute_transfer_queue", info.unified_compute_transfer_queue());
+    setProp("subgroup_size", info.subgroup_size());
+    setProp("support_subgroup_basic", info.support_subgroup_basic());
+    setProp("support_subgroup_vote", info.support_subgroup_vote());
+    setProp("support_subgroup_ballot", info.support_subgroup_ballot());
+    setProp("support_subgroup_shuffle", info.support_subgroup_shuffle());
+    setProp("bug_storage_buffer_no_l1", info.bug_storage_buffer_no_l1());
+    setProp("bug_corrupted_online_pipeline_cache", info.bug_corrupted_online_pipeline_cache());
+    setProp("bug_buffer_image_load_zero", info.bug_buffer_image_load_zero());
+    setProp("bug_implicit_fp16_arithmetic", info.bug_implicit_fp16_arithmetic());
+    setProp("support_fp16_packed", info.support_fp16_packed());
+    setProp("support_fp16_storage", info.support_fp16_storage());
+    setProp("support_fp16_arithmetic", info.support_fp16_arithmetic());
+    setProp("support_int8_packed", info.support_int8_packed());
+    setProp("support_int8_storage", info.support_int8_storage());
+    setProp("support_int8_arithmetic", info.support_int8_arithmetic());
+    setProp("support_ycbcr_conversion", info.support_ycbcr_conversion());
+    setProp("support_cooperative_matrix", info.support_cooperative_matrix());
+    setProp("support_cooperative_matrix_16_8_8", info.support_cooperative_matrix_16_8_8());
+    setProp("support_VK_KHR_8bit_storage()", info.support_VK_KHR_8bit_storage());
+    setProp("support_VK_KHR_16bit_storage()", info.support_VK_KHR_16bit_storage());
+    setProp("support_VK_KHR_bind_memory2()", info.support_VK_KHR_bind_memory2());
+    setProp("support_VK_KHR_create_renderpass2()", info.support_VK_KHR_create_renderpass2());
+    setProp("support_VK_KHR_dedicated_allocation()", info.support_VK_KHR_dedicated_allocation());
+    setProp("support_VK_KHR_descriptor_update_template()", info.support_VK_KHR_descriptor_update_template());
+    setProp("support_VK_KHR_external_memory()", info.support_VK_KHR_external_memory());
+    setProp("support_VK_KHR_get_memory_requirements2()", info.support_VK_KHR_get_memory_requirements2());
+    setProp("support_VK_KHR_maintenance1()", info.support_VK_KHR_maintenance1());
+    setProp("support_VK_KHR_maintenance2()", info.support_VK_KHR_maintenance2());
+    setProp("support_VK_KHR_maintenance3()", info.support_VK_KHR_maintenance3());
+    setProp("support_VK_KHR_multiview()", info.support_VK_KHR_multiview());
+    setProp("support_VK_KHR_portability_subset()", info.support_VK_KHR_portability_subset());
+    setProp("support_VK_KHR_push_descriptor()", info.support_VK_KHR_push_descriptor());
+    setProp("support_VK_KHR_sampler_ycbcr_conversion()", info.support_VK_KHR_sampler_ycbcr_conversion());
+    setProp("support_VK_KHR_shader_float16_int8()", info.support_VK_KHR_shader_float16_int8());
+    setProp("support_VK_KHR_shader_float_controls()", info.support_VK_KHR_shader_float_controls());
+    setProp("support_VK_KHR_storage_buffer_storage_class()", info.support_VK_KHR_storage_buffer_storage_class());
+    setProp("support_VK_KHR_swapchain()", info.support_VK_KHR_swapchain());
+    setProp("support_VK_EXT_descriptor_indexing()", info.support_VK_EXT_descriptor_indexing());
+    setProp("support_VK_EXT_memory_budget()", info.support_VK_EXT_memory_budget());
+    setProp("support_VK_EXT_queue_family_foreign()", info.support_VK_EXT_queue_family_foreign());
+    setProp("support_VK_NV_cooperative_matrix()", info.support_VK_NV_cooperative_matrix());
+};
+
+
 VS_EXTERNAL_API(void) VapourSynthPluginInit(
     VSConfigPlugin configFunc,
     VSRegisterFunction registerFunc,
@@ -691,4 +791,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         vsapi->propSetData(out, "path", vsapi->getPluginPath(myself), -1, paReplace);
     };
     registerFunc("Version", "", getVersion, nullptr, plugin);
+
+    registerFunc("DeviceProperties", "device_id:int:opt;", getDeviceProp, nullptr, plugin);
 }
