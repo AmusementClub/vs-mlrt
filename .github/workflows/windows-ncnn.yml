@@ -70,6 +70,7 @@ jobs:
         -D protobuf_BUILD_SHARED_LIBS=OFF 
         -D protobuf_BUILD_TESTS=OFF
         -D protobuf_MSVC_STATIC_RUNTIME=ON
+        -D CMAKE_POLICY_VERSION_MINIMUM=3.5
 
     - name: Build protobuf
       if: steps.cache-protobuf.outputs.cache-hit != 'true'
