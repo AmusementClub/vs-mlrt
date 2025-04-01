@@ -730,7 +730,6 @@ static inline void VS_CC getDeviceProp(
     setProp("support_VK_KHR_maintenance2()", info.support_VK_KHR_maintenance2());
     setProp("support_VK_KHR_maintenance3()", info.support_VK_KHR_maintenance3());
     setProp("support_VK_KHR_multiview()", info.support_VK_KHR_multiview());
-    setProp("support_VK_KHR_portability_subset()", info.support_VK_KHR_portability_subset());
     setProp("support_VK_KHR_push_descriptor()", info.support_VK_KHR_push_descriptor());
     setProp("support_VK_KHR_sampler_ycbcr_conversion()", info.support_VK_KHR_sampler_ycbcr_conversion());
     setProp("support_VK_KHR_shader_float16_int8()", info.support_VK_KHR_shader_float16_int8());
