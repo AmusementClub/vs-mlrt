@@ -669,7 +669,7 @@ static inline void VS_CC getDeviceProp(
             vsapi->propSetInt(out, name, static_cast<int64_t>(value), paReplace);
         } else if constexpr (std::is_floating_point_v<T>) {
             vsapi->propSetFloat(out, name, value, paReplace);
-        } else if constexpr (std::is_same_v<T, char *>) {
+        } else if constexpr (std::is_same_v<T, const char *>) {
             vsapi->propSetData(out, name, value, data_length, paReplace);
         }
     };
