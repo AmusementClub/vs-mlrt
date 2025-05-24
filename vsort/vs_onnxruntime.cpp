@@ -966,8 +966,8 @@ static void VS_CC vsOrtCreate(
         d->overlap_h = 0;
     }
 
-    size_t tile_w = static_cast<size_t>(vsapi->propGetInt(in, "tilesize", 0, &error1));
-    size_t tile_h = static_cast<size_t>(vsapi->propGetInt(in, "tilesize", 1, &error2));
+    int tile_w = int64ToIntS(vsapi->propGetInt(in, "tilesize", 0, &error1));
+    int tile_h = int64ToIntS(vsapi->propGetInt(in, "tilesize", 1, &error2));
     if (!error1) { // manual specification triggered
         if (error2) {
             tile_h = tile_w;
