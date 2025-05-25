@@ -1,4 +1,4 @@
-__version__ = "3.22.13"
+__version__ = "3.22.14"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -640,6 +640,11 @@ def RealESRGAN(
         multiple=multiple,
         overlap_w=overlap_w, overlap_h=overlap_h
     )
+
+    if tile_w % multiple != 0 or tile_h % multiple != 0:
+        raise ValueError(
+            f'{func_name}: tile size must be divisible by {multiple} ({tile_w}, {tile_h})'
+        )
 
     backend = init_backend(
         backend=backend,
@@ -1389,6 +1394,7 @@ class SAFAModel(enum.IntEnum):
     v0_2 = 2
     v0_3 = 3
     v0_4 = 4
+    v0_5 = 5
 
 
 @enum.unique
@@ -1443,6 +1449,11 @@ def SAFA(
         multiple=multiple,
         overlap_w=overlap_w, overlap_h=overlap_h
     )
+
+    if tile_w % multiple != 0 or tile_h % multiple != 0:
+        raise ValueError(
+            f'{func_name}: tile size must be divisible by {multiple} ({tile_w}, {tile_h})'
+        )
 
     backend = init_backend(
         backend=backend,
