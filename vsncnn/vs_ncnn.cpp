@@ -701,10 +701,10 @@ static inline void VS_CC getDeviceProp(
     setProp("transfer_queue_family_index", info.transfer_queue_family_index());
     setProp("unified_compute_transfer_queue", info.unified_compute_transfer_queue());
     setProp("subgroup_size", info.subgroup_size());
-    setProp("support_subgroup_basic", info.support_subgroup_basic());
-    setProp("support_subgroup_vote", info.support_subgroup_vote());
-    setProp("support_subgroup_ballot", info.support_subgroup_ballot());
-    setProp("support_subgroup_shuffle", info.support_subgroup_shuffle());
+    // setProp("support_subgroup_basic", info.support_subgroup_basic());
+    // setProp("support_subgroup_vote", info.support_subgroup_vote());
+    // setProp("support_subgroup_ballot", info.support_subgroup_ballot());
+    // setProp("support_subgroup_shuffle", info.support_subgroup_shuffle());
     setProp("bug_storage_buffer_no_l1", info.bug_storage_buffer_no_l1());
     setProp("bug_corrupted_online_pipeline_cache", info.bug_corrupted_online_pipeline_cache());
     setProp("bug_buffer_image_load_zero", info.bug_buffer_image_load_zero());
