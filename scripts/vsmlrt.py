@@ -1,4 +1,4 @@
-__version__ = "3.22.15"
+__version__ = "3.22.16"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1797,10 +1797,7 @@ def ArtCNN(
     )
 
     if model in (4, 5, 9):
-        if clip.format.bits_per_sample == 16:
-            clip = core.akarin.Expr(clip, ["", "x 0.5 +"])
-        else:
-            clip = core.std.Expr(clip, ["", "x 0.5 +"])
+        clip = _expr(clip, ["", "x 0.5 +"])
 
         clip_u, clip_v = flexible_inference_with_fallback(
             clips=[clip], network_path=network_path,
@@ -1810,10 +1807,7 @@ def ArtCNN(
 
         clip = core.std.ShufflePlanes([clip, clip_u, clip_v], [0, 0, 0], vs.YUV)
 
-        if clip.format.bits_per_sample == 16:
-            clip = core.akarin.Expr(clip, ["", "x 0.5 -"])
-        else:
-            clip = core.std.Expr(clip, ["", "x 0.5 -"])
+        clip = _expr(clip, ["", "x 0.5 -"])
     else:
         clip = inference_with_fallback(
             clips=[clip], network_path=network_path,
@@ -3091,6 +3085,6 @@ def _expr(
     format: typing.Optional[int] = None
 ) -> vs.VideoNode:
     try:
-        return core.std.Expr(clip, expr, format)
-    except vs.Error:
         return core.akarin.Expr(clip, expr, format)
+    except vs.Exception:
+        return core.std.Expr(clip, expr, format)
