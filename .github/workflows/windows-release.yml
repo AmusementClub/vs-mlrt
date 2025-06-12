@@ -62,6 +62,13 @@ jobs:
       tag: ${{ github.event.inputs.tag }}
       ncnn_tag: ${{ github.event.inputs.ncnn_tag }}
 
+  build-vstrt_rtx:
+    uses: ./.github/workflows/windows-trt_rtx.yml
+    with:
+      tag: ${{ github.event.inputs.tag }}
+    secrets:
+      REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
+
   build-cuda-dependency:
     uses: ./.github/workflows/windows-cuda-dependency.yml
     with:
@@ -245,7 +252,7 @@ jobs:
 
   release:
     runs-on: ubuntu-24.04-arm
-    needs: [build-vsov, build-vsort, build-vstrt, build-vsmigx, build-vsncnn, build-cuda-dependency, build-hip-dependency, build-scripts, build-models]
+    needs: [build-vsov, build-vsort, build-vstrt, build-vsmigx, build-vsncnn, build-vstrt_rtx, build-cuda-dependency, build-hip-dependency, build-scripts, build-models]
 
     defaults:
       run:
@@ -293,6 +300,12 @@ jobs:
       with:
         name: VSNCNN-GPU-Windows-x64
         path: vsncnn-release
+
+    - name: Download artifact for vstrt_rtx
+      uses: actions/download-artifact@v4
+      with:
+        name: VSTRT-RTX-Windows-x64
+        path: vstrt-rtx-release
 
     - name: Download artifact for cuda dependencies
       uses: actions/download-artifact@v4
@@ -390,6 +403,7 @@ jobs:
         cp -r vsort-release/* release-cuda/
         cp -r vstrt-release/* release-cuda/
         cp -r vsncnn-release/* release-cuda/
+        cp -r vstrt-rtx-release/* release-cuda/
         cp -r cuda-release/* release-cuda/
         cp scripts-release/*.py release-cuda/
         cd release-cuda

@@ -65,6 +65,31 @@ jobs:
         move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\bin\*.dll" vsmlrt-cuda
         del vsmlrt-cuda\cudart32*.dll
 
+    # Note: unfortunately, TensorRT-RTX download requires registration and according to its license
+    # agreements, we can only redistribute it along with an application that uses it, so we
+    # have to use a private repository to hold a copy of the library.
+    - name: Download TensorRT library
+      run: |
+        # https://stackoverflow.com/questions/20396329/how-to-download-github-release-from-private-repo-using-command-line/35688093#35688093
+
+        tag=tensorrt-rtx-1.0-bin
+        name=TensorRT-RTX.7z
+
+        AUTH="Authorization: token ${{ secrets.REPO_TOKEN }}"
+        response=$(curl -sH "$AUTH" https://api.github.com/repos/AmusementClub/cuda/releases/tags/$tag)
+        eval $(echo "$response" | grep -C3 "name.:.\+$NAME" | grep -w id | tr : = | tr -cd '[[:alnum:]]=')
+        [ "$id" ] || { echo "Error: Failed to get asset id, response: $response" | awk 'length($0)<100' >&2; exit 1; }
+        ASSET="https://api.github.com/repos/AmusementClub/cuda/releases/assets/$id"
+        curl -LJO -H "$AUTH" -H 'Accept: application/octet-stream' "$ASSET"
+
+        mv "$name" trt-rtx.7z
+
+    - name: Extract TensorRT-RTX library
+      run: 7z x trt-rtx.7z
+
+    - name: Move TensorRT-RTX library
+      run: mv TensorRT-RTX/* vsmlrt-cuda -v
+
     - name: Setup VC commands
       uses: ilammy/msvc-dev-cmd@v1
       with:
