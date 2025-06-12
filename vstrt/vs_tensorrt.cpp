@@ -405,9 +405,9 @@ static void VS_CC vsTrtCreate(
 
 #ifdef USE_NVINFER_PLUGIN
     // related to https://github.com/AmusementClub/vs-mlrt/discussions/65, for unknown reason
-#if !(NV_TENSORRT_MAJOR == 9 && defined(_WIN32)) || defined(TRT_MAJOR_RTX)
+#if !(NV_TENSORRT_MAJOR == 9 && defined(_WIN32)) && !defined(TRT_MAJOR_RTX)
     if (!initLibNvInferPlugins(&d->logger, "")) {
-        vsapi->logMessage(mtWarning, "vsTrt: Initialize TensorRT plugins failed");
+        vsapi->logMessage(mtWarning, "vstrt: Initialize TensorRT plugins failed");
     }
 #endif
 #endif
@@ -568,8 +568,13 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
 ) noexcept {
 
     configFunc(
-        "io.github.amusementclub.vs_tensorrt", "trt",
-        "TensorRT ML Filter Runtime",
+#if defined(TRT_MAJOR_RTX)
+        "io.github.amusementclub.vs_tensorrt_rtx",
+        "trt_rtx", "TensorRT-RTX ML Filter Runtime",
+#else
+        "io.github.amusementclub.vs_tensorrt",
+        "trt", "TensorRT ML Filter Runtime",
+#endif
         VAPOURSYNTH_API_VERSION, 1, plugin
     );
 
@@ -584,27 +589,41 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
 #else // NV_TENSORRT_MAJOR == 9 && defined(_WIN32) && !defined(TRT_MAJOR_RTX)
     int ver = getInferLibVersion(); // must ensure this is the first nvinfer function called
 #ifdef _WIN32
+#if defined(TRT_MAJOR_RTX)
+    if (ver == 0) { // a sentinel value, see dummy function in win32.cpp.
+        std::fprintf(stderr, "vstrt_rtx: TensorRT failed to load.\n");
+        return;
+    }
+#else
     if (ver == 0) { // a sentinel value, see dummy function in win32.cpp.
         std::fprintf(stderr, "vstrt: TensorRT failed to load.\n");
         return;
     }
+#endif
 #endif // _WIN32
     if (ver != NV_TENSORRT_VERSION) {
-#if NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
+#if defined(TRT_MAJOR_RTX)
+        std::fprintf(
+            stderr,
+            "vstrt_rtx: TensorRT-RTX version mismatch, built with %ld but loaded with %d; continue but fingers crossed...\n",
+            NV_TENSORRT_VERSION,
+            ver
+        );
+#elif NV_TENSORRT_MAJOR >= 10
         std::fprintf(
             stderr,
             "vstrt: TensorRT version mismatch, built with %ld but loaded with %d; continue but fingers crossed...\n",
             NV_TENSORRT_VERSION,
             ver
         );
-#else // NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
+#else
         std::fprintf(
             stderr,
             "vstrt: TensorRT version mismatch, built with %d but loaded with %d; continue but fingers crossed...\n",
             NV_TENSORRT_VERSION,
             ver
         );
-#endif // NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
+#endif
     }
 #endif // NV_TENSORRT_MAJOR == 9 && defined(_WIN32) && !defined(TRT_MAJOR_RTX)
 

@@ -35,7 +35,7 @@ struct InferenceInstance {
     std::unique_ptr<nvinfer1::IExecutionContext> exec_context;
     GraphExecResource graphexec;
 
-#if NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
+#if NV_TENSORRT_MAJOR >= 10 && !defined(TRT_MAJOR_RTX)
     Resource<uint8_t *, cudaFree> d_context_allocation;
 #endif
 };
@@ -286,7 +286,7 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
     checkError(cudaStreamCreateWithFlags(&stream.data, cudaStreamNonBlocking));
 
     auto exec_context = std::unique_ptr<nvinfer1::IExecutionContext>(
-#if NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
+#if NV_TENSORRT_MAJOR >= 10 && !defined(TRT_MAJOR_RTX)
         engine->createExecutionContext(nvinfer1::ExecutionContextAllocationStrategy::kUSER_MANAGED)
 #else
         engine->createExecutionContext()
@@ -402,7 +402,7 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
         };
     }
 
-#if NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
+#if NV_TENSORRT_MAJOR >= 10 && !defined(TRT_MAJOR_RTX)
     size_t buffer_size { exec_context->updateDeviceMemorySizeForShapes() };
     if (buffer_size == 0) {
         return set_error("failed to get internal activation buffer size");
@@ -411,12 +411,12 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
     Resource<uint8_t *, cudaFree> d_context_allocation {};
     checkError(cudaMalloc(&d_context_allocation.data, buffer_size));
 
-#if NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 1001 || defined(TRT_MAJOR_RTX)
+#if NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 1001
     exec_context->setDeviceMemoryV2(d_context_allocation.data, static_cast<int64_t>(buffer_size));
-#else // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 1001 || defined(TRT_MAJOR_RTX)
+#else // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 1001
     exec_context->setDeviceMemory(d_context_allocation.data);
-#endif // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 1001 || defined(TRT_MAJOR_RTX)
-#endif // NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
+#endif // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 1001
+#endif // NV_TENSORRT_MAJOR >= 10
 
     GraphExecResource graphexec {};
     if (use_cuda_graph) {
@@ -437,7 +437,7 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
         .stream = std::move(stream),
         .exec_context = std::move(exec_context),
         .graphexec = std::move(graphexec),
-#if NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
+#if NV_TENSORRT_MAJOR >= 10 && !defined(TRT_MAJOR_RTX)
         .d_context_allocation = std::move(d_context_allocation)
 #endif
     };
