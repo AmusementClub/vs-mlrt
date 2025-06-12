@@ -1,0 +1,118 @@
+name: Build (Windows-TRT-RTX)
+
+on:
+  push:
+    paths:
+      - 'vstrt/**'
+      - '.github/workflows/windows-trt_rtx.yml'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'which tag to upload to'
+        required: true
+        type: string
+    secrets:
+      REPO_TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'which tag to upload to'
+        default: ''
+
+jobs:
+  build-windows:
+    runs-on: windows-2025
+
+    defaults:
+      run:
+        shell: cmd
+        working-directory: vstrt
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Setup Ninja
+      run: pip install ninja
+
+    - name: Cache CUDA
+      id: cache-cuda
+      uses: actions/cache@v4
+      with:
+        path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
+        key: ${{ runner.os }}-vstrt-cuda-12.9.0
+
+    - name: Setup CUDA
+      if: steps.cache-cuda.outputs.cache-hit != 'true'
+      run: |
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.9.0/network_installers/cuda_12.9.0_windows_network.exe
+        cuda_installer.exe -s nvcc_12.9 cudart_12.9 cuda_profiler_api_12.9
+
+    - name: Checkout TensorRT-RTX
+      uses: actions/checkout@v4
+      with:
+        repository: AmusementClub/cuda
+        token: ${{ secrets.REPO_TOKEN }}
+        ref: tensorrt-rtx-1.0
+        path: tensorrt
+
+    - name: Download VapourSynth headers
+      run: |
+        curl -s -o vs.zip -L https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R54.zip
+        unzip -q vs.zip
+        mv vapoursynth-*/ vapoursynth/
+
+    - name: Configure
+      run: cmake -S . -B build -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_CXX_FLAGS="/EHsc /Wall /wd4100 /wd4625 /wd4626 /wd4710 /wd4711 /wd4820 /wd4996 /wd5026 /wd5027"
+        -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9"
+        -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
+        -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
+        -D TENSORRT_LIBRARY_SUFFIX="_1_0"
+
+    - name: Build
+      run: cmake --build build --config Release --verbose
+
+    - name: Install
+      run: cmake --install build --prefix install
+
+    - name: Prepare for upload
+      run: |
+        mkdir artifact
+        copy install\bin\vstrt_rtx.dll artifact\
+
+    - name: Describe
+      run: git describe --tags --long
+
+    - name: Dump dependencies
+      run: dumpbin /dependents artifact\vstrt_rtx.dll
+
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: VSTRT-RTX-Windows-x64
+        path: vstrt/artifact
+
+    - name: Compress artifact for release
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
+      run: |
+        cd artifact
+        7z a -t7z -mx=7 ../../VSTRT-RTX-Windows-x64.${{ github.event.inputs.tag }}.7z .
+
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
+      with:
+        tag_name: ${{ inputs.tag }}
+        files: VSTRT-RTX-Windows-x64.${{ github.event.inputs.tag }}.7z
+        fail_on_unmatched_files: true
+        generate_release_notes: false
+        prerelease: true
