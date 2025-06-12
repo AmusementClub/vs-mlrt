@@ -15,13 +15,14 @@
 #if NV_TENSORRT_VERSION >= 100001 || defined(TRT_MAJOR_RTX)
 #define TO_STRING(x) #x
 #define CONCAT_VERSION(name, version) (name "_" TO_STRING(version) ".dll")
+#define CONCAT_VERSION2(name, major, minor) (name "_" TO_STRING(major) "_" TO_STRING(minor) ".dll")
 #endif // NV_TENSORRT_VERSION >= 100001
 
 namespace {
 std::vector<std::wstring> dlls = {
 	// This list must be sorted by dependency.
 #if defined(TRT_MAJOR_RTX)
-	L"tensorrt_rtx_" TO_STRING(TRT_MAJOR_RTX) "_" TO_STRING(TRT_MINOR_RTX) ".dll"
+	CONCAT_VERSION2(L"tensorrt_rtx", TRT_MAJOR_RTX, TRT_MINOR_RTX),
 #elif NV_TENSORRT_VERSION >= 100001
 #ifdef USE_NVINFER_PLUGIN
 	// nvinfer_plugin dependencies
