@@ -24,15 +24,15 @@ void setDimensions(
     bool flexible_output
 ) noexcept {
 
-#if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+#if NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 805 || defined(TRT_MAJOR_RTX)
     auto input_name = exec_context->getEngine().getIOTensorName(0);
     auto output_name = exec_context->getEngine().getIOTensorName(1);
     const nvinfer1::Dims & in_dims = exec_context->getTensorShape(input_name);
     const nvinfer1::Dims & out_dims = exec_context->getTensorShape(output_name);
-#else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+#else // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 805 || defined(TRT_MAJOR_RTX)
     const nvinfer1::Dims & in_dims = exec_context->getBindingDimensions(0);
     const nvinfer1::Dims & out_dims = exec_context->getBindingDimensions(1);
-#endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+#endif // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 805 || defined(TRT_MAJOR_RTX)
 
     auto in_height = static_cast<int>(in_dims.d[2]);
     auto in_width = static_cast<int>(in_dims.d[3]);
@@ -150,12 +150,12 @@ std::optional<std::string> checkNodesAndContext(
     const std::vector<const VSVideoInfo *> & vis
 ) noexcept {
 
-#if NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+#if NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 805 || defined(TRT_MAJOR_RTX)
     auto input_name = execution_context->getEngine().getIOTensorName(0);
     const nvinfer1::Dims & network_in_dims = execution_context->getTensorShape(input_name);
-#else // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+#else // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 805 || defined(TRT_MAJOR_RTX)
     const nvinfer1::Dims & network_in_dims = execution_context->getBindingDimensions(0);
-#endif // NV_TENSORRT_MAJOR * 10 + NV_TENSORRT_MINOR >= 85
+#endif // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 805 || defined(TRT_MAJOR_RTX)
 
     auto network_in_channels = network_in_dims.d[1];
     int num_planes = numPlanes(vis);

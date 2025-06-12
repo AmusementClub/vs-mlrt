@@ -75,7 +75,7 @@ FARPROC loadDLLs() {
 	return (FARPROC)h;
 }
 
-#if NV_TENSORRT_MAJOR == 9 && defined(_WIN32)
+#if NV_TENSORRT_MAJOR == 9 && defined(_WIN32) || defined(TRT_MAJOR_RTX)
 static void * dummy() { // mimic getPluginRegistry
 #else
 static int dummy() { // mimic getInferLibVersion
