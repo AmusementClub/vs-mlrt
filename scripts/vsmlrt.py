@@ -1,4 +1,4 @@
-__version__ = "3.22.16"
+__version__ = "3.22.17"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -76,6 +76,7 @@ def get_plugins_path() -> str:
 plugins_path: str = get_plugins_path()
 trtexec_path: str = os.path.join(plugins_path, "vsmlrt-cuda", "trtexec")
 migraphx_driver_path: str = os.path.join(plugins_path, "vsmlrt-hip", "migraphx-driver")
+tensorrt_rtx_path: str = os.path.join(plugins_path, "vsmlrt-cuda", "tensorrt_rtx")
 models_path: str = os.path.join(plugins_path, "models")
 
 
@@ -280,6 +281,41 @@ class Backend:
         # internal backend attributes
         supports_onnx_serialization: bool = True
 
+    @dataclass(frozen=False)
+    class TRT_RTX:
+        """ backend for nvidia rtx gpus
+
+        basic performance tuning:
+        set fp16 = True
+        increase num_streams
+        increase workspace
+        set use_cuda_graph = True
+        """
+
+        fp16: bool = False
+        device_id: int = 0
+        workspace: typing.Optional[int] = None
+        verbose: bool = False
+        use_cuda_graph: bool = False
+        num_streams: int = 1
+
+        # use_cudnn: bool = False
+        use_edge_mask_convolutions: bool = True
+        # use_jit_convolutions: bool = True
+        # output_format: int = 0 # 0: fp32, 1: fp16
+        builder_optimization_level: int = 3
+        max_aux_streams: typing.Optional[int] = None
+        short_path: typing.Optional[bool] = None # True on Windows by default, False otherwise
+        custom_env: typing.Dict[str, str] = field(default_factory=lambda: {})
+        custom_args: typing.List[str] = field(default_factory=lambda: [])
+        engine_folder: typing.Optional[str] = None
+        max_tactics: typing.Optional[int] = None
+        tiling_optimization_level: int = 0
+        l2_limit_for_tiling: int = -1
+
+        # internal backend attributes
+        supports_onnx_serialization: bool = False
+
 
 backendT = typing.Union[
     Backend.OV_CPU,
@@ -292,6 +328,7 @@ backendT = typing.Union[
     Backend.MIGX,
     Backend.OV_NPU,
     Backend.ORT_COREML,
+    Backend.TRT_RTX,
 ]
 
 
@@ -2285,6 +2322,150 @@ def migraphx_driver(
     return mxr_path
 
 
+def tensorrt_rtx(
+    network_path: str,
+    channels: int,
+    shapes: typing.Tuple[int, int],
+    fp16: bool,
+    device_id: int,
+    workspace: typing.Optional[int] = None,
+    verbose: bool = False,
+    use_cuda_graph: bool = False,
+    use_edge_mask_convolutions: bool = True,
+    input_name: str = "input",
+    builder_optimization_level: int = 3,
+    max_aux_streams: typing.Optional[int] = None,
+    short_path: typing.Optional[bool] = None,
+    custom_env: typing.Dict[str, str] = {},
+    custom_args: typing.List[str] = [],
+    engine_folder: typing.Optional[str] = None,
+    max_tactics: typing.Optional[int] = None,
+    tiling_optimization_level: int = 0,
+    l2_limit_for_tiling: int = -1,
+) -> str:
+
+    # tensort runtime version
+    # trt_version = parse_trt_version(int(core.trt_rtx.Version()["tensorrt_version"]))
+
+    if fp16:
+        import onnx
+        from onnxconverter_common.float16 import convert_float_to_float16
+        model = onnx.load(network_path)
+        model = convert_float_to_float16(model, keep_io_types=True)
+        network_path = f"{network_path}_fp16.onnx"
+        onnx.save(model, network_path) # TODO
+
+    engine_path = get_engine_path(
+        network_path=network_path,
+        min_shapes=shapes,
+        opt_shapes=shapes,
+        max_shapes=shapes,
+        workspace=workspace,
+        fp16=fp16,
+        device_id=device_id,
+        use_cublas=False,
+        static_shape=True,
+        tf32=False,
+        use_cudnn=False,
+        input_format=0,
+        output_format=0,
+        builder_optimization_level=builder_optimization_level,
+        max_aux_streams=max_aux_streams,
+        short_path=short_path,
+        bf16=False,
+        engine_folder=engine_folder,
+    )
+
+    if os.access(engine_path, mode=os.R_OK):
+        return engine_path
+
+    # do not consider alternative path when the engine_folder is given
+    if engine_folder is None:
+        alter_engine_path = os.path.join(
+            tempfile.gettempdir(),
+            os.path.splitdrive(engine_path)[1][1:]
+        )
+
+        if os.access(alter_engine_path, mode=os.R_OK):
+            return alter_engine_path
+
+    try:
+        # test writability
+        with open(engine_path, "w") as f:
+            pass
+        os.remove(engine_path)
+    except PermissionError:
+        if engine_folder is None:
+            print(f"{engine_path} is not writable", file=sys.stderr)
+            engine_path = alter_engine_path
+            dirname = os.path.dirname(engine_path)
+            if not os.path.exists(dirname):
+                os.makedirs(dirname)
+            print(f"change engine path to {engine_path}", file=sys.stderr)
+        else:
+            # do not consider alternative path when the engine_folder is given
+            raise PermissionError(f"{engine_path} is not writable")
+
+    args = [
+        tensorrt_rtx_path,
+        f"--onnx={network_path}",
+        f"--timingCacheFile={engine_path}.cache",
+        f"--device={device_id}",
+        f"--saveEngine={engine_path}",
+        "--useGpu",
+    ]
+
+    if workspace is not None:
+        args.append(f"--memPoolSize=workspace:{workspace}")
+
+    args.append(f"--shapes={input_name}:1x{channels}x{shapes[1]}x{shapes[0]}")
+
+    if verbose:
+        args.append("--verbose")
+
+    tactic_sources = []
+
+    # if use_cudnn:
+    #     tactic_sources.append("+CUDNN")
+    # else:
+    #     tactic_sources.append("-CUDNN")
+
+    if use_edge_mask_convolutions:
+        tactic_sources.append("+EDGE_MASK_CONVOLUTIONS")
+    else:
+        tactic_sources.append("-EDGE_MASK_CONVOLUTIONS")
+
+    args.append(f"--tacticSources={','.join(tactic_sources)}")
+
+    if use_cuda_graph:
+        args.extend((
+            "--useCudaGraph",
+            "--noDataTransfers"
+        ))
+    else:
+        args.append("--skipInference")
+
+    args.append(f"--builderOptimizationLevel={builder_optimization_level}")
+
+    if max_aux_streams is not None:
+        args.append(f"--maxAuxStreams={max_aux_streams}")
+
+    if max_tactics is not None:
+        args.append(f"--maxTactics={max_tactics}")
+
+    if tiling_optimization_level != 0:
+        args.append(f"--tilingOptimizationLevel={tiling_optimization_level}")
+        args.append(f"--l2LimitForTiling={l2_limit_for_tiling}")
+
+    args.extend(custom_args)
+
+    env = {"CUDA_MODULE_LOADING": "LAZY"}
+    env.update(**custom_env)
+    subprocess.run(args, env=env, check=True, stdout=sys.stderr)
+
+    return engine_path
+
+
 def calc_size(width: int, tiles: int, overlap: int, multiple: int = 1) -> int:
     return math.ceil((width + 2 * overlap * (tiles - 1)) / (tiles * multiple)) * multiple
 
@@ -2341,8 +2522,10 @@ def init_backend(
         backend = Backend.ORT_DML()
     elif backend is Backend.MIGX: # type: ignore
         backend = Backend.MIGX()
-    elif backend is Backend.OV_NPU:
+    elif backend is Backend.OV_NPU: # type: ignore
         backend = Backend.OV_NPU()
+    elif backend is Backend.TRT_RTX: # type: ignore
+        backend = Backend.TRT_RTX()
 
     backend = copy.deepcopy(backend)
 
@@ -2387,6 +2570,8 @@ def _inference(
             raise ValueError('"path_is_serialization" must be False for trt backend')
         elif isinstance(backend, Backend.MIGX):
             raise ValueError('"path_is_serialization" must be False for migx backend')
+        elif isinstance(backend, Backend.TRT_RTX):
+            raise ValueError('"path_is_serialization" must be False for trt_rtx backend')
 
     if not isinstance(batch_size, int) or batch_size < 1:
         raise ValueError('"batch_size" must be a positve integer')
@@ -2681,6 +2866,42 @@ def _inference(
             device="NPU", builtin=False,
             fp16=False, # use ov's internal quantization
             path_is_serialization=path_is_serialization,
+            **kwargs
+        )
+    elif isinstance(backend, Backend.TRT_RTX):
+        network_path = typing.cast(str, network_path)
+
+        channels = sum(clip.format.num_planes for clip in clips)
+
+        engine_path = tensorrt_rtx(
+            network_path,
+            channels=channels,
+            shapes=tilesize,
+            fp16=backend.fp16,
+            device_id=backend.device_id,
+            workspace=backend.workspace,
+            verbose=backend.verbose,
+            use_cuda_graph=backend.use_cuda_graph,
+            use_edge_mask_convolutions=backend.use_edge_mask_convolutions,
+            input_name=input_name,
+            # input_format=clips[0].format.bits_per_sample == 16,
+            # output_format=backend.output_format,
+            builder_optimization_level=backend.builder_optimization_level,
+            max_aux_streams=backend.max_aux_streams,
+            short_path=backend.short_path,
+            custom_env=backend.custom_env,
+            custom_args=backend.custom_args,
+            engine_folder=backend.engine_folder,
+            max_tactics=backend.max_tactics,
+            tiling_optimization_level=backend.tiling_optimization_level,
+            l2_limit_for_tiling=backend.l2_limit_for_tiling,
+        )
+        ret = core.trt_rtx.Model(
+            clips, engine_path,
+            device_id=backend.device_id,
+            use_cuda_graph=backend.use_cuda_graph,
+            num_streams=backend.num_streams,
+            verbosity=4 if backend.verbose else 2,
             **kwargs
         )
     else:
@@ -3052,6 +3273,24 @@ class BackendV2:
         return Backend.ORT_COREML(
             num_streams=num_streams,
             fp16=fp16,
+            **kwargs
+        )
+
+    @staticmethod
+    def TRT_RTX(*,
+        num_streams: int = 1,
+        fp16: bool = False,
+        workspace: typing.Optional[int] = None,
+        use_cuda_graph: bool = False,
+        device_id: int = 0,
+        **kwargs
+    ) -> Backend.TRT_RTX:
+
+        return Backend.TRT_RTX(
+            num_streams=num_streams,
+            fp16=fp16,
+            workspace=workspace, use_cuda_graph=use_cuda_graph,
+            device_id=device_id,
             **kwargs
         )
 
