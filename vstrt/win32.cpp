@@ -12,7 +12,7 @@
 
 #include <NvInferRuntime.h>
 
-#if NV_TENSORRT_VERSION >= 100001
+#if NV_TENSORRT_VERSION >= 100001 || defined(TRT_MAJOR_RTX)
 #define TO_STRING(x) #x
 #define CONCAT_VERSION(name, version) (name "_" TO_STRING(version) ".dll")
 #endif // NV_TENSORRT_VERSION >= 100001
@@ -20,7 +20,9 @@
 namespace {
 std::vector<std::wstring> dlls = {
 	// This list must be sorted by dependency.
-#if NV_TENSORRT_VERSION >= 100001
+#if defined(TRT_MAJOR_RTX)
+	L"tensorrt_rtx_" TO_STRING(TRT_MAJOR_RTX) "_" TO_STRING(TRT_MINOR_RTX) ".dll"
+#elif NV_TENSORRT_VERSION >= 100001
 #ifdef USE_NVINFER_PLUGIN
 	// nvinfer_plugin dependencies
 	CONCAT_VERSION(L"nvinfer", NV_TENSORRT_MAJOR),
@@ -75,7 +77,7 @@ FARPROC loadDLLs() {
 	return (FARPROC)h;
 }
 
-#if NV_TENSORRT_MAJOR == 9 && defined(_WIN32) || defined(TRT_MAJOR_RTX)
+#if (NV_TENSORRT_MAJOR == 9 && !defined(TRT_MAJOR_RTX)) && defined(_WIN32)
 static void * dummy() { // mimic getPluginRegistry
 #else
 static int dummy() { // mimic getInferLibVersion
