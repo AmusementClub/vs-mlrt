@@ -71,10 +71,10 @@ jobs:
     - name: Move HIP Libraries
       shell: cmd
       run: |
-        move "C:\Program Files\AMD\ROCm\6.2\bin\amd_comgr_2.dll" vsmlrt-hip
-        move "C:\Program Files\AMD\ROCm\6.2\bin\amdhip64_6.dll" vsmlrt-hip
-        move "C:\Program Files\AMD\ROCm\6.2\bin\hiprtc0602.dll" vsmlrt-hip
-        move "C:\Program Files\AMD\ROCm\6.2\bin\hiprtc-builtins0602.dll" vsmlrt-hip
+        copy "C:\Program Files\AMD\ROCm\6.2\bin\amd_comgr_2.dll" vsmlrt-hip
+        copy "C:\Program Files\AMD\ROCm\6.2\bin\amdhip64_6.dll" vsmlrt-hip
+        copy "C:\Program Files\AMD\ROCm\6.2\bin\hiprtc0602.dll" vsmlrt-hip
+        copy "C:\Program Files\AMD\ROCm\6.2\bin\hiprtc-builtins0602.dll" vsmlrt-hip
 
     - name: Compress
       run: |
