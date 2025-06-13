@@ -1,4 +1,4 @@
-__version__ = "3.22.17"
+__version__ = "3.22.18"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -299,7 +299,12 @@ class Backend:
         use_cuda_graph: bool = False
         num_streams: int = 1
 
-        # use_cudnn: bool = False
+        static_shape: bool = True
+        min_shapes: typing.Tuple[int, int] = (0, 0)
+        opt_shapes: typing.Optional[typing.Tuple[int, int]] = None
+        max_shapes: typing.Optional[typing.Tuple[int, int]] = None
+
+        use_cudnn: bool = False
         use_edge_mask_convolutions: bool = True
         # use_jit_convolutions: bool = True
         # output_format: int = 0 # 0: fp32, 1: fp16
@@ -1873,7 +1878,8 @@ def get_engine_path(
     max_aux_streams: typing.Optional[int],
     short_path: typing.Optional[bool],
     bf16: bool,
-    engine_folder: typing.Optional[str]
+    engine_folder: typing.Optional[str],
+    is_rtx: bool = False,
 ) -> str:
 
     with open(network_path, "rb") as file:
@@ -1910,6 +1916,7 @@ def get_engine_path(
         "_I-" + ("fp32" if input_format == 0 else "fp16") +
         "_O-" + ("fp32" if output_format == 0 else "fp16") +
         f"_{device_name}" +
+        ("_rtx" if is_rtx else "") +
         f"_{checksum:x}"
     )
 
@@ -1951,7 +1958,7 @@ def trtexec(
     static_shape: bool = True,
     tf32: bool = False,
     log: bool = False,
-    use_cudnn: bool = True,
+    use_cudnn: bool = False,
     use_edge_mask_convolutions: bool = True,
     use_jit_convolutions: bool = True,
     heuristic: bool = False,
@@ -2056,9 +2063,9 @@ def trtexec(
         args.append(f"--shapes={input_name}:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}")
     else:
         args.extend([
-            f"--minShapes=input:1x{channels}x{min_shapes[1]}x{min_shapes[0]}",
-            f"--optShapes=input:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}",
-            f"--maxShapes=input:1x{channels}x{max_shapes[1]}x{max_shapes[0]}"
+            f"--minShapes={input_name}:1x{channels}x{min_shapes[1]}x{min_shapes[0]}",
+            f"--optShapes={input_name}:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}",
+            f"--maxShapes={input_name}:1x{channels}x{max_shapes[1]}x{max_shapes[0]}"
         ])
 
     if fp16:
@@ -2325,12 +2332,16 @@ def migraphx_driver(
 def tensorrt_rtx(
     network_path: str,
     channels: int,
-    shapes: typing.Tuple[int, int],
     fp16: bool,
     device_id: int,
+    opt_shapes: typing.Tuple[int, int],
+    max_shapes: typing.Tuple[int, int],
     workspace: typing.Optional[int] = None,
     verbose: bool = False,
     use_cuda_graph: bool = False,
+    static_shape: bool = True,
+    min_shapes: typing.Tuple[int, int] = (0, 0),
+    use_cudnn: bool = False,
     use_edge_mask_convolutions: bool = True,
     input_name: str = "input",
     builder_optimization_level: int = 3,
@@ -2357,14 +2368,14 @@ def tensorrt_rtx(
 
     engine_path = get_engine_path(
         network_path=network_path,
-        min_shapes=shapes,
-        opt_shapes=shapes,
-        max_shapes=shapes,
+        min_shapes=min_shapes,
+        opt_shapes=opt_shapes,
+        max_shapes=max_shapes,
         workspace=workspace,
         fp16=fp16,
         device_id=device_id,
         use_cublas=False,
-        static_shape=True,
+        static_shape=static_shape,
         tf32=False,
         use_cudnn=False,
         input_format=0,
@@ -2374,6 +2385,7 @@ def tensorrt_rtx(
         short_path=short_path,
         bf16=False,
         engine_folder=engine_folder,
+        is_rtx=True,
     )
 
     if os.access(engine_path, mode=os.R_OK):
@@ -2418,17 +2430,24 @@ def tensorrt_rtx(
     if workspace is not None:
         args.append(f"--memPoolSize=workspace:{workspace}")
 
-    args.append(f"--shapes={input_name}:1x{channels}x{shapes[1]}x{shapes[0]}")
+    if static_shape:
+        args.append(f"--shapes={input_name}:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}")
+    else:
+        args.extend([
+            f"--minShapes={input_name}:1x{channels}x{min_shapes[1]}x{min_shapes[0]}",
+            f"--optShapes={input_name}:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}",
+            f"--maxShapes={input_name}:1x{channels}x{max_shapes[1]}x{max_shapes[0]}"
+        ])
 
     if verbose:
         args.append("--verbose")
 
     tactic_sources = []
 
-    # if use_cudnn:
-    #     tactic_sources.append("+CUDNN")
-    # else:
-    #     tactic_sources.append("-CUDNN")
+    if use_cudnn:
+        tactic_sources.append("+CUDNN")
+    else:
+        tactic_sources.append("-CUDNN")
 
     if use_edge_mask_convolutions:
         tactic_sources.append("+EDGE_MASK_CONVOLUTIONS")
@@ -2529,7 +2548,7 @@ def init_backend(
 
     backend = copy.deepcopy(backend)
 
-    if isinstance(backend, Backend.TRT):
+    if isinstance(backend, (Backend.TRT, Backend.TRT_RTX)):
         if backend.opt_shapes is None:
             backend.opt_shapes = trt_opt_shapes
 
@@ -2873,15 +2892,22 @@ def _inference(
 
         channels = sum(clip.format.num_planes for clip in clips)
 
+        opt_shapes = backend.opt_shapes if backend.opt_shapes is not None else tilesize
+        max_shapes = backend.max_shapes if backend.max_shapes is not None else tilesize
+
         engine_path = tensorrt_rtx(
             network_path,
             channels=channels,
-            shapes=tilesize,
             fp16=backend.fp16,
             device_id=backend.device_id,
+            opt_shapes=backend.opt_shapes,
+            max_shapes=backend.max_shapes,
             workspace=backend.workspace,
             verbose=backend.verbose,
             use_cuda_graph=backend.use_cuda_graph,
+            static_shape=backend.static_shape,
+            min_shapes=backend.min_shapes,
+            use_cudnn=backend.use_cudnn,
             use_edge_mask_convolutions=backend.use_edge_mask_convolutions,
             input_name=input_name,
             # input_format=clips[0].format.bits_per_sample == 16,
@@ -3282,6 +3308,10 @@ class BackendV2:
         fp16: bool = False,
         workspace: typing.Optional[int] = None,
         use_cuda_graph: bool = False,
+        static_shape: bool = True,
+        min_shapes: typing.Tuple[int, int] = (0, 0),
+        opt_shapes: typing.Optional[typing.Tuple[int, int]] = None,
+        max_shapes: typing.Optional[typing.Tuple[int, int]] = None,
         device_id: int = 0,
         **kwargs
     ) -> Backend.TRT_RTX:
@@ -3290,6 +3320,8 @@ class BackendV2:
             num_streams=num_streams,
             fp16=fp16,
             workspace=workspace, use_cuda_graph=use_cuda_graph,
+            static_shape=static_shape,
+            min_shapes=min_shapes, opt_shapes=opt_shapes, max_shapes=max_shapes,
             device_id=device_id,
             **kwargs
         )
