@@ -448,6 +448,19 @@ static void VS_CC vsTrtCreate(
     auto maybe_profile_index = selectProfile(d->engines[0], tile_size);
 
     bool is_dynamic = false;
+#if NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
+    {
+        auto input_name = d->engines[0]->getIOTensorName(0);
+        auto input_shape = d->engines[0]->getTensorShape(input_name);
+        for (int32_t i = 0; i < input_shape.nbDims; i++) {
+            if (input_shape.d[i] == -1) {
+                is_dynamic = true;
+                break;
+            }
+        }
+    }
+#endif // NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
+
     d->instances.reserve(d->num_streams);
     for (int i = 0; i < d->num_streams; ++i) {
         auto maybe_instance = getInstance(

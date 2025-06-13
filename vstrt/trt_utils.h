@@ -35,7 +35,7 @@ struct InferenceInstance {
     std::unique_ptr<nvinfer1::IExecutionContext> exec_context;
     GraphExecResource graphexec;
 
-#if NV_TENSORRT_MAJOR >= 10 && !defined(TRT_MAJOR_RTX)
+#if NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
     Resource<uint8_t *, cudaFree> d_context_allocation;
 #endif
 };
@@ -275,7 +275,11 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
     const std::optional<int> & profile_index,
     const TileSize & tile_size,
     bool use_cuda_graph,
+#if NV_TENSORRT_MAJOR < 10 && !defined(TRT_MAJOR_RTX)
     bool & is_dynamic
+#else // NV_TENSORRT_MAJOR < 10 && !defined(TRT_MAJOR_RTX)
+    bool is_dynamic
+#endif // NV_TENSORRT_MAJOR < 10 && !defined(TRT_MAJOR_RTX)
 ) noexcept {
 
     const auto set_error = [](const ErrorMessage & error_message) {
@@ -286,25 +290,29 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
     checkError(cudaStreamCreateWithFlags(&stream.data, cudaStreamNonBlocking));
 
     auto exec_context = std::unique_ptr<nvinfer1::IExecutionContext>(
-#if NV_TENSORRT_MAJOR >= 10 && !defined(TRT_MAJOR_RTX)
-        engine->createExecutionContext(nvinfer1::ExecutionContextAllocationStrategy::kUSER_MANAGED)
+#if NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
+        engine->createExecutionContext(
+            is_dynamic ?
+            nvinfer1::ExecutionContextAllocationStrategy::kUSER_MANAGED :
+            nvinfer1::ExecutionContextAllocationStrategy::kON_PROFILE_CHANGE
+        )
 #else
         engine->createExecutionContext()
 #endif
     );
 
 #if NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 805 || defined(TRT_MAJOR_RTX)
-    auto input_name = exec_context->getEngine().getIOTensorName(0);
-    auto output_name = exec_context->getEngine().getIOTensorName(1);
+    auto input_name = engine->getIOTensorName(0);
+    auto output_name = engine->getIOTensorName(1);
 #endif // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 805 || defined(TRT_MAJOR_RTX)
 
     if (!exec_context->allInputDimensionsSpecified()) {
         if (!profile_index.has_value()) {
             return set_error("no valid optimization profile found");
         }
-
+#if NV_TENSORRT_MAJOR < 10 && !defined(TRT_MAJOR_RTX)
         is_dynamic = true;
-
+#endif // NV_TENSORRT_MAJOR < 10 && !defined(TRT_MAJOR_RTX)
         exec_context->setOptimizationProfileAsync(profile_index.value(), stream);
         checkError(cudaStreamSynchronize(stream));
 
@@ -329,7 +337,9 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
         exec_context->setBindingDimensions(0, dims);
 #endif // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 805 || defined(TRT_MAJOR_RTX)
     } else if (std::holds_alternative<RequestedTileSize>(tile_size)) {
+#if NV_TENSORRT_MAJOR < 10 && !defined(TRT_MAJOR_RTX)
         is_dynamic = false;
+#endif // NV_TENSORRT_MAJOR < 10 && !defined(TRT_MAJOR_RTX)
 
 #if NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 805 || defined(TRT_MAJOR_RTX)
         nvinfer1::Dims dims = exec_context->getTensorShape(input_name);
@@ -402,20 +412,23 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
         };
     }
 
-#if NV_TENSORRT_MAJOR >= 10 && !defined(TRT_MAJOR_RTX)
-    size_t buffer_size { exec_context->updateDeviceMemorySizeForShapes() };
-    if (buffer_size == 0) {
-        return set_error("failed to get internal activation buffer size");
-    }
-
+#if NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
     Resource<uint8_t *, cudaFree> d_context_allocation {};
-    checkError(cudaMalloc(&d_context_allocation.data, buffer_size));
+
+    if (is_dynamic) {
+        size_t buffer_size { exec_context->updateDeviceMemorySizeForShapes() };
+        if (buffer_size == 0) {
+            return set_error("failed to get internal activation buffer size");
+        }
+
+        checkError(cudaMalloc(&d_context_allocation.data, buffer_size));
 
 #if NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 1001
-    exec_context->setDeviceMemoryV2(d_context_allocation.data, static_cast<int64_t>(buffer_size));
+        exec_context->setDeviceMemoryV2(d_context_allocation.data, static_cast<int64_t>(buffer_size));
 #else // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 1001
-    exec_context->setDeviceMemory(d_context_allocation.data);
+        exec_context->setDeviceMemory(d_context_allocation.data);
 #endif // NV_TENSORRT_MAJOR * 100 + NV_TENSORRT_MINOR >= 1001
+    }
 #endif // NV_TENSORRT_MAJOR >= 10
 
     GraphExecResource graphexec {};
@@ -437,7 +450,7 @@ std::variant<ErrorMessage, InferenceInstance> getInstance(
         .stream = std::move(stream),
         .exec_context = std::move(exec_context),
         .graphexec = std::move(graphexec),
-#if NV_TENSORRT_MAJOR >= 10 && !defined(TRT_MAJOR_RTX)
+#if NV_TENSORRT_MAJOR >= 10 || defined(TRT_MAJOR_RTX)
         .d_context_allocation = std::move(d_context_allocation)
 #endif
     };
