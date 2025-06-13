@@ -9,6 +9,7 @@ add_executable(trtexec
     trtexec.cpp
     logfile.cpp
     ../common/bfloat16.cpp
+    ../common/debugTensorWriter.cpp
     ../common/logger.cpp
     ../common/sampleDevice.cpp
     ../common/sampleEngines.cpp
