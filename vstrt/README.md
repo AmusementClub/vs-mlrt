@@ -1,10 +1,10 @@
-# VapourSynth TensorRT
+# VapourSynth TensorRT & TensorRT-RTX
 
 The vs-tensorrt plugin provides optimized CUDA runtime for some popular AI filters.
 
 ## Usage
 
-Prototype: `core.trt.Model(clip[] clips, string engine_path[, int[] overlap, int[] tilesize, int device_id=0, bint use_cuda_graph=False, int num_streams=1, int verbosity=2, string flexible_output_prop=""])`
+Prototype: `core.{trt, trt_rtx}.Model(clip[] clips, string engine_path[, int[] overlap, int[] tilesize, int device_id=0, bint use_cuda_graph=False, int num_streams=1, int verbosity=2, string flexible_output_prop=""])`
 
 Arguments:
 - `clip[] clips`: the input clips, only 32-bit floating point RGB or GRAY clips are supported. For model specific input requirements, please consult our [wiki](https://github.com/AmusementClub/vs-mlrt/wiki).
@@ -43,7 +43,7 @@ The general rule is to either:
 1. left out `overlap`, `tilesize` at all and just process the input frame in one tile, or
 2. set all three so that the frame is processed in `tilesize[0]` x `tilesize[1]` tiles, and adjacent tiles will have an overlap of `overlap[0]` x `overlap[1]` pixels on each direction. The overlapped region will be throw out so that only internal output pixels are used.
 
-## Instructions
+## Instructions for TensorRT
 
 ### Build engine with dynamic shape support
 - Requires models with built-in dynamic shape support, e.g. `waifu2x_v3.7z` and `dpir_v3.7z`.
@@ -76,8 +76,6 @@ flt = core.trt.Model([src, core.std.BlankClip(src, color=sigma/255.0)], engine_p
 - `--device=N`: Select cuda device N (default = 0)
 
 - `--timingCacheFile=<file>`:  Save/load the serialized global timing cache
-
-- `--buildOnly` :Skip inference perf measurement (default = disabled)
 
 - `--verbose`: Use verbose logging (default = false)
 
@@ -112,4 +110,7 @@ flt = core.trt.Model([src, core.std.BlankClip(src, color=sigma/255.0)], engine_p
 - `--saveEngine=<file>`: Save the serialized engine
 
 - `--loadEngine=<file>`: Load a serialized engine
+
+## Instructions for TensorRT-RTX
+Replace the `trtexec` executable by the `tensorrt_rtx` executable. Some options may not be supported, e.g. `--fp16`.
 
