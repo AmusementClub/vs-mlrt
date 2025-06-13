@@ -1,4 +1,4 @@
-__version__ = "3.22.18"
+__version__ = "3.22.19"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -2436,7 +2436,8 @@ def tensorrt_rtx(
         args.extend([
             f"--minShapes={input_name}:1x{channels}x{min_shapes[1]}x{min_shapes[0]}",
             f"--optShapes={input_name}:1x{channels}x{opt_shapes[1]}x{opt_shapes[0]}",
-            f"--maxShapes={input_name}:1x{channels}x{max_shapes[1]}x{max_shapes[0]}"
+            f"--maxShapes={input_name}:1x{channels}x{max_shapes[1]}x{max_shapes[0]}",
+            "--specializeStrategyDS=eager"
         ])
 
     if verbose:
