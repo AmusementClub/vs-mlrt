@@ -57,7 +57,7 @@ jobs:
 
     - name: Download TensorRT
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.11.0/zip/TensorRT-10.11.0.33.Windows.win10.cuda-12.9.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.12.0/zip/TensorRT-10.12.0.36.Windows.win10.cuda-12.9.zip
         unzip trt.zip
         mv TensorRT-*/ tensorrt/
 
