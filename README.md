@@ -3,7 +3,7 @@
 This project provides VapourSynth ML filter runtimes for a variety of platforms:
  - x86 CPUs: [vsov-cpu](#vsov-openvino-based-pure-cpu--intel-gpu-runtime), [vsort-cpu](#vsort-onnx-runtime-based-cpugpu-runtime)
  - Intel GPU (both integrated & discrete): [vsov-gpu](#vsov-openvino-based-pure-cpu--intel-gpu-runtime), [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime)
- - NVidia GPU: [vsort-cuda](#vsort-onnx-runtime-based-cpugpu-runtime), [vstrt](#vstrt-tensorrt-based-gpu-runtime), [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime)
+ - NVidia GPU: [vsort-cuda](#vsort-onnx-runtime-based-cpugpu-runtime), [vstrt & vstrt_rtx](#vstrt-tensorrt-based-gpu-runtime), [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime)
  - AMD GPU: [vsncnn-vk](#vsncnn-ncnn-based-gpu-vulkan-runtime), [vsmigx](#vsmigx-migraphx-based-gpu-runtime)
  - Apple SoC: [vsort-coreml](#vsort-onnx-runtime-based-cpugpu-runtime)
 
@@ -42,6 +42,9 @@ GPU, and so there is an extra step to build an engine from ONNX network on the m
 you are going to use the vstrt filter, and this extra step makes deploying models a little
 harder than the other runtimes. However, the resulting performance is also typically
 *much much better* than the CUDA backend of [vsort](vsort).
+
+[TensorRT-RTX](https://developer.nvidia.com/tensorrt-rtx) is a specialization of TensorRT
+for NVIDIA RTX GPUs, which compiles engines faster with comparable performance with TensorRT.
 
 To install, download the latest release and extract them into your VS `plugins` directory.
 
