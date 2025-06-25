@@ -6,12 +6,17 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <NvInferRuntime.h>
 
 #include <VapourSynth.h>
 #include <VSHelper.h>
+
+#ifdef __cpp_impl_reflection
+#include <meta>
+#endif
 
 static inline
 void setDimensions(
@@ -192,14 +197,18 @@ static inline void VS_CC getDeviceProp(
         return ;
     }
 
-    auto setProp = [&](const char * name, auto value, int data_length = -1) {
+    auto setProp = [&](const char * name, const auto & value, int data_length = -1) {
         using T = std::decay_t<decltype(value)>;
-        if constexpr (std::is_same_v<T, int>) {
-            vsapi->propSetInt(out, name, value, paReplace);
-        } else if constexpr (std::is_same_v<T, size_t>) {
+        if constexpr (std::is_integral_v<T>) {
             vsapi->propSetInt(out, name, static_cast<int64_t>(value), paReplace);
-        } else if constexpr (std::is_same_v<T, char *>) {
+        } else if constexpr (std::is_same_v<T, const char *>) {
             vsapi->propSetData(out, name, value, data_length, paReplace);
+        } else if constexpr (std::is_integral_v<std::remove_pointer_t<T>>) {
+            std::array<int64_t, std::extent_v<std::remove_reference_t<decltype(value)>>> data;
+            for (int i = 0; i < static_cast<int>(std::size(data)); i++) {
+                data[i] = value[i];
+            }
+            vsapi->propSetIntArray(out, name, std::data(data), static_cast<int>(std::size(data)));
         }
     };
 
@@ -207,6 +216,22 @@ static inline void VS_CC getDeviceProp(
     cudaDriverGetVersion(&driver_version);
     setProp("driver_version", driver_version);
 
+#ifdef __cpp_impl_reflection
+    constexpr auto ctx = std::meta::access_context::current();
+    template for (
+        constexpr auto r : define_static_array(nonstatic_data_members_of(^^decltype(prop), ctx))
+    ) {
+        if constexpr (identifier_of(r) == "uuid") {
+            std::array<int64_t, 16> uuid;
+            for (int i = 0; i < 16; ++i) {
+                uuid[i] = prop.uuid.bytes[i];
+            }
+            vsapi->propSetIntArray(out, "uuid", std::data(uuid), static_cast<int>(std::size(uuid)));
+        } else if constexpr (identifier_of(r) != "reserved") {
+            setProp(std::string(identifier_of(r)).c_str(), prop.[:r:]);
+        }
+    }
+#else // __cpp_impl_reflection
     setProp("name", prop.name);
     {
         std::array<int64_t, 16> uuid;
@@ -274,6 +299,7 @@ static inline void VS_CC getDeviceProp(
     setProp("max_blocks_per_multi_processor", prop.maxBlocksPerMultiProcessor);
     setProp("access_policy_max_window_size", prop.accessPolicyMaxWindowSize);
     setProp("reserved_shared_mem_per_block", prop.reservedSharedMemPerBlock);
+#endif // __cpp_impl_reflection
 };
 
 #endif // VSTRT_UTILS_H_
