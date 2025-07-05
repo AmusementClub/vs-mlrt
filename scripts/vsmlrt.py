@@ -3358,5 +3358,5 @@ def _expr(
 ) -> vs.VideoNode:
     try:
         return core.akarin.Expr(clip, expr, format)
-    except vs.Exception:
+    except vs.Error:
         return core.std.Expr(clip, expr, format)
