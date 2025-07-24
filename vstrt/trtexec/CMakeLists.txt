@@ -18,7 +18,7 @@ add_executable(trtexec
     ../common/sampleReporting.cpp
     ../common/sampleUtils.cpp
     ../utils/fileLock.cpp
-    ../utils/timingCache.cpp
+    ../utils/cacheUtils.cpp
 )
 
 target_include_directories(trtexec PRIVATE
