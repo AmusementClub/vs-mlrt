@@ -1311,14 +1311,6 @@ def RIFE(
         else:
             return res
     else:
-        if not hasattr(core, 'akarin') or \
-            not hasattr(core.akarin, 'PropExpr') or \
-            not hasattr(core.akarin, 'PickFrames'):
-            raise RuntimeError(
-                'fractional multi requires plugin akarin '
-                '(https://github.com/AkarinVS/vapoursynth-plugin/releases)'
-                ', version v0.96g or later.')
-
         if clip.fps_num == 0 or clip.fps_den == 0:
             src_fps = Fraction(1)
         else:
