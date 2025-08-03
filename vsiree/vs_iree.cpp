@@ -211,13 +211,15 @@ struct Resource {
 struct MemoryResource {
     // Resource<uint8_t *, hipHostFree> h_data;
     // Resource<uint8_t *, hipFree> d_data;
+    Resource<iree_hal_buffer_t *, iree_hal_buffer_destroy> d_buffer;
+    // Resource<iree_hal_buffer_view_t *, iree_hal_buffer_view_destroy> d_buffer_view;
     size_t size;
 };
 
 struct InferenceInstance {
     Resource<iree_runtime_session_t *, iree_runtime_session_release> session;
     MemoryResource src;
-    MemoryResource dst;
+    // MemoryResource dst;
     // Resource<migraphx_program_parameters_t, migraphx_program_parameters_destroy> params;
     // Resource<migraphx_argument_t, migraphx_argument_destroy> src_argument;
     // Resource<migraphx_argument_t, migraphx_argument_destroy> dst_argument;
@@ -390,6 +392,7 @@ static const VSFrameRef *VS_CC vsIREEGetFrame(
         ));
         auto device = iree_runtime_session_device(session);
         auto device_allocator = iree_runtime_session_device_allocator(session);
+        auto host_allocator = iree_runtime_session_host_allocator(session);
 
         int y = 0;
         while (true) {
@@ -427,32 +430,32 @@ static const VSFrameRef *VS_CC vsIREEGetFrame(
                 // ));
 
                 {
-                    Resource<iree_hal_buffer_view_t *, iree_hal_buffer_view_release> input {};
                     const iree_hal_dim_t input_shape[4] = {
                         static_cast<iree_hal_dim_t>(d->src_tile_shape[0]),
                         static_cast<iree_hal_dim_t>(d->src_tile_shape[1]),
                         static_cast<iree_hal_dim_t>(d->src_tile_shape[2]),
                         static_cast<iree_hal_dim_t>(d->src_tile_shape[3])
                     };
-                    iree_hal_buffer_view_allocate_buffer_copy(
+                    iree_hal_device_transfer_h2d(
                         device,
-                        device_allocator,
+                        src_ptrs[0],
+                        instance.src.d_buffer,
+                        0,
+                        d->src_tile_shape[0] * d->src_tile_shape[1] * 
+                        d->src_tile_shape[2] * d->src_tile_shape[3] * sizeof(float),
+                        IREE_HAL_TRANSFER_BUFFER_FLAG_DEFAULT,
+                        iree_infinite_timeout()
+                    );
+                    Resource<iree_hal_buffer_view_t *, iree_hal_buffer_view_release> input;
+                    checkError(iree_hal_buffer_view_create(
+                        instance.src.d_buffer,
                         IREE_ARRAYSIZE(input_shape),
                         input_shape,
                         IREE_HAL_ELEMENT_TYPE_FLOAT_32,
                         IREE_HAL_ENCODING_TYPE_DENSE_ROW_MAJOR,
-                        (iree_hal_buffer_params_t) {
-                            .usage = IREE_HAL_BUFFER_USAGE_DEFAULT,
-                            .access = IREE_HAL_MEMORY_ACCESS_ALL,
-                            .type = IREE_HAL_MEMORY_TYPE_DEVICE_LOCAL,
-                        },
-                        iree_make_const_byte_span(
-                            src_ptrs[0],
-                            d->src_tile_shape[0] * d->src_tile_shape[1] * 
-                            d->src_tile_shape[2] * d->src_tile_shape[3] * sizeof(float)
-                        ),
+                        host_allocator,
                         &input.data
-                    );
+                    ));
                     checkError(iree_runtime_call_inputs_push_back_buffer_view(&call, input));
                 }
 
@@ -781,9 +784,9 @@ static void VS_CC vsIREECreate(
 //         }
 //     }
     d->src_tile_shape[0] = 1;
-    d->src_tile_shape[1] = 1;
-    d->src_tile_shape[2] = 512;
-    d->src_tile_shape[3] = 512;
+    d->src_tile_shape[1] = numPlanes(in_vis);
+    d->src_tile_shape[2] = tile_h;
+    d->src_tile_shape[3] = tile_w;
     d->dst_tile_shape[0] = 1;
     d->dst_tile_shape[1] = 1;
     d->dst_tile_shape[2] = 1024;
@@ -831,6 +834,36 @@ static void VS_CC vsIREECreate(
         ));
         const char * module_path = vsapi->propGetData(in, "module_path", 0, nullptr);
         checkError(iree_runtime_session_append_bytecode_module_from_file(instance.session, module_path));
+
+        iree_hal_buffer_params_t buffer_params {
+            .usage = IREE_HAL_BUFFER_USAGE_DEFAULT,
+            .access = IREE_HAL_MEMORY_ACCESS_ALL,
+            .type = IREE_HAL_MEMORY_TYPE_DEVICE_LOCAL,
+        };
+        iree_hal_buffer_params_canonicalize(&buffer_params);
+
+        iree_device_size_t allocation_size;
+        const iree_hal_dim_t input_shape[4] = {
+            static_cast<iree_hal_dim_t>(d->src_tile_shape[0]),
+            static_cast<iree_hal_dim_t>(d->src_tile_shape[1]),
+            static_cast<iree_hal_dim_t>(d->src_tile_shape[2]),
+            static_cast<iree_hal_dim_t>(d->src_tile_shape[3])
+        };
+        checkError(iree_hal_buffer_compute_view_size(
+            IREE_ARRAYSIZE(input_shape),
+            input_shape,
+            IREE_HAL_ELEMENT_TYPE_FLOAT_32,
+            IREE_HAL_ENCODING_TYPE_DENSE_ROW_MAJOR,
+            &allocation_size
+        ));
+
+        auto device_allocator = iree_runtime_session_device_allocator(instance.session);
+        checkError(iree_hal_allocator_allocate_buffer(
+            device_allocator,
+            buffer_params,
+            allocation_size,
+            &instance.src.d_buffer.data
+        ));
 
         d->instances.emplace_back(std::move(instance));
     }
