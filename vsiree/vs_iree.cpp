@@ -211,7 +211,34 @@ struct Resource {
 };
 
 static
-std::expected<std::array<int, 4>, std::string> get_output_shape(iree_runtime_session_t * session, std::array<int, 4> input_shape) {
+std::expected<std::string, std::string> get_function_name(iree_runtime_session_t * session) {
+    const auto set_error = [](const std::string & error_message) {
+        return std::unexpected(error_message);
+    };
+
+    auto context = iree_runtime_session_context(session);
+
+    auto module = iree_vm_context_module_at(context, 1);
+    auto ret = std::string{};
+    auto module_name = iree_vm_module_name(module);
+    ret += std::string_view{module_name.data, module_name.size};
+
+    iree_vm_function_t function;
+    checkError(iree_vm_module_lookup_function_by_ordinal(module, IREE_VM_FUNCTION_LINKAGE_EXPORT, 1, &function));
+
+    auto function_name = iree_vm_function_name(&function);
+    ret += ".";
+    ret += std::string_view{function_name.data, function_name.size};
+
+    return ret;
+}
+
+static
+std::expected<std::array<int, 4>, std::string> get_output_shape(
+    iree_runtime_session_t * session,
+    std::array<int, 4> input_shape,
+    const std::string & function_name
+) {
     const auto set_error = [](const std::string & error_message) {
         return std::unexpected(error_message);
     };
@@ -219,7 +246,7 @@ std::expected<std::array<int, 4>, std::string> get_output_shape(iree_runtime_ses
     iree_runtime_call_t call;
     checkError(iree_runtime_call_initialize_by_name(
         session,
-        iree_make_cstring_view("module.tf2onnx"),
+        iree_make_string_view(function_name.c_str(), function_name.size()),
         &call
     ));
     auto device = iree_runtime_session_device(session);
@@ -267,17 +294,17 @@ std::expected<std::array<int, 4>, std::string> get_output_shape(iree_runtime_ses
 }
 
 struct MemoryResource {
-    // Resource<uint8_t *, hipHostFree> h_data;
+    std::unique_ptr<uint8_t []> h_data;
     // Resource<uint8_t *, hipFree> d_data;
     Resource<iree_hal_buffer_t *, iree_hal_buffer_destroy> d_buffer;
     // Resource<iree_hal_buffer_view_t *, iree_hal_buffer_view_destroy> d_buffer_view;
-    size_t size;
+    // size_t size;
 };
 
 struct InferenceInstance {
     Resource<iree_runtime_session_t *, iree_runtime_session_release> session;
     MemoryResource src;
-    // MemoryResource dst;
+    MemoryResource dst;
     // Resource<migraphx_program_parameters_t, migraphx_program_parameters_destroy> params;
     // Resource<migraphx_argument_t, migraphx_argument_destroy> src_argument;
     // Resource<migraphx_argument_t, migraphx_argument_destroy> dst_argument;
@@ -289,7 +316,8 @@ static
 std::expected<InferenceInstance, std::string> create_instance(
     iree_runtime_instance_t * iree_instance,
     const char * module_path,
-    std::array<iree_hal_dim_t, 4> input_shape
+    const std::array<iree_hal_dim_t, 4> & input_shape,
+    const std::optional<std::array<iree_hal_dim_t, 4>> & output_shape
 ) {
 
     const auto set_error = [](const std::string & error_message) {
@@ -341,6 +369,17 @@ std::expected<InferenceInstance, std::string> create_instance(
         &instance.src.d_buffer.data
     ));
 
+    instance.src.h_data = std::make_unique_for_overwrite<uint8_t []>(
+        sizeof(float) * input_shape[0] * input_shape[1] * input_shape[2] * input_shape[3]
+    );
+
+    if (output_shape.has_value()) {
+        const auto & shape = output_shape.value();
+        instance.dst.h_data = std::make_unique_for_overwrite<uint8_t []>(
+            sizeof(float) * shape[0] * shape[1] * shape[2] * shape[3]
+        );
+    }
+
     return instance;
 }
 
@@ -357,6 +396,8 @@ struct vsIREEData {
     TicketSemaphore semaphore;
 
     std::string flexible_output_prop;
+
+    std::string function_name;
 
     [[nodiscard]] int acquire() noexcept {
         semaphore.acquire();
@@ -505,7 +546,7 @@ static const VSFrameRef *VS_CC vsIREEGetFrame(
         iree_runtime_call_t call;
         checkError(iree_runtime_call_initialize_by_name(
             session,
-            iree_make_cstring_view("module.tf2onnx"),
+            iree_make_string_view(d->function_name.c_str(), d->function_name.size()),
             &call
         ));
         auto device = iree_runtime_session_device(session);
@@ -522,29 +563,21 @@ static const VSFrameRef *VS_CC vsIREEGetFrame(
                 int x_crop_end = (x == src_width - src_tile_w) ? 0 : d->overlap_w;
 
                 {
-                    // uint8_t * h_data = instance.src.h_data.data;
-                    // for (const uint8_t * _src_ptr : src_ptrs) {
-                    //     const uint8_t * src_ptr { _src_ptr +
-                    //         y * src_stride + x * vsapi->getFrameFormat(src_frames[0])->bytesPerSample
-                    //     };
+                    uint8_t * h_data = instance.src.h_data.get();
+                    for (const uint8_t * _src_ptr : src_ptrs) {
+                        const uint8_t * src_ptr { _src_ptr +
+                            y * src_stride + x * vsapi->getFrameFormat(src_frames[0])->bytesPerSample
+                        };
 
-                    //     vs_bitblt(
-                    //         h_data, src_tile_w_bytes,
-                    //         src_ptr, src_stride,
-                    //         src_tile_w_bytes, src_tile_h
-                    //     );
+                        vs_bitblt(
+                            h_data, src_tile_w_bytes,
+                            src_ptr, src_stride,
+                            src_tile_w_bytes, src_tile_h
+                        );
 
-                    //     h_data += src_tile_bytes;
-                    // }
+                        h_data += src_tile_bytes;
+                    }
                 }
-
-                // checkHIPError(hipMemcpyAsync(
-                //     instance.src.d_data.data,
-                //     instance.src.h_data.data,
-                //     instance.src.size,
-                //     hipMemcpyHostToDevice,
-                //     instance.stream
-                // ));
 
                 {
                     const iree_hal_dim_t input_shape[4] = {
@@ -555,7 +588,7 @@ static const VSFrameRef *VS_CC vsIREEGetFrame(
                     };
                     checkError(iree_hal_device_transfer_h2d(
                         device,
-                        src_ptrs[0],
+                        instance.src.h_data.get(),
                         instance.src.d_buffer,
                         0,
                         d->src_tile_shape[0] * d->src_tile_shape[1] * 
@@ -584,31 +617,31 @@ static const VSFrameRef *VS_CC vsIREEGetFrame(
                 iree_hal_buffer_map_read(
                     buffer,
                     0,
-                    dst_ptrs[0],
+                    instance.dst.h_data.get(),
                     d->dst_tile_shape[0] * d->dst_tile_shape[1] *
                     d->dst_tile_shape[2] * d->dst_tile_shape[3] * sizeof(float)
                 );
 
                 {
-                    // const uint8_t * h_data = instance.dst.h_data.data;
-                    // auto bytes_per_sample = vsapi->getFrameFormat(dst_frame)->bytesPerSample;
-                    // for (int plane = 0; plane < dst_planes; ++plane) {
-                    //     uint8_t * dst_ptr {
-                    //         dst_ptrs[plane] +
-                    //         h_scale * y * dst_stride + w_scale * x * dst_bytes
-                    //     };
+                    const uint8_t * h_data = instance.dst.h_data.get();
+                    auto bytes_per_sample = vsapi->getFrameFormat(dst_frame)->bytesPerSample;
+                    for (int plane = 0; plane < dst_planes; ++plane) {
+                        uint8_t * dst_ptr {
+                            dst_ptrs[plane] +
+                            h_scale * y * dst_stride + w_scale * x * dst_bytes
+                        };
 
-                    //     vs_bitblt(
-                    //         dst_ptr + (y_crop_start * dst_stride + x_crop_start * bytes_per_sample),
-                    //         dst_stride,
-                    //         h_data + (y_crop_start * dst_tile_w_bytes + x_crop_start * bytes_per_sample),
-                    //         dst_tile_w_bytes,
-                    //         dst_tile_w_bytes - (x_crop_start + x_crop_end) * bytes_per_sample,
-                    //         dst_tile_h - (y_crop_start + y_crop_end)
-                    //     );
+                        vs_bitblt(
+                            dst_ptr + (y_crop_start * dst_stride + x_crop_start * bytes_per_sample),
+                            dst_stride,
+                            h_data + (y_crop_start * dst_tile_w_bytes + x_crop_start * bytes_per_sample),
+                            dst_tile_w_bytes,
+                            dst_tile_w_bytes - (x_crop_start + x_crop_end) * bytes_per_sample,
+                            dst_tile_h - (y_crop_start + y_crop_end)
+                        );
 
-                    //     h_data += dst_tile_bytes;
-                    // }
+                        h_data += dst_tile_bytes;
+                    }
                 }
 
                 if (x + src_tile_w == src_width) {
@@ -911,6 +944,7 @@ static void VS_CC vsIREECreate(
 
     // per-stream context
     d->instances.reserve(num_streams);
+    std::optional<std::array<iree_hal_dim_t, 4>> output_shape {};
     for (int i = 0; i < num_streams; ++i) {
         auto input_shape = std::array{
             static_cast<iree_hal_dim_t>(d->src_tile_shape[0]),
@@ -921,20 +955,37 @@ static void VS_CC vsIREECreate(
         auto result = create_instance(
             iree_instance,
             vsapi->propGetData(in, "module_path", 0, nullptr),
-            input_shape
+            input_shape,
+            output_shape
         );
         if (result.has_value()) {
             d->instances.emplace_back(std::move(result.value()));
+
+            if (i == 0) {
+                auto function_name = get_function_name(d->instances[0].session);
+                if (function_name.has_value()) {
+                    d->function_name = function_name.value();
+                } else {
+                    return set_error(function_name.error());
+                }
+                auto shape = get_output_shape(d->instances[0].session, d->src_tile_shape, d->function_name);
+                if (shape.has_value()) {
+                    d->dst_tile_shape = shape.value();
+                } else {
+                    return set_error(shape.error());
+                }
+                auto tmp = std::array<iree_hal_dim_t, 4>{};
+                for (int j = 0; j < 4; j++) {
+                    tmp[j] = shape.value()[j];
+                }
+                output_shape = tmp;
+                d->instances[0].dst.h_data = std::make_unique_for_overwrite<uint8_t []>(
+                    sizeof(float) * tmp[0] * tmp[1] * tmp[2] * tmp[3]
+                );
+            }
         } else {
             return set_error(result.error());
         }
-    }
-
-    auto shape = get_output_shape(d->instances[0].session, d->src_tile_shape);
-    if (shape.has_value()) {
-        d->dst_tile_shape = shape.value();
-    } else {
-        return set_error(shape.error());
     }
 
     setDimensions(
