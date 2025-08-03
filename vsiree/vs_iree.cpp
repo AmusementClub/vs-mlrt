@@ -2,6 +2,7 @@
 #include <atomic>
 #include <concepts>
 #include <cstdint>
+#include <expected>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -21,13 +22,13 @@
 
 using namespace std::string_literals;
 
-#define checkError(expr) do {                                     \
-    using namespace std::string_literals;                         \
-    iree_status_t status = expr;                                  \
-    if (!iree_status_is_ok(status)) {                             \
-        auto message = iree::Status().ToString(status);           \
-        return set_error("'"s + # expr + "' failed: " + message); \
-    }                                                             \
+#define checkError(expr) do {                                \
+    using namespace std::string_literals;                    \
+    iree_status_t status = expr;                             \
+    if (!iree_status_is_ok(status)) {                        \
+        auto message = iree::Status().ToString(status);      \
+        return set_error("'" # expr "' failed: " + message); \
+    }                                                        \
 } while(0)
 
 static const VSPlugin * myself = nullptr;
@@ -49,7 +50,8 @@ iree_runtime_instance_t * get_iree_instance() {
             iree_status_t status = iree_runtime_instance_create(
                 &instance_options,
                 iree_allocator_system(),
-            &ret);
+                &ret
+            );
             if (iree_status_is_ok(status)) {
                 global_instance.store(ret, std::memory_order_relaxed);
             } else {
@@ -208,6 +210,62 @@ struct Resource {
     }
 };
 
+static
+std::expected<std::array<int, 4>, std::string> get_output_shape(iree_runtime_session_t * session, std::array<int, 4> input_shape) {
+    const auto set_error = [](const std::string & error_message) {
+        return std::unexpected(error_message);
+    };
+
+    iree_runtime_call_t call;
+    checkError(iree_runtime_call_initialize_by_name(
+        session,
+        iree_make_cstring_view("module.tf2onnx"),
+        &call
+    ));
+    auto device = iree_runtime_session_device(session);
+    auto device_allocator = iree_runtime_session_device_allocator(session);
+    const iree_hal_dim_t shape[4] = {
+        static_cast<iree_hal_dim_t>(input_shape[0]),
+        static_cast<iree_hal_dim_t>(input_shape[1]),
+        static_cast<iree_hal_dim_t>(input_shape[2]),
+        static_cast<iree_hal_dim_t>(input_shape[3])
+    };
+    Resource<iree_hal_buffer_view_t *, iree_hal_buffer_view_release> input {};
+    checkError(iree_hal_buffer_view_allocate_buffer_copy(
+        device,
+        device_allocator,
+        IREE_ARRAYSIZE(input_shape),
+        shape,
+        IREE_HAL_ELEMENT_TYPE_FLOAT_32,
+        IREE_HAL_ENCODING_TYPE_DENSE_ROW_MAJOR,
+        (iree_hal_buffer_params_t) {
+            .usage = IREE_HAL_BUFFER_USAGE_DEFAULT,
+            .access = IREE_HAL_MEMORY_ACCESS_ALL,
+            .type = IREE_HAL_MEMORY_TYPE_DEVICE_LOCAL,
+        },
+        iree_const_byte_span_empty(),
+        &input.data
+    ));
+    checkError(iree_runtime_call_inputs_push_back_buffer_view(&call, input));
+
+    checkError(iree_runtime_call_invoke(&call, 0));
+
+    Resource<iree_hal_buffer_view_t *, iree_hal_buffer_view_release> output {};
+    checkError(iree_runtime_call_outputs_pop_front_buffer_view(&call, &output.data));
+
+    if (iree_hal_buffer_view_shape_rank(output) != 4) {
+        return set_error("invalid shape dim");
+    }
+
+    auto dims = iree_hal_buffer_view_shape_dims(output);
+    return std::array{
+        static_cast<int>(dims[0]),
+        static_cast<int>(dims[1]),
+        static_cast<int>(dims[2]),
+        static_cast<int>(dims[3]),
+    };
+}
+
 struct MemoryResource {
     // Resource<uint8_t *, hipHostFree> h_data;
     // Resource<uint8_t *, hipFree> d_data;
@@ -225,6 +283,66 @@ struct InferenceInstance {
     // Resource<migraphx_argument_t, migraphx_argument_destroy> dst_argument;
     // Resource<hipStream_t, hipStreamDestroy> stream;
 };
+
+
+static
+std::expected<InferenceInstance, std::string> create_instance(
+    iree_runtime_instance_t * iree_instance,
+    const char * module_path,
+    std::array<iree_hal_dim_t, 4> input_shape
+) {
+
+    const auto set_error = [](const std::string & error_message) {
+        return std::unexpected(error_message);
+    };
+
+    InferenceInstance instance;
+
+    Resource<iree_hal_device_t *, iree_hal_device_release> device {};
+
+    checkError(iree_runtime_instance_try_create_default_device(
+        iree_instance,
+        iree_make_cstring_view("local-task"),
+        &device.data
+    ));
+
+    iree_runtime_session_options_t session_options;
+    iree_runtime_session_options_initialize(&session_options);
+    checkError(iree_runtime_session_create_with_device(
+        iree_instance,
+        &session_options,
+        device,
+        iree_runtime_instance_host_allocator(iree_instance),
+        &instance.session.data
+    ));
+    checkError(iree_runtime_session_append_bytecode_module_from_file(instance.session, module_path));
+
+    iree_hal_buffer_params_t buffer_params {
+        .usage = IREE_HAL_BUFFER_USAGE_DEFAULT,
+        .access = IREE_HAL_MEMORY_ACCESS_ALL,
+        .type = IREE_HAL_MEMORY_TYPE_DEVICE_LOCAL,
+    };
+    iree_hal_buffer_params_canonicalize(&buffer_params);
+
+    iree_device_size_t allocation_size;
+    checkError(iree_hal_buffer_compute_view_size(
+        IREE_ARRAYSIZE(input_shape),
+        input_shape.data(),
+        IREE_HAL_ELEMENT_TYPE_FLOAT_32,
+        IREE_HAL_ENCODING_TYPE_DENSE_ROW_MAJOR,
+        &allocation_size
+    ));
+
+    auto device_allocator = iree_runtime_session_device_allocator(instance.session);
+    checkError(iree_hal_allocator_allocate_buffer(
+        device_allocator,
+        buffer_params,
+        allocation_size,
+        &instance.src.d_buffer.data
+    ));
+
+    return instance;
+}
 
 struct vsIREEData {
     std::vector<VSNodeRef *> nodes;
@@ -391,7 +509,6 @@ static const VSFrameRef *VS_CC vsIREEGetFrame(
             &call
         ));
         auto device = iree_runtime_session_device(session);
-        auto device_allocator = iree_runtime_session_device_allocator(session);
         auto host_allocator = iree_runtime_session_host_allocator(session);
 
         int y = 0;
@@ -436,7 +553,7 @@ static const VSFrameRef *VS_CC vsIREEGetFrame(
                         static_cast<iree_hal_dim_t>(d->src_tile_shape[2]),
                         static_cast<iree_hal_dim_t>(d->src_tile_shape[3])
                     };
-                    iree_hal_device_transfer_h2d(
+                    checkError(iree_hal_device_transfer_h2d(
                         device,
                         src_ptrs[0],
                         instance.src.d_buffer,
@@ -445,7 +562,7 @@ static const VSFrameRef *VS_CC vsIREEGetFrame(
                         d->src_tile_shape[2] * d->src_tile_shape[3] * sizeof(float),
                         IREE_HAL_TRANSFER_BUFFER_FLAG_DEFAULT,
                         iree_infinite_timeout()
-                    );
+                    ));
                     Resource<iree_hal_buffer_view_t *, iree_hal_buffer_view_release> input;
                     checkError(iree_hal_buffer_view_create(
                         instance.src.d_buffer,
@@ -544,10 +661,6 @@ static void VS_CC vsIREEFree(
     for (const auto & node : d->nodes) {
         vsapi->freeNode(node);
     }
-
-    auto set_error = [](const std::string & error_message) {
-        fprintf(stderr, "%s\n", error_message.c_str());
-    };
 
     delete d;
 }
@@ -787,10 +900,6 @@ static void VS_CC vsIREECreate(
     d->src_tile_shape[1] = numPlanes(in_vis);
     d->src_tile_shape[2] = tile_h;
     d->src_tile_shape[3] = tile_w;
-    d->dst_tile_shape[0] = 1;
-    d->dst_tile_shape[1] = 1;
-    d->dst_tile_shape[2] = 1024;
-    d->dst_tile_shape[3] = 1024;
 
     int num_streams = int64ToIntS(vsapi->propGetInt(in, "num_streams", 0, &error));
     if (error) {
@@ -798,6 +907,34 @@ static void VS_CC vsIREECreate(
     }
     if (num_streams <= 0) {
         return set_error("\"num_streams\" must be positive");
+    }
+
+    // per-stream context
+    d->instances.reserve(num_streams);
+    for (int i = 0; i < num_streams; ++i) {
+        auto input_shape = std::array{
+            static_cast<iree_hal_dim_t>(d->src_tile_shape[0]),
+            static_cast<iree_hal_dim_t>(d->src_tile_shape[1]),
+            static_cast<iree_hal_dim_t>(d->src_tile_shape[2]),
+            static_cast<iree_hal_dim_t>(d->src_tile_shape[3])
+        };
+        auto result = create_instance(
+            iree_instance,
+            vsapi->propGetData(in, "module_path", 0, nullptr),
+            input_shape
+        );
+        if (result.has_value()) {
+            d->instances.emplace_back(std::move(result.value()));
+        } else {
+            return set_error(result.error());
+        }
+    }
+
+    auto shape = get_output_shape(d->instances[0].session, d->src_tile_shape);
+    if (shape.has_value()) {
+        d->dst_tile_shape = shape.value();
+    } else {
+        return set_error(shape.error());
     }
 
     setDimensions(
@@ -809,64 +946,6 @@ static void VS_CC vsIREECreate(
         vsapi,
         !d->flexible_output_prop.empty()
     );
-
-    // // per-stream context
-    d->instances.reserve(num_streams);
-    for (int i = 0; i < num_streams; ++i) {
-        InferenceInstance instance;
-
-        Resource<iree_hal_device_t *, iree_hal_device_release> device {};
-
-        checkError(iree_runtime_instance_try_create_default_device(
-            iree_instance,
-            iree_make_cstring_view("local-task"),
-            &device.data
-        ));
-
-        iree_runtime_session_options_t session_options;
-        iree_runtime_session_options_initialize(&session_options);
-        checkError(iree_runtime_session_create_with_device(
-            iree_instance,
-            &session_options,
-            device,
-            iree_runtime_instance_host_allocator(iree_instance),
-            &instance.session.data
-        ));
-        const char * module_path = vsapi->propGetData(in, "module_path", 0, nullptr);
-        checkError(iree_runtime_session_append_bytecode_module_from_file(instance.session, module_path));
-
-        iree_hal_buffer_params_t buffer_params {
-            .usage = IREE_HAL_BUFFER_USAGE_DEFAULT,
-            .access = IREE_HAL_MEMORY_ACCESS_ALL,
-            .type = IREE_HAL_MEMORY_TYPE_DEVICE_LOCAL,
-        };
-        iree_hal_buffer_params_canonicalize(&buffer_params);
-
-        iree_device_size_t allocation_size;
-        const iree_hal_dim_t input_shape[4] = {
-            static_cast<iree_hal_dim_t>(d->src_tile_shape[0]),
-            static_cast<iree_hal_dim_t>(d->src_tile_shape[1]),
-            static_cast<iree_hal_dim_t>(d->src_tile_shape[2]),
-            static_cast<iree_hal_dim_t>(d->src_tile_shape[3])
-        };
-        checkError(iree_hal_buffer_compute_view_size(
-            IREE_ARRAYSIZE(input_shape),
-            input_shape,
-            IREE_HAL_ELEMENT_TYPE_FLOAT_32,
-            IREE_HAL_ENCODING_TYPE_DENSE_ROW_MAJOR,
-            &allocation_size
-        ));
-
-        auto device_allocator = iree_runtime_session_device_allocator(instance.session);
-        checkError(iree_hal_allocator_allocate_buffer(
-            device_allocator,
-            buffer_params,
-            allocation_size,
-            &instance.src.d_buffer.data
-        ));
-
-        d->instances.emplace_back(std::move(instance));
-    }
 
     d->semaphore.init(num_streams);
     d->tickets.reserve(num_streams);
