@@ -1,4 +1,4 @@
-__version__ = "3.22.20"
+__version__ = "3.22.21"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1762,6 +1762,7 @@ class ArtCNNModel(enum.IntEnum):
     ArtCNN_R8F64_Chroma = 9
     ArtCNN_C4F16 = 10
     ArtCNN_C4F16_DS = 11
+    ArtCNN_R16F96_Chroma = 12
 
 
 def ArtCNN(
@@ -1785,7 +1786,12 @@ def ArtCNN(
     if not isinstance(model, int) or model not in ArtCNNModel.__members__.values():
         raise ValueError(f'{func_name}: invalid "model"')
 
-    if model in (4, 5, 9):
+    if model in (
+        ArtCNNModel.ArtCNN_C4F32_Chroma,
+        ArtCNNModel.ArtCNN_C16F64_Chroma,
+        ArtCNNModel.ArtCNN_R8F64_Chroma,
+        ArtCNNModel.ArtCNN_R16F96_Chroma,
+    ):
         if clip.format.color_family != vs.YUV:
             raise ValueError(f'{func_name}: "clip" must be of YUV color family')
         if clip.format.subsampling_h != 0 or clip.format.subsampling_w != 0:
@@ -1830,7 +1836,12 @@ def ArtCNN(
         f"{model_name}.onnx"
     )
 
-    if model in (4, 5, 9):
+    if model in (
+        ArtCNNModel.ArtCNN_C4F32_Chroma,
+        ArtCNNModel.ArtCNN_C16F64_Chroma,
+        ArtCNNModel.ArtCNN_R8F64_Chroma,
+        ArtCNNModel.ArtCNN_R16F96_Chroma
+    ):
         clip = _expr(clip, ["", "x 0.5 +"])
 
         clip_u, clip_v = flexible_inference_with_fallback(
