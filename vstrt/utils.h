@@ -246,18 +246,14 @@ static inline void VS_CC getDeviceProp(
     setProp("warp_size", prop.warpSize);
     setProp("mem_pitch", prop.memPitch);
     setProp("max_threads_per_block", prop.maxThreadsPerBlock);
-    setProp("clock_rate", prop.clockRate);
     setProp("total_const_mem", prop.totalConstMem);
     setProp("major", prop.major);
     setProp("minor", prop.minor);
     setProp("texture_alignment", prop.textureAlignment);
     setProp("texture_pitch_alignment", prop.texturePitchAlignment);
-    setProp("device_overlap", prop.deviceOverlap);
     setProp("multi_processor_count", prop.multiProcessorCount);
-    setProp("kernel_exec_timeout_enabled", prop.kernelExecTimeoutEnabled);
     setProp("integrated", prop.integrated);
     setProp("can_map_host_memory", prop.canMapHostMemory);
-    setProp("compute_mode", prop.computeMode);
     setProp("concurrent_kernels", prop.concurrentKernels);
     setProp("ecc_enabled", prop.ECCEnabled);
     setProp("pci_bus_id", prop.pciBusID);
@@ -266,7 +262,6 @@ static inline void VS_CC getDeviceProp(
     setProp("tcc_driver", prop.tccDriver);
     setProp("async_engine_count", prop.asyncEngineCount);
     setProp("unified_addressing", prop.unifiedAddressing);
-    setProp("memory_clock_rate", prop.memoryClockRate);
     setProp("memory_bus_width", prop.memoryBusWidth);
     setProp("l2_cache_size", prop.l2CacheSize);
     setProp("persisting_l2_cache_max_size", prop.persistingL2CacheMaxSize);
@@ -280,7 +275,6 @@ static inline void VS_CC getDeviceProp(
     setProp("is_multi_gpu_board", prop.isMultiGpuBoard);
     setProp("multi_gpu_board_group_id", prop.multiGpuBoardGroupID);
     setProp("host_native_atomic_supported", prop.hostNativeAtomicSupported);
-    setProp("single_to_double_precision_perf_ratio", prop.singleToDoublePrecisionPerfRatio);
     setProp("pageable_memory_access", prop.pageableMemoryAccess);
     setProp("conccurrent_managed_access", prop.concurrentManagedAccess);
     setProp("compute_preemption_supported", prop.computePreemptionSupported);
@@ -289,7 +283,6 @@ static inline void VS_CC getDeviceProp(
         prop.canUseHostPointerForRegisteredMem
     );
     setProp("cooperative_launch", prop.cooperativeLaunch);
-    setProp("cooperative_multi_device_launch", prop.cooperativeMultiDeviceLaunch);
     setProp("shared_mem_per_block_optin", prop.sharedMemPerBlockOptin);
     setProp(
         "pageable_memory_access_uses_host_page_tables",
