@@ -1,4 +1,4 @@
-__version__ = "3.22.21"
+__version__ = "3.22.22"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -89,6 +89,7 @@ class Backend:
         verbosity: int = 2
         fp16: bool = False
         fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
+        output_format: int = 0 # 0: fp32, 1: fp16
 
         # internal backend attributes
         supports_onnx_serialization: bool = True
@@ -235,6 +236,7 @@ class Backend:
         verbosity: int = 2
         fp16: bool = False
         fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
+        output_format: int = 0 # 0: fp32, 1: fp16
 
         # internal backend attributes
         supports_onnx_serialization: bool = True
@@ -277,6 +279,7 @@ class Backend:
         fp16: bool = False
         fp16_blacklist_ops: typing.Optional[typing.Sequence[str]] = None
         ml_program: int = 0
+        output_format: int = 0 # 0: fp32, 1: fp16
 
         # internal backend attributes
         supports_onnx_serialization: bool = True
@@ -2675,6 +2678,16 @@ def _inference(
     if flexible_output_prop is not None:
         kwargs["flexible_output_prop"] = flexible_output_prop
 
+    if isinstance(backend, (Backend.ORT_CPU, Backend.ORT_DML, Backend.ORT_COREML, Backend.ORT_CUDA)):
+        version_list = core.ort.Version().get("onnxruntime_version", b"0.0.0").split(b'.')
+        if len(version_list) != 3:
+            version = (0, 0, 0)
+        else:
+            version = tuple(map(int, version_list))
+
+        if version >= (1, 18, 0):
+            kwargs["output_format"] = backend.output_format
+
     if isinstance(backend, Backend.ORT_CPU):
         ret = core.ort.Model(
             clips, network_path,
@@ -2719,7 +2732,6 @@ def _inference(
 
         if version >= (1, 18, 0):
             kwargs["prefer_nhwc"] = backend.prefer_nhwc
-            kwargs["output_format"] = backend.output_format
             kwargs["tf32"] = backend.tf32
 
         ret = core.ort.Model(
