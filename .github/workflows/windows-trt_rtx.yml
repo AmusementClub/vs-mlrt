@@ -54,13 +54,11 @@ jobs:
         curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.9.0/network_installers/cuda_12.9.0_windows_network.exe
         cuda_installer.exe -s nvcc_12.9 cudart_12.9 cuda_profiler_api_12.9
 
-    - name: Checkout TensorRT-RTX
-      uses: actions/checkout@v4
-      with:
-        repository: AmusementClub/cuda
-        token: ${{ secrets.REPO_TOKEN }}
-        ref: tensorrt-rtx-1.0
-        path: tensorrt
+    - name: Download TensorRT-RTX
+      run: |
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/trt/rtx_sdk/secure/1.1/TensorRT-RTX-1.1.1.26.Windows.win10.cuda-12.9.zip
+        unzip trt.zip
+        mv TensorRT-RTX-*/ tensorrt/
 
     - name: Download VapourSynth headers
       run: |
@@ -75,8 +73,8 @@ jobs:
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9"
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
-        -D TENSORRT_HOME="%cd%\..\tensorrt\tensorrt"
-        -D TENSORRT_LIBRARY_SUFFIX="_1_0"
+        -D TENSORRT_HOME="%cd%\tensorrt"
+        -D TENSORRT_LIBRARY_SUFFIX="_1_1"
 
     - name: Build
       run: cmake --build build --config Release --verbose
