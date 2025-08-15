@@ -75,7 +75,9 @@ jobs:
         mv TensorRT-RTX-*/ TensorRT-RTX/
 
     - name: Move TensorRT-RTX library
-      run: mv TensorRT-RTX/* vsmlrt-cuda -v
+      run: |
+        mv TensorRT-RTX/bin/tensorrt_rtx.exe vsmlrt-cuda -v
+        mv TensorRT-RTX/lib/*.dll vsmlrt-cuda -v
 
     - name: Setup VC commands
       uses: ilammy/msvc-dev-cmd@v1
