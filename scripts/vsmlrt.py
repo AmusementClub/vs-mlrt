@@ -1,4 +1,4 @@
-__version__ = "3.22.23"
+__version__ = "3.22.24"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1886,18 +1886,12 @@ def get_engine_path(
     bf16: bool,
     engine_folder: typing.Optional[str],
     is_rtx: bool = False,
+    trt_version: int = 0,
+    device_name: str = "",
 ) -> str:
 
     with open(network_path, "rb") as file:
         checksum = zlib.adler32(file.read())
-
-    trt_version = core.trt.Version()["tensorrt_version"].decode()
-
-    try:
-        device_name = core.trt.DeviceProperties(device_id)["name"].decode()
-        device_name = device_name.replace(' ', '-')
-    except AttributeError:
-        device_name = f"device{device_id}"
 
     if static_shape:
         shape_str = f"{opt_shapes[0]}x{opt_shapes[1]}"
@@ -2000,6 +1994,14 @@ def trtexec(
         tf32 = False
         bf16 = False
 
+    trt_version = core.trt.Version()["tensorrt_version"].decode()
+
+    try:
+        device_name = core.trt.DeviceProperties(device_id)["name"].decode()
+        device_name = device_name.replace(' ', '-')
+    except AttributeError:
+        device_name = f"device{device_id}"
+
     engine_path = get_engine_path(
         network_path=network_path,
         min_shapes=min_shapes,
@@ -2019,6 +2021,8 @@ def trtexec(
         short_path=short_path,
         bf16=bf16,
         engine_folder=engine_folder,
+        trt_version=trt_version,
+        device_name=device_name,
     )
 
     if os.access(engine_path, mode=os.R_OK):
@@ -2375,6 +2379,14 @@ def tensorrt_rtx(
     elif fp16_io:
         raise ValueError('tensorrt_rtx: "fp16" must be True.')
 
+    trt_version = core.trt_rtx.Version()["tensorrt_version"].decode()
+
+    try:
+        device_name = core.trt_rtx.DeviceProperties(device_id)["name"].decode()
+        device_name = device_name.replace(' ', '-')
+    except AttributeError:
+        device_name = f"device{device_id}"
+
     engine_path = get_engine_path(
         network_path=network_path,
         min_shapes=min_shapes,
@@ -2395,6 +2407,8 @@ def tensorrt_rtx(
         bf16=False,
         engine_folder=engine_folder,
         is_rtx=True,
+        trt_version=trt_version,
+        device_name=device_name,
     )
 
     if os.access(engine_path, mode=os.R_OK):
