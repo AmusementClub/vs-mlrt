@@ -1,4 +1,4 @@
-__version__ = "3.22.24"
+__version__ = "3.22.25"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1886,7 +1886,7 @@ def get_engine_path(
     bf16: bool,
     engine_folder: typing.Optional[str],
     is_rtx: bool = False,
-    trt_version: int = 0,
+    trt_version: typing.Tuple[int, int, int] = (0, 0, 0),
     device_name: str = "",
 ) -> str:
 
@@ -1910,7 +1910,7 @@ def get_engine_path(
         (f"_workspace{workspace}" if workspace is not None else "") +
         f"_opt{builder_optimization_level}" +
         (f"_max-aux-streams{max_aux_streams}" if max_aux_streams is not None else "") +
-        f"_trt-{trt_version}" +
+        "_trt-" + '.'.join(map(str, trt_version)) +
         ("_cublas" if use_cublas else "") +
         ("_cudnn" if use_cudnn else "") +
         "_I-" + ("fp32" if input_format == 0 else "fp16") +
@@ -1993,8 +1993,6 @@ def trtexec(
         fp16 = True
         tf32 = False
         bf16 = False
-
-    trt_version = core.trt.Version()["tensorrt_version"].decode()
 
     try:
         device_name = core.trt.DeviceProperties(device_id)["name"].decode()
@@ -2367,7 +2365,7 @@ def tensorrt_rtx(
 ) -> str:
 
     # tensort runtime version
-    # trt_version = parse_trt_version(int(core.trt_rtx.Version()["tensorrt_version"]))
+    trt_version = parse_trt_version(int(core.trt_rtx.Version()["tensorrt_version"]))
 
     if fp16:
         import onnx
@@ -2378,8 +2376,6 @@ def tensorrt_rtx(
         onnx.save(model, network_path) # TODO
     elif fp16_io:
         raise ValueError('tensorrt_rtx: "fp16" must be True.')
-
-    trt_version = core.trt_rtx.Version()["tensorrt_version"].decode()
 
     try:
         device_name = core.trt_rtx.DeviceProperties(device_id)["name"].decode()
