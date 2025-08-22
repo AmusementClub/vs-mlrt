@@ -2374,12 +2374,14 @@ def tensorrt_rtx(
     trt_version = parse_trt_version(int(core.trt_rtx.Version()["tensorrt_version"]))
 
     if fp16:
-        import onnx
-        from onnxconverter_common.float16 import convert_float_to_float16
-        model = onnx.load(network_path)
-        model = convert_float_to_float16(model, keep_io_types=not fp16_io)
-        network_path = f"{network_path}_fp16{'_io' if fp16_io else ''}.onnx"
-        onnx.save(model, network_path) # TODO
+        fp16_network_path = f"{network_path}_fp16{'_io' if fp16_io else ''}.onnx"
+        if not os.access(fp16_network_path, mode=os.R_OK):
+            import onnx
+            from onnxconverter_common.float16 import convert_float_to_float16
+            model = onnx.load(network_path)
+            model = convert_float_to_float16(model, keep_io_types=not fp16_io)
+            onnx.save(model, network_path)
+        network_path = fp16_network_path
     elif fp16_io:
         raise ValueError('tensorrt_rtx: "fp16" must be True.')
 
