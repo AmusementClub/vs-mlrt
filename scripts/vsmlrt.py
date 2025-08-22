@@ -2380,7 +2380,7 @@ def tensorrt_rtx(
             from onnxconverter_common.float16 import convert_float_to_float16
             model = onnx.load(network_path)
             model = convert_float_to_float16(model, keep_io_types=not fp16_io)
-            onnx.save(model, network_path)
+            onnx.save(model, fp16_network_path)
         network_path = fp16_network_path
     elif fp16_io:
         raise ValueError('tensorrt_rtx: "fp16" must be True.')
