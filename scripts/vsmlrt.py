@@ -63,6 +63,12 @@ def get_plugins_path() -> str:
 
     if path == b"":
         try:
+            path = core.trt_rtx.Version()["path"]
+        except AttributeError:
+            pass
+
+    if path == b"":
+        try:
             path = core.migx.Version()["path"]
         except AttributeError:
             pass
