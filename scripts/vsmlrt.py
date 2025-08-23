@@ -1,4 +1,4 @@
-__version__ = "3.22.25"
+__version__ = "3.22.26"
 
 __all__ = [
     "Backend", "BackendV2",
