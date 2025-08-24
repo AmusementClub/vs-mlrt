@@ -1,4 +1,4 @@
-__version__ = "3.22.27"
+__version__ = "3.22.28"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -29,6 +29,7 @@ import sys
 import tempfile
 import time
 import typing
+import warnings
 import zlib
 
 import vapoursynth as vs
@@ -2388,7 +2389,9 @@ def tensorrt_rtx(
             import onnx
             from onnxconverter_common.float16 import convert_float_to_float16
             model = onnx.load(network_path)
-            model = convert_float_to_float16(model, keep_io_types=not fp16_io)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                model = convert_float_to_float16(model, keep_io_types=not fp16_io)
             onnx.save(model, fp16_network_path)
         network_path = fp16_network_path
     elif fp16_io:
