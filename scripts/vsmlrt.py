@@ -1,4 +1,4 @@
-__version__ = "3.22.26"
+__version__ = "3.22.27"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -2374,7 +2374,16 @@ def tensorrt_rtx(
     trt_version = parse_trt_version(int(core.trt_rtx.Version()["tensorrt_version"]))
 
     if fp16:
-        fp16_network_path = f"{network_path}_fp16{'_io' if fp16_io else ''}.onnx"
+        with open(network_path, "rb") as file:
+            checksum = zlib.adler32(file.read())
+
+        dirname, basename = os.path.split(network_path)
+
+        if engine_folder is not None:
+            os.makedirs(engine_folder, exist_ok=True)
+            dirname = engine_folder
+
+        fp16_network_path = f"{os.path.join(dirname, basename)}_{checksum}_fp16{'_io' if fp16_io else ''}.onnx"
         if not os.access(fp16_network_path, mode=os.R_OK):
             import onnx
             from onnxconverter_common.float16 import convert_float_to_float16
