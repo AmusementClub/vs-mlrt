@@ -1,4 +1,4 @@
-__version__ = "3.22.29"
+__version__ = "3.22.30"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -2388,8 +2388,8 @@ def tensorrt_rtx(
         if not os.access(fp16_network_path, mode=os.R_OK):
             import onnx
             try:
-                from modelopt.onnx.autocast import convert_to_mixed_precision
-                model = convert_to_mixed_precision(network_path, keep_io_types=not fp16_io)
+                from modelopt.onnx.autocast import convert_to_f16
+                model = convert_to_f16(network_path, keep_io_types=not fp16_io)
             except Exception:
                 from onnxconverter_common.float16 import convert_float_to_float16
                 model = onnx.load(network_path)
