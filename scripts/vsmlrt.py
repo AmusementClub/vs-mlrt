@@ -1,4 +1,4 @@
-__version__ = "3.22.28"
+__version__ = "3.22.29"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -2387,11 +2387,15 @@ def tensorrt_rtx(
         fp16_network_path = f"{os.path.join(dirname, basename)}_{checksum}_fp16{'_io' if fp16_io else ''}.onnx"
         if not os.access(fp16_network_path, mode=os.R_OK):
             import onnx
-            from onnxconverter_common.float16 import convert_float_to_float16
-            model = onnx.load(network_path)
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                model = convert_float_to_float16(model, keep_io_types=not fp16_io)
+            try:
+                from modelopt.onnx.autocast import convert_to_mixed_precision
+                model = convert_to_mixed_precision(network_path, keep_io_types=not fp16_io)
+            except Exception:
+                from onnxconverter_common.float16 import convert_float_to_float16
+                model = onnx.load(network_path)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    model = convert_float_to_float16(model, keep_io_types=not fp16_io)
             onnx.save(model, fp16_network_path)
         network_path = fp16_network_path
     elif fp16_io:
