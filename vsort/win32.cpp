@@ -24,8 +24,9 @@ static std::vector<std::wstring> cudaDlls {
     L"cufft64",
     // follows the dependency graph in 
     // https://docs.nvidia.com/deeplearning/cudnn/backend/v9.12.0/api/overview.html#backend-api-overview
+    L"cudnn_graph64",
     L"cudnn_engines_precompiled64", L"cudnn_heuristic64", L"cudnn_engines_runtime_compiled64",
-    L"cudnn_graph64", L"cudnn_ops64", L"cudnn_cnn64", L"cudnn_adv64",
+    L"cudnn_ops64", L"cudnn_cnn64", L"cudnn_adv64",
     L"cudnn64",
     L"cupti64",
 };
