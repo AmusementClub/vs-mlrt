@@ -121,10 +121,11 @@ jobs:
         pushd models
         for tag in $(echo "${{ github.event.inputs.model-tags }}" | tr ',' ' '); do
           echo "Handling tag $tag"
-          curl -s https://api.github.com/repos/AmusementClub/vs-mlrt/releases/tags/"$tag" > release.json
+          curl -s -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' https://api.github.com/repos/AmusementClub/vs-mlrt/releases/tags/"$tag" > release.json
+          cat release.json
           for url in $(cat release.json | jq '.assets | .[] | .url ' | tr -d '"'); do
             echo "Downloading $url"
-            curl -o dl.7z -LJ -H 'Accept: application/octet-stream' "$url"
+            curl -o dl.7z -LJ -H 'Accept: application/octet-stream' -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' "$url"
             # later release should overwrite earlier ones
             7za x -y dl.7z
           done

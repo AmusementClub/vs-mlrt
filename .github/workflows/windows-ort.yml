@@ -20,7 +20,7 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-2022
+    runs-on: windows-2025
 
     defaults:
       run:
@@ -39,44 +39,12 @@ jobs:
     - name: Setup Ninja
       run: pip install ninja
 
-    - name: Cache protobuf
-      id: cache-protobuf
-      uses: actions/cache@v4
-      with:
-        path: vsort/protobuf/install
-        key: ${{ runner.os }}-vsort-protobuf-v4
-
-    - name: Checkout protobuf
-      uses: actions/checkout@v4
-      if: steps.cache-protobuf.outputs.cache-hit != 'true'
-      with:
-        repository: protocolbuffers/protobuf
-        # follows protobuf in https://github.com/AmusementClub/onnxruntime/blob/master/cmake/external/onnxruntime_external_deps.cmake#L203
-        # if you change this, remember to bump the version of the cache key.
-        ref: v3.21.12
-        fetch-depth: 1
-        path: vsort/protobuf
-
-    - name: Configure protobuf
-      if: steps.cache-protobuf.outputs.cache-hit != 'true'
-      run: cmake -S protobuf -B protobuf\build_rel -G Ninja -LA
-        -D CMAKE_BUILD_TYPE=Release
-        -D protobuf_BUILD_SHARED_LIBS=OFF  -D protobuf_BUILD_TESTS=OFF
-
-    - name: Build protobuf
-      if: steps.cache-protobuf.outputs.cache-hit != 'true'
-      run: cmake --build protobuf\build_rel --verbose
-
-    - name: Install protobuf
-      if: steps.cache-protobuf.outputs.cache-hit != 'true'
-      run: cmake --install protobuf\build_rel --prefix protobuf\install
-
-    - name: Cache onnx
+    - name: Restore cached onnx
       id: cache-onnx
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: vsort/onnx/install
-        key: ${{ runner.os }}-vsort-onnx-v5
+        key: ${{ runner.os }}-vsort-onnx-v6
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
@@ -85,7 +53,7 @@ jobs:
         repository: onnx/onnx
         # follows onnx in https://github.com/AmusementClub/onnxruntime/tree/master/cmake/external
         # if you change this, remember to bump the version of the cache key.
-        ref: 990217f043af7222348ca8f0301e17fa7b841781
+        ref: v1.19.0
         fetch-depth: 1
         path: vsort/onnx
 
@@ -93,12 +61,11 @@ jobs:
       if: steps.cache-onnx.outputs.cache-hit != 'true'
       run: cmake -S onnx -B onnx\build -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
-        -D Protobuf_PROTOC_EXECUTABLE=protobuf\install\bin\protoc
-        -D Protobuf_LITE_LIBRARY=protobuf\install\lib
-        -D Protobuf_LIBRARIES=protobuf\install\lib
+        -D CMAKE_PREFIX_PATH=%cd%\protobuf\install\lib\cmake
         -D ONNX_USE_LITE_PROTO=ON -D ONNX_USE_PROTOBUF_SHARED_LIBS=OFF
         -D ONNX_GEN_PB_TYPE_STUBS=OFF -D ONNX_ML=0
         -D ONNX_USE_MSVC_STATIC_RUNTIME=1
+        -D ONNX_BUILD_CUSTOM_PROTOBUF=ON
 
     - name: Build onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
@@ -108,6 +75,13 @@ jobs:
       if: steps.cache-onnx.outputs.cache-hit != 'true'
       run: cmake --install onnx\build --prefix onnx\install
 
+    - name: Save onnx
+      if: steps.cache-onnx.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: vsort/onnx/install
+        key: ${{ steps.cache-onnx.outputs.cache-primary-key }}
+
     - name: Download VapourSynth headers
       run: |
         curl -s -o vs.zip -L https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R54.zip
@@ -116,33 +90,39 @@ jobs:
 
     - name: Download ONNX Runtime Precompilation
       run: |
-        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-8036-geb41d57f21-240425-0428/onnxruntime-gpu-win64.zip
+        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-10488-g4754a1d64e-250831-1153/onnxruntime-gpu-win64.zip
         unzip -q ortgpu.zip
 
-    - name: Cache CUDA
+    - name: Restore cached CUDA
       id: cache-cuda
-      uses: actions/cache@v4
+      uses: actions/cache/restore@v4
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-cuda-12.4.1
+        key: ${{ runner.os }}-cuda-12.9.1
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.4.1/network_installers/cuda_12.4.1_windows_network.exe
-        cuda_installer.exe -s nvcc_12.4 cudart_12.4
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.9.1/network_installers/cuda_12.9.1_windows_network.exe
+        cuda_installer.exe -s nvcc_12.9 cudart_12.9
+
+    - name: Save CUDA
+      if: steps.cache-cuda.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
+        key: ${{ steps.cache-cuda.outputs.cache-primary-key }}
 
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_PREFIX_PATH=onnx\install
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D VAPOURSYNTH_INCLUDE_DIRECTORY=vapoursynth\include
-        -D protobuf_DIR=protobuf\install\cmake
-        -D ONNX_DIR=onnx\install\lib\cmake\ONNX
         -D ONNX_RUNTIME_API_DIRECTORY=onnxruntime-gpu\include\onnxruntime
         -D ONNX_RUNTIME_LIB_DIRECTORY=onnxruntime-gpu\lib
         -D ENABLE_CUDA=1
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.4"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9"
         -D ENABLE_DML=1
         -D CMAKE_CXX_STANDARD=20
 
@@ -161,7 +141,7 @@ jobs:
     - name: Download DirectML Library
       # follows DirectML in https://github.com/AmusementClub/onnxruntime/blob/master/cmake/external/dml.cmake#L44
       run: |
-        curl -s -o directml.nupkg -LJO https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/1.14.1
+        curl -s -o directml.nupkg -LJO https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/1.15.4
         unzip -q directml.nupkg -d dml
         copy dml\bin\x64-win\DirectML.dll artifact\vsort\
 
@@ -170,6 +150,12 @@ jobs:
       with:
         name: VSORT-Windows-x64
         path: vsort/artifact
+
+    - name: Describe
+      run: git describe --tags --long
+
+    - name: Dump dependencies
+      run: dumpbin /dependents artifact\vsort.dll
 
     - name: Setup Python portable
       run: |
@@ -199,7 +185,7 @@ jobs:
 
     - name: Create script
       shell: bash
-      run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ort, file=sys.stderr);print(core.ort.Version(),file=sys.stderr);core.std.BlankClip(format=vs.RGBS).ort.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True).resize.Bicubic(format=vs.YUV420P10, matrix_s='709').set_output()" > test.vpy
+      run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ort, file=sys.stderr);print(core.ort.Version(),file=sys.stderr);core.std.BlankClip(format=vs.RGBS).ort.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True, verbosity=4).resize.Bicubic(format=vs.YUV420P10, matrix_s='709').set_output()" > test.vpy
 
     - name: Run vspipe
       shell: bash
@@ -276,12 +262,6 @@ jobs:
         grep -F 'encoded 10 frames' x265.log || exit 2
         grep -i 'error' x265.log && exit 1
         exit 0
-
-    - name: Describe
-      run: git describe --tags --long
-
-    - name: Dump dependencies
-      run: dumpbin /dependents artifact\vsort.dll
 
     - name: Compress artifact for release
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
