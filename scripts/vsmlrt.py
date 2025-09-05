@@ -1,4 +1,4 @@
-__version__ = "3.22.31"
+__version__ = "3.22.32"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -2030,7 +2030,7 @@ def trtexec(
         device_name=device_name,
     )
 
-    if os.access(engine_path, mode=os.R_OK):
+    if os.access(engine_path, mode=os.R_OK) and os.path.getsize(engine_path) >= 1024:
         return engine_path
 
     # do not consider alternative path when the engine_folder is given
@@ -2040,7 +2040,7 @@ def trtexec(
             os.path.splitdrive(engine_path)[1][1:]
         )
 
-        if os.access(alter_engine_path, mode=os.R_OK):
+        if os.access(alter_engine_path, mode=os.R_OK) and os.path.getsize(engine_path) >= 1024:
             return alter_engine_path
 
     try:
@@ -2288,7 +2288,7 @@ def migraphx_driver(
         short_path=short_path
     )
 
-    if os.access(mxr_path, mode=os.R_OK):
+    if os.access(mxr_path, mode=os.R_OK) and os.path.getsize(mxr_path) >= 1024:
         return mxr_path
 
     alter_mxr_path = os.path.join(
@@ -2296,7 +2296,7 @@ def migraphx_driver(
         os.path.splitdrive(mxr_path)[1][1:]
     )
 
-    if os.access(alter_mxr_path, mode=os.R_OK):
+    if os.access(alter_mxr_path, mode=os.R_OK) and os.path.getsize(mxr_path) >= 1024:
         return alter_mxr_path
 
     try:
@@ -2385,7 +2385,7 @@ def tensorrt_rtx(
             dirname = engine_folder
 
         fp16_network_path = f"{os.path.join(dirname, basename)}_{checksum}_fp16{'_io' if fp16_io else ''}.onnx"
-        if not os.access(fp16_network_path, mode=os.R_OK):
+        if not (os.access(fp16_network_path, mode=os.R_OK) and os.path.getsize(fp16_network_path) >= 1024):
             import onnx
             model = onnx.load(network_path)
             try:
@@ -2433,7 +2433,7 @@ def tensorrt_rtx(
         device_name=device_name,
     )
 
-    if os.access(engine_path, mode=os.R_OK):
+    if os.access(engine_path, mode=os.R_OK) and os.path.getsize(engine_path) >= 1024:
         return engine_path
 
     # do not consider alternative path when the engine_folder is given
@@ -2443,7 +2443,7 @@ def tensorrt_rtx(
             os.path.splitdrive(engine_path)[1][1:]
         )
 
-        if os.access(alter_engine_path, mode=os.R_OK):
+        if os.access(alter_engine_path, mode=os.R_OK) and os.path.getsize(engine_path) >= 1024:
             return alter_engine_path
 
     try:
