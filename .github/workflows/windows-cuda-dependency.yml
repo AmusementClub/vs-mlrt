@@ -29,7 +29,7 @@ jobs:
 
     steps:
     - name: Download cuDNN inference library
-      run: curl -LJ https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-9.12.0.46_cuda12-archive.zip -o cudnn.zip
+      run: curl -LJ https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-9.13.0.50_cuda13-archive.zip -o cudnn.zip
 
     - name: Extract cuDNN library
       run: unzip cudnn.zip
@@ -42,7 +42,7 @@ jobs:
 
     - name: Download TensorRT library
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.13.0/zip/TensorRT-10.13.0.35.Windows.win10.cuda-12.9.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.13.3/zip/TensorRT-10.13.3.9.Windows.win10.cuda-13.0.zip
 
     - name: Extract TensorRT library
       run: |
@@ -55,14 +55,14 @@ jobs:
     - name: Download CUDA Libraries
       shell: cmd
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.9.1/network_installers/cuda_12.9.1_windows_network.exe
-        cuda_installer.exe -s cudart_12.9 cublas_12.9 cufft_12.9 cupti_12.9 nvrtc_12.9
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.0.1/network_installers/cuda_13.0.1_windows_network.exe
+        cuda_installer.exe -s cudart_13.0 cublas_13.0 cufft_13.0 cupti_13.0 nvrtc_13.0
 
     - name: Move CUDA Libraries
       shell: cmd
       run: |
-        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
-        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9\bin\*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0\bin\x64\*.dll" vsmlrt-cuda
         del vsmlrt-cuda\cudart32*.dll
 
     - name: Download TensorRT-RTX library
