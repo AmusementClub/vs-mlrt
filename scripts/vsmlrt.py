@@ -1,4 +1,4 @@
-__version__ = "3.22.32"
+__version__ = "3.22.33"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1880,7 +1880,6 @@ def get_engine_path(
     max_shapes: typing.Tuple[int, int],
     workspace: typing.Optional[int],
     fp16: bool,
-    device_id: int,
     use_cublas: bool,
     static_shape: bool,
     tf32: bool,
@@ -2014,7 +2013,6 @@ def trtexec(
         max_shapes=max_shapes,
         workspace=workspace,
         fp16=fp16,
-        device_id=device_id,
         use_cublas=use_cublas,
         static_shape=static_shape,
         tf32=tf32,
@@ -2416,11 +2414,10 @@ def tensorrt_rtx(
         max_shapes=max_shapes,
         workspace=workspace,
         fp16=fp16,
-        device_id=device_id,
         use_cublas=False,
         static_shape=static_shape,
         tf32=False,
-        use_cudnn=False,
+        use_cudnn=use_cudnn,
         input_format=int(fp16_io),
         output_format=int(fp16_io),
         builder_optimization_level=builder_optimization_level,
