@@ -409,16 +409,14 @@ jobs:
         cp scripts-release/*.py release-cuda/
         cd release-cuda
         ls -lR
-        7za a -t7z -bb3 -mx=9 -v2000000000b ../vsmlrt-windows-x64-cuda.7z .
+        7za a -t7z -bb3 -mx=9 -v2147483647b ../vsmlrt-windows-x64-cuda.7z .
 
     - name: Upload CUDA release
       uses: actions/upload-artifact@v4
       if: false
       with:
         name: vsmlrt-cuda-release
-        path: |
-          vsmlrt-windows-x64-cuda.7z.001
-          vsmlrt-windows-x64-cuda.7z.002
+        path: vsmlrt-windows-x64-cuda.7z*
         retention-days: 1
         compression-level: 0
 
@@ -431,9 +429,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.event.inputs.tag }}
-        files: |
-          vsmlrt-windows-x64-cuda.${{ github.event.inputs.tag }}.7z.001
-          vsmlrt-windows-x64-cuda.${{ github.event.inputs.tag }}.7z.002
+        files: vsmlrt-windows-x64-cuda.${{ github.event.inputs.tag }}.7z*
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true
@@ -446,25 +442,27 @@ jobs:
         rm --verbose cublas*.dll cudnn*.dll cufft*.dll cupti*.dll nvblas*.dll
         cd ..
         rm --verbose vsort/onnxruntime_providers_*.dll
-        7za a -t7z -bb3 -mx=9 ../vsmlrt-windows-x64-tensorrt.7z .
+        7za a -t7z -bb3 -mx=9 -v2147483647b ../vsmlrt-windows-x64-tensorrt.7z .
 
     - name: Upload TensorRT release
       uses: actions/upload-artifact@v4
       if: false
       with:
         name: vsmlrt-tensorrt-release
-        path: vsmlrt-windows-x64-tensorrt.7z
+        path: vsmlrt-windows-x64-tensorrt.7z*
         retention-days: 1
         compression-level: 0
 
     - name: Rename release asset for TensorRT release
-      run: mv vsmlrt-windows-x64-tensorrt.7z vsmlrt-windows-x64-tensorrt.${{ github.event.inputs.tag }}.7z
+      run: |
+        mv vsmlrt-windows-x64-tensorrt.7z.001 vsmlrt-windows-x64-tensorrt.${{ github.event.inputs.tag }}.7z.001
+        mv vsmlrt-windows-x64-tensorrt.7z.002 vsmlrt-windows-x64-tensorrt.${{ github.event.inputs.tag }}.7z.002
 
     - name: Release TensorRT
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.event.inputs.tag }}
-        files: vsmlrt-windows-x64-tensorrt.${{ github.event.inputs.tag }}.7z
+        files: vsmlrt-windows-x64-tensorrt.${{ github.event.inputs.tag }}.7z*
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true
