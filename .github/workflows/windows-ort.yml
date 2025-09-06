@@ -90,7 +90,7 @@ jobs:
 
     - name: Download ONNX Runtime Precompilation
       run: |
-        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-10488-g4754a1d64e-250831-1153/onnxruntime-gpu-win64.zip
+        curl -s -o ortgpu.zip -LJO https://github.com/AmusementClub/onnxruntime/releases/download/orttraining_rc2-10525-gecb26fb775-250906-0716/onnxruntime-gpu-win64.zip
         unzip -q ortgpu.zip
 
     - name: Restore cached CUDA
@@ -98,13 +98,13 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-cuda-12.9.1
+        key: ${{ runner.os }}-cuda-13.0.1
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.9.1/network_installers/cuda_12.9.1_windows_network.exe
-        cuda_installer.exe -s nvcc_12.9 cudart_12.9
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.0.1/network_installers/cuda_13.0.1_windows_network.exe
+        cuda_installer.exe -s nvcc_13.0 cudart_13.0 crt_13.0 nvptxcompiler_13.0
 
     - name: Save CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
@@ -122,7 +122,7 @@ jobs:
         -D ONNX_RUNTIME_API_DIRECTORY=onnxruntime-gpu\include\onnxruntime
         -D ONNX_RUNTIME_LIB_DIRECTORY=onnxruntime-gpu\lib
         -D ENABLE_CUDA=1
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0"
         -D ENABLE_DML=1
         -D CMAKE_CXX_STANDARD=20
 
