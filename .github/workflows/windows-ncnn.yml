@@ -12,25 +12,15 @@ on:
         description: 'which tag to upload to'
         required: true
         type: string
-      ncnn_tag:
-        description: 'which tag of ncnn to use'
-        required: true
-        default: 'latest'
-        type: string
   workflow_dispatch:
     inputs:
       tag:
         description: 'which tag to upload to'
         default: ''
-      ncnn_tag:
-        description: 'which tag of ncnn to use'
-        required: true
-        default: 'latest'
-        type: string
 
 jobs:
   build-windows:
-    runs-on: windows-2022
+    runs-on: windows-2025
 
     defaults:
       run:
@@ -39,73 +29,36 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         fetch-depth: 0
 
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Cache protobuf
-      id: cache-protobuf
-      uses: actions/cache@v4
-      with:
-        path: vsncnn/protobuf/install
-        key: ${{ runner.os }}-vsncnn-protobuf-v3.16.0
-
-    - name: Checkout protobuf
-      uses: actions/checkout@v4
-      if: steps.cache-protobuf.outputs.cache-hit != 'true'
-      with:
-        repository: protocolbuffers/protobuf
-        # follows protobuf in https://github.com/onnx/onnx/tree/v1.12.0#windows
-        # if you change this, remember to bump the version of the cache key of protobuf and onnx.
-        ref: v3.16.0
-        path: vsncnn/protobuf
-
-    - name: Configure protobuf
-      if: steps.cache-protobuf.outputs.cache-hit != 'true'
-      run: cmake -S protobuf\cmake -B protobuf\build_rel -G Ninja -LA
-        -D CMAKE_BUILD_TYPE=Release
-        -D protobuf_BUILD_SHARED_LIBS=OFF 
-        -D protobuf_BUILD_TESTS=OFF
-        -D protobuf_MSVC_STATIC_RUNTIME=ON
-        -D CMAKE_POLICY_VERSION_MINIMUM=3.5
-
-    - name: Build protobuf
-      if: steps.cache-protobuf.outputs.cache-hit != 'true'
-      run: cmake --build protobuf\build_rel --verbose
-
-    - name: Install protobuf
-      if: steps.cache-protobuf.outputs.cache-hit != 'true'
-      run: cmake --install protobuf\build_rel --prefix protobuf\install
-
     - name: Cache onnx
       id: cache-onnx
       uses: actions/cache@v4
       with:
         path: vsncnn/onnx/install
-        key: ${{ runner.os }}-vsncnn-onnx-v1.12.0-protobuf-v3.16.0
+        key: ${{ runner.os }}-vsncnn-onnx-v1
 
     - name: Checkout onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
       uses: actions/checkout@v4
       with:
         repository: onnx/onnx
-        ref: v1.12.0
+        ref: v1.19.0
         path: vsncnn/onnx
 
     - name: Configure onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
       run: cmake -S onnx -B onnx\build -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
-        -D Protobuf_PROTOC_EXECUTABLE=protobuf\install\bin\protoc
-        -D Protobuf_LITE_LIBRARY=protobuf\install\lib
-        -D Protobuf_LIBRARIES=protobuf\install\lib
         -D ONNX_USE_LITE_PROTO=ON -D ONNX_USE_PROTOBUF_SHARED_LIBS=OFF
         -D ONNX_GEN_PB_TYPE_STUBS=OFF -D ONNX_ML=0
         -D ONNX_USE_MSVC_STATIC_RUNTIME=1
-        -D CMAKE_POLICY_VERSION_MINIMUM=3.5
+        -D ONNX_BUILD_CUSTOM_PROTOBUF=ON
 
     - name: Build onnx
       if: steps.cache-onnx.outputs.cache-hit != 'true'
@@ -124,34 +77,27 @@ jobs:
     - name: Download NCNN Precompilation
       shell: bash
       run: |
-        rev="${{github.event.inputs.ncnn_tag || inputs.ncnn_tag || 'latest'}}"
-        if [ "$rev" == "latest" ]; then
-          url="https://github.com/AmusementClub/ncnn/releases/latest/download/ncnn-gpu-x64-windows.zip"
-        else
-          url="https://github.com/AmusementClub/ncnn/releases/download/$rev/ncnn-gpu-x64-windows.zip"
-        fi
-        curl -s -o ncnn.zip -LJO "$url"
+        curl -s -o ncnn.zip -LJO https://github.com/AmusementClub/ncnn/releases/download/250919-1038-g86efe80/ncnn-gpu-x64-windows.zip
         unzip -q ncnn.zip
 
     # follows vulkan sdk in https://github.com/AmusementClub/ncnn/blob/github-actions/.github/workflows/windows-x64-gpu.yml
     - name: Setup Vulkan SDK
       shell: pwsh
       run: |
-        Invoke-WebRequest -Uri https://sdk.lunarg.com/sdk/download/1.3.275.0/windows/VulkanSDK-1.3.275.0-Installer.exe?Human=true -OutFile VulkanSDK.exe
+        Invoke-WebRequest -Uri https://sdk.lunarg.com/sdk/download/1.4.321.1/windows/vulkansdk-windows-X64-1.4.321.1.exe?Human=true -OutFile VulkanSDK.exe
         $installer = Start-Process -FilePath VulkanSDK.exe -Wait -PassThru -ArgumentList "--accept-licenses --default-answer --confirm-command install";
         $installer.WaitForExit();
 
     - name: Configure
       run: cmake -S . -B build -G Ninja -LA
         -D CMAKE_BUILD_TYPE=Release
+        -D CMAKE_PREFIX_PATH=onnx\install
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D VAPOURSYNTH_INCLUDE_DIRECTORY=vapoursynth\include
-        -D protobuf_DIR=protobuf\install\cmake
-        -D ONNX_DIR=onnx\install\lib\cmake\ONNX
         -D ncnn_DIR=ncnn\lib\cmake\ncnn
         -D CMAKE_CXX_STANDARD=20
       env:
-        VULKAN_SDK: C:\VulkanSDK\1.3.275.0
+        VULKAN_SDK: C:\VulkanSDK\1.4.321.0
 
     - name: Build
       run: cmake --build build --verbose
