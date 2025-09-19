@@ -697,7 +697,7 @@ static inline void VS_CC getDeviceProp(
     setProp("max_imge_dimension_3d", info.max_image_dimension_3d());
     setProp("timestamp_period", info.timestamp_period());
     setProp("compute_queue_family_index", info.compute_queue_family_index());
-    setProp("graphics_queue_family_index", info.graphics_queue_family_index());
+    // setProp("graphics_queue_family_index", info.graphics_queue_family_index());
     setProp("transfer_queue_family_index", info.transfer_queue_family_index());
     setProp("unified_compute_transfer_queue", info.unified_compute_transfer_queue());
     setProp("subgroup_size", info.subgroup_size());
