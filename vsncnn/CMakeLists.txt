@@ -15,7 +15,14 @@ target_include_directories(vsncnn PRIVATE
     ${ONNX_INCLUDE_DIRS}
 )
 
-target_link_libraries(vsncnn PRIVATE onnx ncnn)
+target_link_libraries(vsncnn PRIVATE ncnn)
+
+# https://github.com/onnx/onnx/commit/21bff4e55dcefecc069c679115baae6b00caa0d5
+if (ONNX_VERSION VERSION_LESS 1.16.0)
+    target_link_libraries(vsncnn PRIVATE onnx)
+else()
+    target_link_libraries(vsncnn PRIVATE ONNX::onnx)
+endif()
 
 set_target_properties(vsncnn PROPERTIES
     POSITION_INDEPENDENT_CODE ON
