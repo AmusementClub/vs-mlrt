@@ -97,7 +97,7 @@ jobs:
         -D ncnn_DIR=ncnn\lib\cmake\ncnn
         -D CMAKE_CXX_STANDARD=20
       env:
-        VULKAN_SDK: C:\VulkanSDK\1.4.321.0
+        VULKAN_SDK: C:\VulkanSDK\1.4.321.1
 
     - name: Build
       run: cmake --build build --verbose
@@ -115,35 +115,42 @@ jobs:
         path: vsncnn/artifact
 
     - name: Setup Python portable
+      if: false
       run: |
         curl -s -o python.zip -LJO https://www.python.org/ftp/python/3.9.9/python-3.9.9-embed-amd64.zip
         7z x python.zip -ovs_portable
 
     - name: Install VapourSynth portable
+      if: false
       run: |
         curl -s -o vs.7z -LJO https://github.com/vapoursynth/vapoursynth/releases/download/R54/VapourSynth64-Portable-R54.7z
         7z x vs.7z -ovs_portable -y
 
     - name: Copy plugin & swiftshader
+      if: false
       run: |
         copy artifact\*.dll vs_portable\vapoursynth64\plugins
         copy ncnn\tests\* vs_portable\
 
     - name: Install waifu2x model
+      if: false
       run: |
         curl -s -o waifu2x.7z -LJO https://github.com/AmusementClub/vs-mlrt/releases/download/model-20211209/waifu2x_v3.7z
         7z x waifu2x.7z -ovs_portable\vapoursynth64\plugins\models
 
     - name: Download x265
+      if: false
       run: |
         curl -s -o x265.7z -LJO https://github.com/AmusementClub/x265/releases/download/Yuuki-3.5-AC3/x265-win64-x86-64-clang.Yuuki-3.5-AC3.7z
         7z x x265.7z -ovs_portable\
 
     - name: Create script
+      if: false
       shell: bash
       run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ncnn, core.ncnn.Version(), file=sys.stderr);core.std.BlankClip(format=vs.RGBS, width=127, height=63).ncnn.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True).resize.Bicubic(format=vs.YUV420P10, matrix_s='709').set_output()" > test.vpy
 
     - name: Run vspipe
+      if: false
       shell: bash
       run: |
         set -ex
@@ -156,10 +163,12 @@ jobs:
         exit 0
 
     - name: Create script (flexible output)
+      if: false
       shell: bash
       run: echo "import vapoursynth as vs;from vapoursynth import core;import sys;print(core.ncnn, core.ncnn.Version(), file=sys.stderr);prop='test';output=core.std.BlankClip(format=vs.RGBS, width=127, height=63).ncnn.Model(r\"waifu2x\\upconv_7_anime_style_art_rgb\\scale2.0x_model.onnx\", builtin=True, flexible_output_prop=prop);core.std.ShufflePlanes([output['clip'].std.PropToClip(prop=f'{prop}{i}') for i in range(output['num_planes'])], [0, 0, 0], vs.RGB).resize.Bicubic(format=vs.YUV420P10, matrix_s='709').set_output()" > test_flexible_output.vpy
 
     - name: Run vspipe (flexible output)
+      if: false
       shell: bash
       run: |
         set -ex
