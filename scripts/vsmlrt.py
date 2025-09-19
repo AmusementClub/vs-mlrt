@@ -1,4 +1,4 @@
-__version__ = "3.22.33"
+__version__ = "3.22.34"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1774,6 +1774,10 @@ class ArtCNNModel(enum.IntEnum):
     ArtCNN_C4F16 = 10
     ArtCNN_C4F16_DS = 11
     ArtCNN_R16F96_Chroma = 12
+    ArtCNN_C4F16_DN = 13
+    ArtCNN_C4F32_DN = 14
+    ArtCNN_R8F64_JPEG420 = 15
+    ArtCNN_R8F64_JPEG444 = 16
 
 
 def ArtCNN(
@@ -1810,6 +1814,12 @@ def ArtCNN(
                 f'{func_name}: "clip" must be without subsampling! '
                 'Bilinear upsampling is recommended.'
             )
+    elif model in (
+        ArtCNNModel.ArtCNN_R8F64_JPEG420,
+        ArtCNNModel.ArtCNN_R8F64_JPEG444,
+    ):
+        if clip.format.color_family != vs.RGB:
+            raise ValueError(f'{func_name}: "clip" must be of YUV color family')
     elif clip.format.color_family != vs.GRAY:
         raise ValueError(f'{func_name}: "clip" must be of GRAY color family')
 
