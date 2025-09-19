@@ -40,8 +40,12 @@ static std::optional<std::string> checkNodes(
 ) noexcept {
 
     for (const auto & vi : vis) {
-        if (vi->format->sampleType != stFloat || vi->format->bitsPerSample != 32) {
-            return "expects clip with type fp32";
+        if (vi->format->sampleType != stFloat) {
+            return "expects clip with floating-point type";
+        }
+        
+        if (vi->format->bitsPerSample != 32 && vi->format->bitsPerSample != 16) {
+            return "expects clip with type fp32 or fp16";
         }
 
         if (vi->width != vis[0]->width || vi->height != vis[0]->height) {
@@ -113,6 +117,7 @@ struct vsNcnnData {
     int out_tile_c, out_tile_w, out_tile_h;
 
     bool fp16;
+    bool fp16_output;
 
     std::vector<Resource> resources;
     std::vector<int> tickets;
@@ -182,6 +187,8 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
         for (const auto & node : d->nodes) {
             in_vis.emplace_back(vsapi->getVideoInfo(node));
         }
+
+        const auto fp16_input = in_vis[0]->format->bitsPerSample == 16;
 
         std::vector<const VSFrameRef *> src_frames;
         src_frames.reserve(std::size(d->nodes));
@@ -287,7 +294,11 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
                 int x_crop_end = (x == src_width - src_tile_w) ? 0 : d->overlap_w;
 
                 {
-                    auto input_buffer = reinterpret_cast<uint8_t *>(d->fp16 ? resource.h_src_fp32.data : resource.h_src.data);
+                    auto input_buffer = reinterpret_cast<uint8_t *>(
+                        d->fp16 && !fp16_input ?
+                        resource.h_src_fp32.data :
+                        resource.h_src.data
+                    );
 
                     // assumes the pitches of ncnn::Mat to be
                     // (cstep * elemsize, w * h * elemsize, h * elemsize)
@@ -302,12 +313,12 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
                                 src_ptr, src_stride,
                                 src_tile_w_bytes, src_tile_h
                             );
-                            input_buffer += resource.h_src.cstep * sizeof(float);
+                            input_buffer += resource.h_src.cstep * in_vis[0]->format->bytesPerSample;
                         }
                     }
                 }
 
-                if (d->fp16) {
+                if (d->fp16 && !fp16_input) {
                     ncnn::cast_float32_to_float16(resource.h_src_fp32, resource.h_src);
                 }
 
@@ -331,12 +342,16 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
                     return set_error("cmd reset failed");
                 }
 
-                if (d->fp16) {
+                if (d->fp16 && !d->fp16_output) {
                     ncnn::cast_float16_to_float32(resource.h_dst, resource.h_dst_fp32);
                 }
 
                 {
-                    auto output_buffer = reinterpret_cast<uint8_t *>(d->fp16 ? resource.h_dst_fp32.data : resource.h_dst.data);
+                    auto output_buffer = reinterpret_cast<uint8_t *>(
+                        d->fp16 && !d->fp16_output ?
+                        resource.h_dst_fp32.data :
+                        resource.h_dst.data
+                    );
 
                     for (int plane = 0; plane < dst_planes; ++plane) {
                         auto dst_ptr = (dst_ptrs[plane] +
@@ -353,7 +368,7 @@ static const VSFrameRef *VS_CC vsNcnnGetFrame(
                                 dst_tile_h - (y_crop_start + y_crop_end)
                             );
 
-                            output_buffer += resource.h_dst.cstep * sizeof(float);
+                            output_buffer += resource.h_dst.cstep * d->out_vi->format->bytesPerSample;
                         }
                     }
                 }
@@ -518,6 +533,9 @@ static void VS_CC vsNcnnCreate(
     if (error) {
         d->fp16 = false;
     }
+    if (!d->fp16 && in_vis[0]->format->bitsPerSample != 32) {
+        return set_error("expects clip with type fp32");
+    }
 
     auto flexible_output_prop = vsapi->propGetData(in, "flexible_output_prop", 0, &error);
     if (!error) {
@@ -528,6 +546,17 @@ static void VS_CC vsNcnnCreate(
     if (error) {
         path_is_serialization = false;
     }
+
+    int output_format = int64ToIntS(vsapi->propGetInt(in, "output_format", 0, &error));
+    if (error) {
+        output_format = 0;
+    }
+    if (output_format != 0 && output_format != 1) {
+        return set_error("\"output_format\" must be 0 or 1");
+    } else if (output_format != 0 && !d->fp16) {
+        return set_error("\"output_format\" must be 0");
+    }
+    d->fp16_output = output_format == 1;
 
     std::string_view path_view;
     std::string path;
@@ -572,9 +601,9 @@ static void VS_CC vsNcnnCreate(
     d->out_vi->width *= d->out_tile_w / d->in_tile_w;
     d->out_vi->height *= d->out_tile_h / d->in_tile_h;
     if (d->out_tile_c == 1 || !d->flexible_output_prop.empty()) {
-        d->out_vi->format = vsapi->registerFormat(cmGray, stFloat, 32, 0, 0, core);
+        d->out_vi->format = vsapi->registerFormat(cmGray, stFloat, output_format == 0 ? 32 : 16, 0, 0, core);
     } else if (d->out_tile_c == 3) {
-        d->out_vi->format = vsapi->registerFormat(cmRGB, stFloat, 32, 0, 0, core);
+        d->out_vi->format = vsapi->registerFormat(cmRGB, stFloat, output_format == 0 ? 32 : 16, 0, 0, core);
     } else {
         return set_error("output dimensions must be 1 or 3, or enable \"flexible_output\"");
     }
@@ -629,8 +658,12 @@ static void VS_CC vsNcnnCreate(
         resource.d_dst.create(d->out_tile_w, d->out_tile_h, d->out_tile_c, bps, resource.blob_vkallocator);
         resource.h_dst.create(d->out_tile_w, d->out_tile_h, d->out_tile_c, bps);
         if (d->fp16) {
-            resource.h_src_fp32.create(d->in_tile_w, d->in_tile_h, d->in_tile_c, sizeof(float));
-            resource.h_dst_fp32.create(d->out_tile_w, d->out_tile_h, d->out_tile_c, sizeof(float));
+            if (in_vis[0]->format->bitsPerSample == 32) {
+                resource.h_src_fp32.create(d->in_tile_w, d->in_tile_h, d->in_tile_c, sizeof(float));
+            }
+            if (d->out_vi->format->bitsPerSample == 32) {
+                resource.h_dst_fp32.create(d->out_tile_w, d->out_tile_h, d->out_tile_c, sizeof(float));
+            }
         }
     }
 
@@ -770,6 +803,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(
         "fp16:int:opt;"
         "path_is_serialization:int:opt;"
         "flexible_output_prop:data:opt;"
+        "output_format:int:opt;"
         , vsNcnnCreate,
         nullptr,
         plugin
