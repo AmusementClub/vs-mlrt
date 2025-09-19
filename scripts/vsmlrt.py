@@ -230,6 +230,7 @@ class Backend:
         fp16: bool = False
         device_id: int = 0
         num_streams: int = 1
+        output_format: int = 0 # 0: fp32, 1: fp16
 
         # internal backend attributes
         supports_onnx_serialization: bool = True
@@ -2722,6 +2723,10 @@ def _inference(
             version = tuple(map(int, version_list))
 
         if version >= (1, 18, 0):
+            kwargs["output_format"] = backend.output_format
+
+    elif isinstance(backend, Backend.NCNN_VK):
+        if "output_format" in core.ncnn.Model.signature:
             kwargs["output_format"] = backend.output_format
 
     if isinstance(backend, Backend.ORT_CPU):
