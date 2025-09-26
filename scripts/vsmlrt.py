@@ -1,4 +1,4 @@
-__version__ = "3.22.34"
+__version__ = "3.22.35"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1819,7 +1819,7 @@ def ArtCNN(
         ArtCNNModel.ArtCNN_R8F64_JPEG444,
     ):
         if clip.format.color_family != vs.RGB:
-            raise ValueError(f'{func_name}: "clip" must be of YUV color family')
+            raise ValueError(f'{func_name}: "clip" must be of RGB color family')
     elif clip.format.color_family != vs.GRAY:
         raise ValueError(f'{func_name}: "clip" must be of GRAY color family')
 
