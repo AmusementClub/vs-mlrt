@@ -24,11 +24,6 @@ on:
         required: true
         default: 'latest'
         type: string
-      ncnn_tag:
-        description: 'which tag of ncnn to use'
-        required: true
-        default: 'latest'
-        type: string
 
 jobs:
   build-vsov:
@@ -60,7 +55,6 @@ jobs:
     uses: ./.github/workflows/windows-ncnn.yml
     with:
       tag: ${{ github.event.inputs.tag }}
-      ncnn_tag: ${{ github.event.inputs.ncnn_tag }}
 
   build-vstrt_rtx:
     uses: ./.github/workflows/windows-trt_rtx.yml
