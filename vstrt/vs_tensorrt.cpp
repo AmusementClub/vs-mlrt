@@ -68,6 +68,8 @@ struct TicketSemaphore {
     }
 };
 
+std::unique_ptr<Logger> logger;
+
 struct vsTrtData {
     std::vector<VSNodeRef *> nodes;
     std::unique_ptr<VSVideoInfo> out_vi;
@@ -77,7 +79,6 @@ struct vsTrtData {
     bool use_cuda_graph;
     int overlap_w, overlap_h;
 
-    Logger logger;
     std::unique_ptr<nvinfer1::IRuntime> runtime;
     std::vector<std::unique_ptr<nvinfer1::ICudaEngine>> engines;
 
@@ -396,7 +397,10 @@ static void VS_CC vsTrtCreate(
     if (error) {
         verbosity = int(nvinfer1::ILogger::Severity::kWARNING);
     }
-    d->logger.set_verbosity(static_cast<nvinfer1::ILogger::Severity>(verbosity));
+    if (!logger) {
+        logger = std::make_unique<Logger>();
+    }
+    logger->set_verbosity(static_cast<nvinfer1::ILogger::Severity>(verbosity));
 
     auto flexible_output_prop = vsapi->propGetData(in, "flexible_output_prop", 0, &error);
     if (!error) {
@@ -406,7 +410,7 @@ static void VS_CC vsTrtCreate(
 #ifdef USE_NVINFER_PLUGIN
     // related to https://github.com/AmusementClub/vs-mlrt/discussions/65, for unknown reason
 #if !(NV_TENSORRT_MAJOR == 9 && defined(_WIN32)) && !defined(TRT_MAJOR_RTX)
-    if (!initLibNvInferPlugins(&d->logger, "")) {
+    if (!initLibNvInferPlugins(logger.get(), "")) {
         vsapi->logMessage(mtWarning, "vstrt: Initialize TensorRT plugins failed");
     }
 #endif
@@ -432,7 +436,7 @@ static void VS_CC vsTrtCreate(
     engine_stream.seekg(0, std::ios::beg);
     engine_stream.read(engine_data.get(), static_cast<std::streamsize>(engine_nbytes));
 
-    d->runtime.reset(nvinfer1::createInferRuntime(d->logger));
+    d->runtime.reset(nvinfer1::createInferRuntime(*logger));
     auto maybe_engine = initEngine(
         engine_data.get(),
         static_cast<size_t>(engine_nbytes),
