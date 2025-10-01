@@ -47,7 +47,6 @@ jobs:
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
         key: ${{ runner.os }}-vstrt-cuda-13.0.1
-        save-always: true
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
