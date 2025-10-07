@@ -2049,7 +2049,7 @@ def trtexec(
             os.path.splitdrive(engine_path)[1][1:]
         )
 
-        if os.access(alter_engine_path, mode=os.R_OK) and os.path.getsize(engine_path) >= 1024:
+        if os.access(alter_engine_path, mode=os.R_OK) and os.path.getsize(alter_engine_path) >= 1024:
             return alter_engine_path
 
     try:
@@ -2451,7 +2451,7 @@ def tensorrt_rtx(
             os.path.splitdrive(engine_path)[1][1:]
         )
 
-        if os.access(alter_engine_path, mode=os.R_OK) and os.path.getsize(engine_path) >= 1024:
+        if os.access(alter_engine_path, mode=os.R_OK) and os.path.getsize(alter_engine_path) >= 1024:
             return alter_engine_path
 
     try:
