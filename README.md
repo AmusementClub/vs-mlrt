@@ -48,6 +48,8 @@ for NVIDIA RTX GPUs, which compiles engines faster with comparable performance w
 
 To install, download the latest release and extract them into your VS `plugins` directory.
 
+To use with the Python wrapper vsmlrt.py, ensure the `onnxconverter-common` Python package is available in your environment.
+
 Please visit the [vstrt](vstrt) directory for details.
 
 ## vsmigx: MIGraphX-based GPU Runtime
