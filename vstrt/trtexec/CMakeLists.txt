@@ -17,14 +17,15 @@ add_executable(trtexec
     ../common/sampleOptions.cpp
     ../common/sampleReporting.cpp
     ../common/sampleUtils.cpp
-    ../utils/fileLock.cpp
-    ../utils/cacheUtils.cpp
+    ../../shared/utils/fileLock.cpp
+    ../../shared/utils/cacheUtils.cpp
 )
 
 target_include_directories(trtexec PRIVATE
     ../common
     ..
     ../../include
+    ../../shared
 )
 
 target_link_libraries(trtexec PRIVATE CUDA::cudart_static)

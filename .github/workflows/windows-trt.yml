@@ -46,17 +46,17 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-vstrt-cuda-13.0.1
+        key: ${{ runner.os }}-vstrt-cuda-13.0.2
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.0.1/network_installers/cuda_13.0.1_windows_network.exe
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.0.2/network_installers/cuda_13.0.2_windows_network.exe
         cuda_installer.exe -s nvcc_13.0 cudart_13.0 cuda_profiler_api_13.0 crt_13.0 nvptxcompiler_13.0
 
     - name: Download TensorRT
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.13.3/zip/TensorRT-10.13.3.9.Windows.win10.cuda-13.0.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.14.1/zip/TensorRT-10.14.1.48.Windows.win10.cuda-13.0.zip
         unzip trt.zip
         mv TensorRT-*/ tensorrt/
 
@@ -87,15 +87,12 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: NVIDIA/TensorRT
-        ref: v10.1.0
+        ref: v10.14
         fetch-depth: 1
         path: tensorrt-oss
 
     - name: Override trtexec CMake file
       run: |
-        cp -f -r -v tensorrt/samples ../tensorrt-oss
-        cp -f -r -v tensorrt/include ../tensorrt-oss
-
         mv trtexec/CMakeLists.txt ../tensorrt-oss/samples/trtexec
         mv trtexec/*.cpp ../tensorrt-oss/samples/trtexec
         mv longpath.manifest ../tensorrt-oss/samples/trtexec
@@ -105,11 +102,11 @@ jobs:
         mv trtexec/trtexec.patch ../tensorrt-oss
         cd ../tensorrt-oss
 
-        copy samples\utils\fileLock.cpp samples\utils\fileLock-utf16le.cpp
-        powershell "Get-Content samples\utils\fileLock-utf16le.cpp | Out-File samples\utils\fileLock.cpp -Encoding ascii"
         git apply trtexec.patch --verbose
-        copy samples\utils\fileLock.cpp samples\utils\fileLock-utf8.cpp
-        powershell "Get-Content samples\utils\fileLock-utf8.cpp | Out-File samples\utils\fileLock.cpp"
+
+    - name: Apply patch2
+      shell: bash
+      run: sed -i 's/fp16 || bf16 || int8 || fp8 || int4 || best/0/g' ../tensorrt-oss/samples/common/sampleOptions.cpp
 
     - name: Configure trtexec
       run: cmake -S ../tensorrt-oss/samples/trtexec -B build_trtexec -G Ninja

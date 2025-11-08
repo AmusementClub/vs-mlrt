@@ -1,7 +1,7 @@
-diff --git a/samples/utils/fileLock.cpp b/samples/utils/fileLock.cpp
+diff --git a/shared/utils/fileLock.cpp b/shared/utils/fileLock.cpp
 index e155c0b..de6bce2 100644
---- a/samples/utils/fileLock.cpp
-+++ b/samples/utils/fileLock.cpp
+--- a/shared/utils/fileLock.cpp
++++ b/shared/utils/fileLock.cpp
 @@ -35,8 +35,11 @@ FileLock::FileLock(ILogger& logger, std::string const& fileName)
          ss << "Trying to set exclusive file lock " << lockFileName << std::endl;
          mLogger.log(ILogger::Severity::kVERBOSE, ss.str().c_str());
