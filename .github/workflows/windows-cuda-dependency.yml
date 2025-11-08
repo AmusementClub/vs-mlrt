@@ -42,7 +42,7 @@ jobs:
 
     - name: Download TensorRT library
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.13.3/zip/TensorRT-10.13.3.9.Windows.win10.cuda-13.0.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.14.1/zip/TensorRT-10.14.1.48.Windows.win10.cuda-13.0.zip
 
     - name: Extract TensorRT library
       run: |
@@ -50,12 +50,12 @@ jobs:
         mv TensorRT-*/ TensorRT/
 
     - name: Move TensorRT library
-      run: mv TensorRT/lib/*.dll vsmlrt-cuda -v
+      run: mv TensorRT/bin/*.dll vsmlrt-cuda -v
 
     - name: Download CUDA Libraries
       shell: cmd
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.0.1/network_installers/cuda_13.0.1_windows_network.exe
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.0.2/network_installers/cuda_13.0.2_windows_network.exe
         cuda_installer.exe -s cudart_13.0 cublas_13.0 cufft_13.0 cupti_13.0 nvrtc_13.0
 
     - name: Move CUDA Libraries
@@ -107,25 +107,26 @@ jobs:
 
     - name: Compress
       run: |
-        7z a -t7z -bb3 -mx=9 vsmlrt-cuda.7z vsmlrt-cuda
+        7z a -t7z -bb3 -mx=9 -v2147483647b vsmlrt-cuda.7z vsmlrt-cuda
 
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
         name: vsmlrt-cuda
-        path: vsmlrt-cuda.7z
+        path: vsmlrt-cuda.7z*
         retention-days: 1
         compression-level: 0
 
     - name: Rename release asset
       run: |
-        mv vsmlrt-cuda.7z vsmlrt-cuda.${{ github.event.inputs.tag}}.7z
+        mv vsmlrt-cuda.7z.001 vsmlrt-cuda.${{ github.event.inputs.tag}}.7z.001
+        mv vsmlrt-cuda.7z.002 vsmlrt-cuda.${{ github.event.inputs.tag}}.7z.002
 
     - name: Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.event.inputs.tag }}
-        files: vsmlrt-cuda.${{ github.event.inputs.tag }}.7z
+        files: vsmlrt-cuda.${{ github.event.inputs.tag }}.7z*
         fail_on_unmatched_files: true
         generate_release_notes: false
         prerelease: true
