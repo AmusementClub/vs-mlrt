@@ -3432,5 +3432,6 @@ def _expr(
 def _pick_frames(clip: vs.VideoNode, indices: typing.List[int]) -> vs.VideoNode:
     try:
         return core.akarin.PickFrames(clip, indices)
-    except vs.Error:
+    # vs.Error raised by missing akarin plugin is already checked before calling this function
+    except AttributeError:
         return clip.std.SelectEvery(cycle=clip.num_frames, offsets=indices)
