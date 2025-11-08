@@ -386,8 +386,8 @@ jobs:
     - name: Extract CUDA libraries
       run: |
         cd cuda-release
-        7za x -bb3 vsmlrt-cuda.7z
-        rm vsmlrt-cuda.7z
+        7za x -bb3 vsmlrt-cuda.7z.001
+        rm vsmlrt-cuda.7z.*
 
     - name: Build CUDA release
       shell: bash
