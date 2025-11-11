@@ -31,7 +31,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         fetch-depth: 0
 
@@ -46,17 +46,17 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-vstrt-cuda-12.9.0
+        key: ${{ runner.os }}-vstrt-cuda-13.0.2
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.9.1/network_installers/cuda_12.9.1_windows_network.exe
-        cuda_installer.exe -s nvcc_12.9 cudart_12.9 cuda_profiler_api_12.9
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.0.2/network_installers/cuda_13.0.2_windows_network.exe
+        cuda_installer.exe -s nvcc_13.0 cudart_13.0 cuda_profiler_api_13.0 crt_13.0 nvptxcompiler_13.0
 
     - name: Download TensorRT-RTX
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/trt/rtx_sdk/secure/1.1/TensorRT-RTX-1.1.1.26.Windows.win10.cuda-12.9.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/trt/rtx_sdk/secure/1.2/TensorRT-RTX-1.2.0.44-win10-amd64-cuda-13.0-Release-external.zip
         unzip trt.zip
         mv TensorRT-RTX-*/ tensorrt/
 
@@ -71,10 +71,10 @@ jobs:
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_CXX_FLAGS="/EHsc /Wall /wd4100 /wd4625 /wd4626 /wd4710 /wd4711 /wd4820 /wd4996 /wd5026 /wd5027"
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0"
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
         -D TENSORRT_HOME="%cd%\tensorrt"
-        -D TENSORRT_LIBRARY_SUFFIX="_1_1"
+        -D TENSORRT_LIBRARY_SUFFIX="_1_2"
 
     - name: Build
       run: cmake --build build --config Release --verbose
@@ -103,7 +103,7 @@ jobs:
       if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
       run: |
         cd artifact
-        7z a -t7z -mx=7 ../../VSTRT-RTX-Windows-x64.${{ github.event.inputs.tag }}.7z .
+        7z a -t7z -mx=9 ../../VSTRT-RTX-Windows-x64.${{ github.event.inputs.tag }}.7z .
 
     - name: Release
       uses: softprops/action-gh-release@v2
