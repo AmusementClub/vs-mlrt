@@ -35,14 +35,14 @@ jobs:
         wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
         sudo dpkg -i cuda-keyring_1.1-1_all.deb
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends cuda-nvcc-12-9 cuda-cudart-dev-12-9
+        sudo apt-get install -y --no-install-recommends cuda-nvcc-13-0 cuda-cudart-dev-13-0
         echo "PATH=/usr/local/cuda/bin${PATH:+:${PATH}}" >> $GITHUB_ENV
         echo "CUDA_PATH=/usr/local/cuda" >> $GITHUB_ENV
         echo "LD_LIBRARY_PATH=/usr/local/cuda/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" >> $GITHUB_ENV
 
     - name: Download TensorRT-RTX
       run: |
-        curl -L -o trt.tar.gz https://developer.nvidia.com/downloads/trt/rtx_sdk/secure/1.1/TensorRT-RTX-1.1.1.26.Linux.x86_64-gnu.cuda-12.9.tar.gz
+        curl -L -o trt.tar.gz https://developer.nvidia.com/downloads/trt/rtx_sdk/secure/1.2/TensorRT-RTX-1.2.0.44-Linux-x86_64-cuda-13.0-Release-external.tar.gz
         tar -xzf trt.tar.gz --verbose
         mv TensorRT-RTX-*/ tensorrt/
 
