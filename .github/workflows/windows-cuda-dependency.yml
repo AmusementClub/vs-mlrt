@@ -67,7 +67,7 @@ jobs:
 
     - name: Download TensorRT-RTX library
       run: |
-        curl -L -o trt-rtx.zip https://developer.nvidia.com/downloads/trt/rtx_sdk/secure/1.1/TensorRT-RTX-1.1.1.26.Windows.win10.cuda-12.9.zip
+        curl -L -o trt-rtx.zip https://developer.nvidia.com/downloads/trt/rtx_sdk/secure/1.2/TensorRT-RTX-1.2.0.44-win10-amd64-cuda-13.0-Release-external.zip
 
     - name: Extract TensorRT-RTX library
       run: |
@@ -77,7 +77,7 @@ jobs:
     - name: Move TensorRT-RTX library
       run: |
         mv TensorRT-RTX/bin/tensorrt_rtx.exe vsmlrt-cuda -v
-        mv TensorRT-RTX/lib/*.dll vsmlrt-cuda -v
+        mv TensorRT-RTX/bin/*.dll vsmlrt-cuda -v
 
     - name: Setup VC commands
       uses: ilammy/msvc-dev-cmd@v1
