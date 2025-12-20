@@ -67,7 +67,7 @@ jobs:
 
     - name: Download TensorRT-RTX library
       run: |
-        curl -L -o trt-rtx.zip https://developer.nvidia.com/downloads/trt/rtx_sdk/secure/1.2/TensorRT-RTX-1.2.0.44-win10-amd64-cuda-13.0-Release-external.zip
+        curl -L -o trt-rtx.zip https://developer.nvidia.com/downloads/trt/rtx_sdk/secure/1.3/TensorRT-RTX-1.3.0.35-win10-amd64-cuda-13.1-Release-external.zip
 
     - name: Extract TensorRT-RTX library
       run: |
