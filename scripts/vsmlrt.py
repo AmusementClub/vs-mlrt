@@ -1,4 +1,4 @@
-__version__ = "3.22.36"
+__version__ = "3.22.37"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -1778,6 +1778,7 @@ class ArtCNNModel(enum.IntEnum):
     ArtCNN_C4F32_DN = 14
     ArtCNN_R8F64_JPEG420 = 15
     ArtCNN_R8F64_JPEG444 = 16
+    ArtCNN_R8F64_Chroma_DN = 17
 
 
 def ArtCNN(
@@ -1806,6 +1807,7 @@ def ArtCNN(
         ArtCNNModel.ArtCNN_C16F64_Chroma,
         ArtCNNModel.ArtCNN_R8F64_Chroma,
         ArtCNNModel.ArtCNN_R16F96_Chroma,
+        ArtCNNModel.ArtCNN_R8F64_Chroma_DN,
     ):
         if clip.format.color_family != vs.YUV:
             raise ValueError(f'{func_name}: "clip" must be of YUV color family')
@@ -1861,7 +1863,8 @@ def ArtCNN(
         ArtCNNModel.ArtCNN_C4F32_Chroma,
         ArtCNNModel.ArtCNN_C16F64_Chroma,
         ArtCNNModel.ArtCNN_R8F64_Chroma,
-        ArtCNNModel.ArtCNN_R16F96_Chroma
+        ArtCNNModel.ArtCNN_R16F96_Chroma,
+        ArtCNNModel.ArtCNN_R8F64_Chroma_DN,
     ):
         clip = _expr(clip, ["", "x 0.5 +"])
 
