@@ -1,4 +1,4 @@
-__version__ = "3.22.37"
+__version__ = "3.22.38"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -263,10 +263,10 @@ class Backend:
         fast_math: bool = True
         exhaustive_tune: bool = False
         num_streams: int = 1
-
         short_path: typing.Optional[bool] = None # True on Windows by default, False otherwise
         custom_env: typing.Dict[str, str] = field(default_factory=lambda: {})
         custom_args: typing.List[str] = field(default_factory=lambda: [])
+        bf16: bool = False
 
         # internal backend attributes
         supports_onnx_serialization: bool = False
@@ -2240,7 +2240,8 @@ def get_mxr_path(
     fast_math: bool,
     exhaustive_tune: bool,
     device_id: int,
-    short_path: typing.Optional[bool]
+    short_path: typing.Optional[bool],
+    bf16: bool,
 ) -> str:
 
     with open(network_path, "rb") as file:
@@ -2259,6 +2260,7 @@ def get_mxr_path(
     identity = (
         shape_str +
         ("_fp16" if fp16 else "") +
+        ("_bf16" if bf16 else "") +
         ("_fast" if fast_math else "") +
         ("_exhaustive" if exhaustive_tune else "") +
         f"_migx-{migx_version}" +
@@ -2284,7 +2286,8 @@ def migraphx_driver(
     input_name: str = "input",
     short_path: typing.Optional[bool] = None,
     custom_env: typing.Dict[str, str] = {},
-    custom_args: typing.List[str] = []
+    custom_args: typing.List[str] = [],
+    bf16: bool = False,
 ) -> str:
 
     if isinstance(opt_shapes, int):
@@ -2297,7 +2300,8 @@ def migraphx_driver(
         fast_math=fast_math,
         exhaustive_tune=exhaustive_tune,
         device_id=device_id,
-        short_path=short_path
+        short_path=short_path,
+        bf16=bf16,
     )
 
     if os.access(mxr_path, mode=os.R_OK) and os.path.getsize(mxr_path) >= 1024:
@@ -2348,6 +2352,10 @@ def migraphx_driver(
 
     if exhaustive_tune:
         args.append("--exhaustive-tune")
+
+    # bf16 support is introduced in ROCm 7.2.0, but the version info from the vsmigx library may not be reliable.
+    if bf16:
+        args.append("--bf16")
 
     args.extend(custom_args)
 
@@ -2941,7 +2949,8 @@ def _inference(
             input_name=input_name,
             short_path=backend.short_path,
             custom_env=backend.custom_env,
-            custom_args=backend.custom_args
+            custom_args=backend.custom_args,
+            bf16=backend.bf16,
         )
         ret = core.migx.Model(
             clips, mxr_path,
