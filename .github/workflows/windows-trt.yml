@@ -31,7 +31,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
@@ -43,20 +43,20 @@ jobs:
 
     - name: Cache CUDA
       id: cache-cuda
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-vstrt-cuda-13.0.2
+        key: ${{ runner.os }}-vstrt-cuda-13.1.1
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.0.2/network_installers/cuda_13.0.2_windows_network.exe
-        cuda_installer.exe -s nvcc_13.0 cudart_13.0 cuda_profiler_api_13.0 crt_13.0 nvptxcompiler_13.0
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.1.1/network_installers/cuda_13.1.1_windows_network.exe
+        cuda_installer.exe -s nvcc_13.1 cudart_13.1 cuda_profiler_api_13.1 crt_13.1 nvptxcompiler_13.1
 
     - name: Download TensorRT
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.14.1/zip/TensorRT-10.14.1.48.Windows.win10.cuda-13.0.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.15.1/zip/TensorRT-10.15.1.29.Windows.amd64.cuda-13.1.zip
         unzip trt.zip
         mv TensorRT-*/ tensorrt/
 
@@ -71,7 +71,7 @@ jobs:
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_CXX_FLAGS="/EHsc /Wall /wd4100 /wd4625 /wd4626 /wd4710 /wd4711 /wd4820 /wd4996 /wd5026 /wd5027"
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.1"
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
         -D TENSORRT_HOME="%cd%\tensorrt"
         -D USE_NVINFER_PLUGIN=ON
@@ -84,10 +84,10 @@ jobs:
       run: cmake --install build --prefix install
 
     - name: Checkout TensorRT OSS
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         repository: NVIDIA/TensorRT
-        ref: v10.14
+        ref: v10.15
         fetch-depth: 1
         path: tensorrt-oss
 
@@ -112,7 +112,7 @@ jobs:
       run: cmake -S ../tensorrt-oss/samples/trtexec -B build_trtexec -G Ninja
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0"
+        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.1"
         -D CMAKE_UNITY_BUILD=ON -D CMAKE_UNITY_BUILD_BATCH_SIZE=0
         -D CMAKE_CXX_STANDARD=20
 
@@ -136,7 +136,7 @@ jobs:
       run: dumpbin /dependents artifact\vstrt.dll
 
     - name: Upload
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: VSTRT-Windows-x64
         path: vstrt/artifact
