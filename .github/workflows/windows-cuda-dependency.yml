@@ -29,7 +29,7 @@ jobs:
 
     steps:
     - name: Download cuDNN inference library
-      run: curl -LJ https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-9.13.0.50_cuda13-archive.zip -o cudnn.zip
+      run: curl -LJ -o cudnn.zip https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-9.19.0.56_cuda13-archive.zip
 
     - name: Extract cuDNN library
       run: unzip cudnn.zip
@@ -37,12 +37,12 @@ jobs:
     - name: Move cuDNN library
       run: |
         mkdir -p vsmlrt-cuda
-        mv cudnn-windows-*/bin/*.dll vsmlrt-cuda/ -v
+        mv cudnn-windows-*/bin/x64/*.dll vsmlrt-cuda/ -v
         # rm vsmlrt-cuda/cudnn_*_train*.dll -v
 
     - name: Download TensorRT library
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.14.1/zip/TensorRT-10.14.1.48.Windows.win10.cuda-13.0.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.15.1/zip/TensorRT-10.15.1.29.Windows.amd64.cuda-13.1.zip
 
     - name: Extract TensorRT library
       run: |
@@ -55,14 +55,14 @@ jobs:
     - name: Download CUDA Libraries
       shell: cmd
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.0.2/network_installers/cuda_13.0.2_windows_network.exe
-        cuda_installer.exe -s cudart_13.0 cublas_13.0 cufft_13.0 cupti_13.0 nvrtc_13.0
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.1.1/network_installers/cuda_13.1.1_windows_network.exe
+        cuda_installer.exe -s cudart_13.1 cublas_13.1 cufft_13.1 cupti_13.1 nvrtc_13.1
 
     - name: Move CUDA Libraries
       shell: cmd
       run: |
-        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
-        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.0\bin\x64\*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.1\extras\CUPTI\lib64\cupti*.dll" vsmlrt-cuda
+        move "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.1\bin\x64\*.dll" vsmlrt-cuda
         del vsmlrt-cuda\cudart32*.dll
 
     - name: Download TensorRT-RTX library
