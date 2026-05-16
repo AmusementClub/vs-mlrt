@@ -1,4 +1,4 @@
-__version__ = "3.22.38"
+__version__ = "3.22.39"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -37,47 +37,16 @@ from vapoursynth import core
 
 
 def get_plugins_path() -> str:
-    path = b""
+    plugin_names = ("ov", "ort", "ncnn", "trt", "trt_rtx", "migx")
 
-    try:
-        path = core.ov.Version()["path"]
-    except AttributeError:
-        pass
-
-    if path == b"":
+    for plugin_name in plugin_names:
         try:
-            path = core.ort.Version()["path"]
+            path = getattr(core, plugin_name).Version()["path"]
+            return os.path.dirname(path).decode()
         except AttributeError:
-            pass
+            continue
 
-    if path == b"":
-        try:
-            path = core.ncnn.Version()["path"]
-        except AttributeError:
-            pass
-
-    if path == b"":
-        try:
-            path = core.trt.Version()["path"]
-        except AttributeError:
-            pass
-
-    if path == b"":
-        try:
-            path = core.trt_rtx.Version()["path"]
-        except AttributeError:
-            pass
-
-    if path == b"":
-        try:
-            path = core.migx.Version()["path"]
-        except AttributeError:
-            pass
-
-    if path == b"":
-        raise RuntimeError("vsmlrt: cannot load any filters")
-
-    return os.path.dirname(path).decode()
+    raise RuntimeError("vsmlrt: cannot load any filters")
 
 
 plugins_path: str = get_plugins_path()
