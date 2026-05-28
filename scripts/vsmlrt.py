@@ -2082,7 +2082,7 @@ def trtexec(
             # do not consider alternative path when the engine_folder is given
             raise PermissionError(f"{engine_path} is not writable")
 
-    if any((fp16, bf16)):
+    if any((fp16, bf16)) and trt_version >= (11, 0, 0):
         target_network_path = f"{engine_path}.onnx"
         convert_model(
             network_path=network_path,
