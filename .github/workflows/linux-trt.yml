@@ -17,7 +17,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
@@ -35,8 +35,8 @@ jobs:
         wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
         sudo dpkg -i cuda-keyring_1.1-1_all.deb
         sudo apt-get update
-        export TRT_VER=10.13.2.6-1+cuda13.0
-        sudo apt-get install -y --no-install-recommends cuda-nvcc-13-0 cuda-cudart-dev-13-0 libnvinfer-dev=${TRT_VER} libnvinfer-headers-dev=${TRT_VER} libnvinfer10=${TRT_VER}
+        export TRT_VER=11.0.0.114-1+cuda13.2
+        sudo apt-get install -y --no-install-recommends cuda-nvcc-13-2 cuda-cudart-dev-13-2 libnvinfer-dev=${TRT_VER} libnvinfer-headers-dev=${TRT_VER} libnvinfer11=${TRT_VER}
         echo "PATH=/usr/local/cuda/bin${PATH:+:${PATH}}" >> $GITHUB_ENV
         echo "CUDA_PATH=/usr/local/cuda" >> $GITHUB_ENV
         echo "LD_LIBRARY_PATH=/usr/local/cuda/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" >> $GITHUB_ENV
@@ -62,7 +62,7 @@ jobs:
       run: git describe --tags --long
 
     - name: Upload
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: VSTRT-Linux-x64
         path: vstrt/artifact
