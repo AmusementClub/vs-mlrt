@@ -1,4 +1,4 @@
-__version__ = "3.23.0"
+__version__ = "3.23.1"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -3119,7 +3119,8 @@ def inference(
     tilesize: typing.Optional[typing.Tuple[int, int]] = None,
     backend: backendT = Backend.OV_CPU(),
     input_name: typing.Optional[str] = "input",
-    batch_size: int = 1 # experimental
+    batch_size: int = 1, # experimental
+    path_is_serialization: bool = False,
 ) -> vs.VideoNode:
 
     if isinstance(clips, vs.VideoNode):
@@ -3139,7 +3140,7 @@ def inference(
         overlap=overlap,
         tilesize=tilesize,
         backend=backend,
-        path_is_serialization=False,
+        path_is_serialization=path_is_serialization,
         input_name=input_name,
         batch_size=batch_size
     )
