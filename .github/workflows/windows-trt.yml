@@ -46,17 +46,17 @@ jobs:
       uses: actions/cache@v5
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-vstrt-cuda-13.2.0
+        key: ${{ runner.os }}-vstrt-cuda-13.2.1
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.2.0/network_installers/cuda_13.2.0_windows_network.exe
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.2.1/network_installers/cuda_13.2.1_windows_network.exe
         cuda_installer.exe -s nvcc_13.2 cudart_13.2 cuda_profiler_api_13.2 crt_13.2 nvptxcompiler_13.2
 
     - name: Download TensorRT
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.16.0/zip/TensorRT-10.16.0.72.Windows.amd64.cuda-13.2.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/11.0.0/zip/TensorRT-Enterprise-11.0.0.114-Windows-amd64-cuda-13.2-Release-external.zip
         unzip trt.zip
         mv TensorRT-*/ tensorrt/
 
@@ -75,7 +75,7 @@ jobs:
         -D VAPOURSYNTH_INCLUDE_DIRECTORY="%cd%\vapoursynth\include"
         -D TENSORRT_HOME="%cd%\tensorrt"
         -D USE_NVINFER_PLUGIN=ON
-        -D TENSORRT_LIBRARY_SUFFIX="_10"
+        -D TENSORRT_LIBRARY_SUFFIX="_11"
 
     - name: Build
       run: cmake --build build --config Release --verbose
@@ -87,7 +87,7 @@ jobs:
       uses: actions/checkout@v6
       with:
         repository: NVIDIA/TensorRT
-        ref: v10.16
+        ref: v11.0
         fetch-depth: 1
         path: tensorrt-oss
 
@@ -103,10 +103,6 @@ jobs:
         cd ../tensorrt-oss
 
         git apply trtexec.patch --verbose
-
-    - name: Apply patch2
-      shell: bash
-      run: sed -i 's/fp16 || bf16 || int8 || fp8 || int4 || best/0/g' ../tensorrt-oss/samples/common/sampleOptions.cpp
 
     - name: Configure trtexec
       run: cmake -S ../tensorrt-oss/samples/trtexec -B build_trtexec -G Ninja
@@ -136,7 +132,7 @@ jobs:
       run: dumpbin /dependents artifact\vstrt.dll
 
     - name: Upload
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: VSTRT-Windows-x64
         path: vstrt/artifact
