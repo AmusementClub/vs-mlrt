@@ -7,6 +7,7 @@ find_package(CUDAToolkit REQUIRED)
 add_executable(trtexec
     $<$<PLATFORM_ID:Windows>: longpath.manifest>
     trtexec.cpp
+    trtexec_main.cpp
     logfile.cpp
     ../common/bfloat16.cpp
     ../common/debugTensorWriter.cpp
