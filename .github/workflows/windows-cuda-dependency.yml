@@ -42,7 +42,7 @@ jobs:
 
     - name: Download TensorRT library
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.16.0/zip/TensorRT-10.16.0.72.Windows.amd64.cuda-13.2.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/11.0.0/zip/TensorRT-Enterprise-11.0.0.114-Windows-amd64-cuda-13.2-Release-external.zip
 
     - name: Extract TensorRT library
       run: |
@@ -55,7 +55,7 @@ jobs:
     - name: Download CUDA Libraries
       shell: cmd
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.2.0/network_installers/cuda_13.2.0_windows_network.exe
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.2.1/network_installers/cuda_13.2.1_windows_network.exe
         cuda_installer.exe -s cudart_13.2 cublas_13.2 cufft_13.2 cupti_13.2 nvrtc_13.2
 
     - name: Move CUDA Libraries
@@ -110,7 +110,7 @@ jobs:
         7z a -t7z -bb3 -mx=9 -v2147483647b vsmlrt-cuda.7z vsmlrt-cuda
 
     - name: Upload
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: vsmlrt-cuda
         path: vsmlrt-cuda.7z*
