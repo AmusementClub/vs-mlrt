@@ -36,7 +36,7 @@ jobs:
         sudo dpkg -i cuda-keyring_1.1-1_all.deb
         sudo apt-get update
         export TRT_VER=11.0.0.114-1+cuda13.2
-        sudo apt-get install -y --no-install-recommends cuda-nvcc-13-2 cuda-cudart-dev-13-2 libnvinfer-dev=${TRT_VER} libnvinfer-headers-dev=${TRT_VER} libnvinfer11=${TRT_VER}
+        sudo apt-get install -y --no-install-recommends cuda-nvcc-13-2 cuda-cudart-dev-13-2 libnvinfer-dev=${TRT_VER} libnvinfer-headers-dev=${TRT_VER} libnvinfer-safe-headers-dev=${TRT_VER} libnvinfer11=${TRT_VER}
         echo "PATH=/usr/local/cuda/bin${PATH:+:${PATH}}" >> $GITHUB_ENV
         echo "CUDA_PATH=/usr/local/cuda" >> $GITHUB_ENV
         echo "LD_LIBRARY_PATH=/usr/local/cuda/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" >> $GITHUB_ENV
