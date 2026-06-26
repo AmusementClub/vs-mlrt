@@ -1,4 +1,4 @@
-__version__ = "3.23.1"
+__version__ = "3.23.2"
 
 __all__ = [
     "Backend", "BackendV2",
@@ -2439,8 +2439,8 @@ def tensorrt_rtx(
                 network_path=network_path,
                 target_network_path=fp16_network_path,
                 fp16=True,
-                input_format=1-fp16_io,
-                output_format=1-fp16_io
+                input_format=int(fp16_io),
+                output_format=int(fp16_io)
             )
         network_path = fp16_network_path
     elif fp16_io:
@@ -2532,10 +2532,11 @@ def tensorrt_rtx(
 
     tactic_sources = []
 
-    if use_cudnn:
-        tactic_sources.append("+CUDNN")
-    else:
-        tactic_sources.append("-CUDNN")
+    if trt_version < (1, 5, 0):
+        if use_cudnn:
+            tactic_sources.append("+CUDNN")
+        else:
+            tactic_sources.append("-CUDNN")
 
     if use_edge_mask_convolutions:
         tactic_sources.append("+EDGE_MASK_CONVOLUTIONS")
