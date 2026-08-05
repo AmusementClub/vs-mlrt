@@ -31,7 +31,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0
 
@@ -43,7 +43,7 @@ jobs:
 
     - name: Cache CUDA
       id: cache-cuda
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
         key: ${{ runner.os }}-vstrt-cuda-13.3.0
@@ -51,12 +51,12 @@ jobs:
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.3.0/network_installers/cuda_13.3.0_windows_network.exe
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/13.3.1/network_installers/cuda_13.3.1_windows_network.exe
         cuda_installer.exe -s nvcc_13.3 cudart_13.3 cuda_profiler_api_13.3 crt_13.3 nvptxcompiler_13.3 nvvm_13.3
 
     - name: Download TensorRT
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/11.1.0/zip/TensorRT-Enterprise-11.1.0.106-Windows-amd64-cuda-13.3-Release-external.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/11.2.1/zip/TensorRT-Enterprise-11.2.1.2-Windows-amd64-cuda-13.3-Release-external.zip
         unzip trt.zip
         mv TensorRT-*/ tensorrt/
 
@@ -85,10 +85,10 @@ jobs:
       run: cmake --install build --prefix install
 
     - name: Checkout TensorRT OSS
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         repository: NVIDIA/TensorRT
-        ref: v11.1
+        ref: v11.2
         fetch-depth: 1
         path: tensorrt-oss
 
