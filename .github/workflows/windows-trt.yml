@@ -116,7 +116,6 @@ jobs:
       run: cmake -S ../tensorrt-oss/samples/trtexec -B build_trtexec -G Ninja
         -D CMAKE_BUILD_TYPE=Release
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-        -D CUDAToolkit_ROOT="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3"
         -D CMAKE_UNITY_BUILD=ON -D CMAKE_UNITY_BUILD_BATCH_SIZE=0
         -D CMAKE_CXX_STANDARD=20
         -D CMAKE_CUDA_ARCHITECTURES="75;86-real;89-real;120-real"
