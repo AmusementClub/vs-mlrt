@@ -46,7 +46,7 @@ jobs:
       uses: actions/cache@v6
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-vstrt-cuda-13.2.0
+        key: ${{ runner.os }}-vstrt-cuda-13.3.1
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
