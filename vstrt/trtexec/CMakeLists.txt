@@ -31,4 +31,6 @@ target_include_directories(trtexec PRIVATE
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
 )
 
+target_compile_definitions(trtexec PRIVATE TRT_BUILD_ONNX_PARSER=1)
+
 install(TARGETS trtexec RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
