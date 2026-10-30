@@ -7,24 +7,24 @@ add_executable(trtexec
     trtexec.cpp
     trtexec_main.cpp
     logfile.cpp
-    ../common/bigInt.cpp
-    ../common/bfloat16.cpp
-    ../common/debugTensorWriter.cpp
-    ../common/globalTimerKernel.cu
-    ../common/logger.cpp
-    ../common/sampleDevice.cpp
-    ../common/sampleEngines.cpp
-    ../common/sampleInference.cpp
-    ../common/sampleOptions.cpp
-    ../common/sampleReporting.cpp
-    ../common/sampleTuning.cpp
-    ../common/sampleUtils.cpp
+    ../trtexecCommon/bfloat16.cpp
+    ../trtexecCommon/bigInt.cpp
+    ../trtexecCommon/debugTensorWriter.cpp
+    ../trtexecCommon/globalTimerKernel.cu
+    ../trtexecCommon/logger.cpp
+    ../trtexecCommon/sampleDevice.cpp
+    ../trtexecCommon/sampleEngines.cpp
+    ../trtexecCommon/sampleInference.cpp
+    ../trtexecCommon/sampleOptions.cpp
+    ../trtexecCommon/sampleReporting.cpp
+    ../trtexecCommon/sampleTuning.cpp
+    ../trtexecCommon/sampleUtils.cpp
     ../../shared/utils/fileLock.cpp
     ../../shared/utils/cacheUtils.cpp
 )
 
 target_include_directories(trtexec PRIVATE
-    ../common
+    ../trtexecCommon
     ..
     ../../include
     ../../shared
