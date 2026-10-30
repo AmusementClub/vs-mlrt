@@ -42,7 +42,7 @@ jobs:
 
     - name: Download TensorRT library
       run: |
-        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/11.3.0/zip/TensorRT-Enterprise-11.3.0.99-Windows-amd64-cuda-13.4-Release-external.zip
+        curl -L -o trt.zip https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/11.4.0/zip/TensorRT-Enterprise-11.4.0.106-Windows-amd64-cuda-13.4-Release-external.zip
 
     - name: Extract TensorRT library
       run: |
@@ -67,7 +67,7 @@ jobs:
 
     - name: Download TensorRT-RTX library
       run: |
-        curl -L -o trt-rtx.zip https://developer.nvidia.com/downloads/trt/rtx_sdk/secure/1.6/TensorRT-RTX-1.6.1.120-Windows-amd64-cuda-13.4-Release-external.zip
+        curl -L -o trt-rtx.zip https://developer.nvidia.com/downloads/trt/rtx_sdk/secure/1.7/tensorrt-rtx-1.7.1.116-windows-amd64-cuda-13.4-release-external.zip
 
     - name: Extract TensorRT-RTX library
       run: |
